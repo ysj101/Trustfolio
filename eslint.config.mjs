@@ -18,10 +18,51 @@ export default tseslint.config(
     plugins: {
       boundaries,
     },
-  },
-  {
+    settings: {
+      "boundaries/elements": [
+        { type: "shared", pattern: "src/shared/**" },
+        { type: "domain", pattern: "src/domain/**" },
+        { type: "usecase", pattern: "src/usecase/**" },
+        { type: "infrastructure", pattern: "src/infrastructure/**" },
+        { type: "presentation", pattern: "src/presentation/**" },
+      ],
+      "boundaries/ignore": ["**/*.test.ts", "**/*.spec.ts"],
+    },
     rules: {
-      // === enum禁止 ===
+      // === レイヤー間依存ルール ===
+      // Domain層: sharedのみ依存可能
+      // UseCase層: domain, sharedのみ依存可能
+      // Infrastructure層: usecase, domain, sharedのみ依存可能
+      // Presentation層: usecase, domain, sharedのみ依存可能
+      "boundaries/element-types": [
+        "error",
+        {
+          default: "disallow",
+          rules: [
+            // shared は外部依存なし（他レイヤーからimportされるのみ）
+            { from: "shared", allow: [] },
+            // domain は shared のみ依存可能
+            { from: "domain", allow: ["shared", "domain"] },
+            // usecase は domain, shared のみ依存可能
+            { from: "usecase", allow: ["shared", "domain", "usecase"] },
+            // infrastructure は usecase, domain, shared のみ依存可能
+            {
+              from: "infrastructure",
+              allow: ["shared", "domain", "usecase", "infrastructure"],
+            },
+            // presentation は usecase, domain, shared のみ依存可能
+            {
+              from: "presentation",
+              allow: ["shared", "domain", "usecase", "presentation"],
+            },
+          ],
+        },
+      ],
+
+      // === typeエイリアスを許可（タグ付きユニオン等で必要） ===
+      "@typescript-eslint/consistent-type-definitions": "off",
+
+      // === enum禁止、throw禁止、class禁止 ===
       "no-restricted-syntax": [
         "error",
         {
@@ -37,20 +78,6 @@ export default tseslint.config(
           selector: "TryStatement",
           message:
             "try/catchは腐敗防止層でのみ許可されます。Result型を使用してください。",
-        },
-      ],
-
-      // === class禁止（原則） ===
-      "no-restricted-syntax": [
-        "error",
-        {
-          selector: "TSEnumDeclaration",
-          message: "enumは禁止です。as constを使用してください。",
-        },
-        {
-          selector: "ThrowStatement",
-          message:
-            "throw文は禁止です。Result型（neverthrow）を使用してください。",
         },
         {
           selector: "ClassDeclaration",
@@ -127,7 +154,16 @@ export default tseslint.config(
           selector: "enumMember",
           format: ["PascalCase"],
         },
+        {
+          // 外部ライブラリのデフォルトインポートは任意の形式を許可
+          selector: "import",
+          format: null,
+        },
       ],
+
+      // === Promise rejection ===
+      // 我々はResult型を使用するため、エラーオブジェクトの代わりにRepositoryError等を使用する
+      "@typescript-eslint/prefer-promise-reject-errors": "off",
     },
   },
   {
