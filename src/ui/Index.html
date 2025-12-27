@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top" />
+    <?!= include('styles'); ?>
+  </head>
+  <body>
+    <div class="app">
+      <header class="hero">
+        <div class="title-block">
+          <p class="eyebrow">GAS Portfolio Console</p>
+          <h1>Trustfolio</h1>
+          <p class="subtitle">投資信託と基準価額をシンプルに記録するための管理画面。</p>
+        </div>
+        <button id="refreshButton" class="ghost">再読み込み</button>
+      </header>
+
+      <main class="grid">
+        <section class="panel">
+          <h2>投資信託</h2>
+          <div class="panel-body">
+            <form id="fundForm" class="form">
+              <label for="fundName">銘柄名</label>
+              <input
+                type="text"
+                id="fundName"
+                name="fundName"
+                placeholder="例: つみたて全世界株式"
+                required
+              />
+              <button type="submit" class="primary">登録</button>
+            </form>
+            <div class="list-block">
+              <h3>銘柄一覧</h3>
+              <ul id="fundList" class="list"></ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>基準価額</h2>
+          <div class="panel-body">
+            <form id="navForm" class="form">
+              <label for="navFundSelect">対象銘柄</label>
+              <select id="navFundSelect" name="navFundSelect"></select>
+              <label for="navDate">日付</label>
+              <input type="date" id="navDate" name="navDate" required />
+              <label for="navValue">基準価額 (円/1万口)</label>
+              <input type="number" id="navValue" name="navValue" min="1" step="1" required />
+              <button type="submit" class="primary">登録</button>
+            </form>
+            <div class="list-block">
+              <h3>履歴</h3>
+              <ul id="navList" class="list"></ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>スポット購入</h2>
+          <div class="panel-body">
+            <form id="transactionForm" class="form">
+              <label for="transactionFundSelect">対象銘柄</label>
+              <select id="transactionFundSelect" name="transactionFundSelect"></select>
+              <label for="transactionDate">購入日</label>
+              <input type="date" id="transactionDate" name="transactionDate" required />
+              <label for="transactionAmount">購入金額 (円)</label>
+              <input
+                type="number"
+                id="transactionAmount"
+                name="transactionAmount"
+                min="1"
+                step="1"
+                required
+              />
+              <label for="transactionFee">手数料 (円)</label>
+              <input type="number" id="transactionFee" name="transactionFee" min="0" step="1" value="0" />
+              <label for="transactionNavValue">適用基準価額 (円/1万口)</label>
+              <input
+                type="number"
+                id="transactionNavValue"
+                name="transactionNavValue"
+                min="1"
+                step="1"
+                required
+              />
+              <button type="submit" class="primary">購入登録</button>
+            </form>
+            <div class="list-block">
+              <h3>取引履歴</h3>
+              <ul id="transactionList" class="list"></ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>積立設定</h2>
+          <div class="panel-body">
+            <form id="recurringForm" class="form">
+              <label for="recurringFundSelect">対象銘柄</label>
+              <select id="recurringFundSelect" name="recurringFundSelect"></select>
+              <label for="recurringMonthlyAmount">月額購入金額 (円)</label>
+              <input
+                type="number"
+                id="recurringMonthlyAmount"
+                name="recurringMonthlyAmount"
+                min="1"
+                step="1"
+                required
+              />
+              <label for="recurringExecutionDay">実行日 (1〜28)</label>
+              <input
+                type="number"
+                id="recurringExecutionDay"
+                name="recurringExecutionDay"
+                min="1"
+                max="28"
+                step="1"
+                required
+              />
+              <label for="recurringStartDate">開始日</label>
+              <input type="date" id="recurringStartDate" name="recurringStartDate" required />
+              <label for="recurringEndDate">終了日 (任意)</label>
+              <input type="date" id="recurringEndDate" name="recurringEndDate" />
+              <label class="checkbox">
+                <input type="checkbox" id="recurringIsActive" name="recurringIsActive" checked />
+                アクティブ
+              </label>
+              <button type="submit" class="primary">設定を追加</button>
+            </form>
+            <div class="list-block">
+              <h3>積立一覧</h3>
+              <ul id="recurringList" class="list"></ul>
+            </div>
+            <div class="list-block">
+              <h3>一括実行</h3>
+              <div class="form-inline">
+                <input type="date" id="recurringTargetDate" name="recurringTargetDate" />
+                <button type="button" id="recurringExecuteButton" class="ghost">実行</button>
+              </div>
+              <ul id="recurringResultList" class="list"></ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>保有情報</h2>
+          <div class="panel-body">
+            <div class="list-block">
+              <h3>保有一覧</h3>
+              <ul id="holdingList" class="list"></ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>ポートフォリオ</h2>
+          <div class="panel-body">
+            <div class="summary-card">
+              <div>
+                <p class="summary-label">投資総額</p>
+                <p id="portfolioInvestment" class="summary-value">-</p>
+              </div>
+              <div>
+                <p class="summary-label">評価額</p>
+                <p id="portfolioValue" class="summary-value">-</p>
+              </div>
+              <div>
+                <p class="summary-label">含み損益</p>
+                <p id="portfolioGain" class="summary-value">-</p>
+              </div>
+              <div>
+                <p class="summary-label">損益率</p>
+                <p id="portfolioGainRate" class="summary-value">-</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <aside id="message" class="message" role="status" aria-live="polite"></aside>
+    </div>
+
+    <?!= include('scripts'); ?>
+  </body>
+</html>
