@@ -1,0 +1,19 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pnpm lint --quiet 2>&1 || echo '[Hook] Lint failed'"
+          },
+          {
+            "type": "command",
+            "command": "pnpm test:run 2>&1 || echo '[Hook] Test failed'"
+          }
+        ]
+      }
+    ]
+  }
+}
