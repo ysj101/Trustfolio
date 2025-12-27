@@ -37,6 +37,20 @@ function copyUiFiles() {
   };
 }
 
+function copyManifest() {
+  return {
+    name: 'copy-manifest',
+    buildEnd() {
+      const srcPath = path.join(__dirname, 'appsscript.json');
+      const distPath = path.join(__dirname, 'dist', 'appsscript.json');
+      if (!fs.existsSync(srcPath)) {
+        return;
+      }
+      fs.copyFileSync(srcPath, distPath);
+    }
+  };
+}
+
 function copyDirectory(source, destination) {
   if (!fs.existsSync(destination)) {
     fs.mkdirSync(destination, { recursive: true });
@@ -65,6 +79,7 @@ module.exports = {
     typescript({
       tsconfig: './tsconfig.json'
     }),
-    copyUiFiles()
+    copyUiFiles(),
+    copyManifest()
   ]
 };
