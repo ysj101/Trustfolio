@@ -154,13 +154,17 @@ describe("基準価額ユースケース結合テスト", () => {
       const output = result._unsafeUnwrap();
       expect(output.navs).toHaveLength(3);
       // 日付降順であること
-      const [nav0, nav1, nav2] = output.navs;
-      expect(nav0).toBeDefined();
-      expect(nav1).toBeDefined();
-      expect(nav2).toBeDefined();
-      expect(navDateValue(nav0.date)).toBe("2024-03-15");
-      expect(navDateValue(nav1.date)).toBe("2024-03-14");
-      expect(navDateValue(nav2.date)).toBe("2024-03-13");
+      const navs = output.navs;
+      expect(navs[0]).toBeDefined();
+      expect(navs[1]).toBeDefined();
+      expect(navs[2]).toBeDefined();
+      // 上記のexpectでundefinedでないことを確認済みなので安全にアクセス可能
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      expect(navDateValue(navs[0]!.date)).toBe("2024-03-15");
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      expect(navDateValue(navs[1]!.date)).toBe("2024-03-14");
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      expect(navDateValue(navs[2]!.date)).toBe("2024-03-13");
     });
 
     it("件数制限付きで取得できる", async () => {
@@ -172,11 +176,14 @@ describe("基準価額ユースケース結合テスト", () => {
       const output = result._unsafeUnwrap();
       expect(output.navs).toHaveLength(2);
       // 最新2件のみ
-      const [nav0, nav1] = output.navs;
-      expect(nav0).toBeDefined();
-      expect(nav1).toBeDefined();
-      expect(navDateValue(nav0.date)).toBe("2024-03-15");
-      expect(navDateValue(nav1.date)).toBe("2024-03-14");
+      const navs = output.navs;
+      expect(navs[0]).toBeDefined();
+      expect(navs[1]).toBeDefined();
+      // 上記のexpectでundefinedでないことを確認済みなので安全にアクセス可能
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      expect(navDateValue(navs[0]!.date)).toBe("2024-03-15");
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      expect(navDateValue(navs[1]!.date)).toBe("2024-03-14");
     });
 
     it("存在しない投資信託にはエラーを返す", async () => {

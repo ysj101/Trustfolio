@@ -75,4 +75,40 @@ export function runMigrations(db: DatabaseConnection): void {
   db.run(`
     CREATE INDEX IF NOT EXISTS navs_fund_date_idx ON navs(fund_id, date)
   `);
+
+  // recurring_purchasesテーブル作成
+  db.run(`
+    CREATE TABLE IF NOT EXISTS recurring_purchases (
+      id TEXT PRIMARY KEY,
+      fund_id TEXT NOT NULL REFERENCES funds(id),
+      monthly_amount INTEGER NOT NULL,
+      execution_day INTEGER NOT NULL,
+      start_date TEXT NOT NULL,
+      end_date TEXT,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL
+    )
+  `);
+
+  // transactionsテーブル作成
+  db.run(`
+    CREATE TABLE IF NOT EXISTS transactions (
+      id TEXT PRIMARY KEY,
+      fund_id TEXT NOT NULL REFERENCES funds(id),
+      type TEXT NOT NULL,
+      date TEXT NOT NULL,
+      amount INTEGER NOT NULL,
+      fee INTEGER NOT NULL,
+      nav_value INTEGER NOT NULL,
+      units INTEGER NOT NULL,
+      recurring_purchase_id TEXT REFERENCES recurring_purchases(id),
+      idempotency_key TEXT UNIQUE,
+      created_at INTEGER NOT NULL
+    )
+  `);
+
+  // transactionsのインデックス作成
+  db.run(`
+    CREATE INDEX IF NOT EXISTS transactions_fund_date_idx ON transactions(fund_id, date)
+  `);
 }
