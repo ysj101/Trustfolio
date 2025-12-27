@@ -1,9 +1,7 @@
 /**
  * 成功・失敗を明示する結果型。
  */
-export type Result<T> =
-  | { success: true; value: T }
-  | { success: false; error: AppError };
+export type Result<T> = { success: true; value: T } | { success: false; error: AppError };
 
 /**
  * APIで返却するエラー情報。

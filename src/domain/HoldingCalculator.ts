@@ -40,7 +40,7 @@ export function calculateHolding(
       currentNavDate: null,
       currentValue: null,
       unrealizedGain: null,
-      unrealizedGainRate: null
+      unrealizedGainRate: null,
     };
   }
 
@@ -59,7 +59,7 @@ export function calculateHolding(
     currentNavDate: latestNav.date,
     currentValue,
     unrealizedGain,
-    unrealizedGainRate
+    unrealizedGainRate,
   };
 }
 
@@ -89,20 +89,18 @@ export function calculatePortfolio(holdings: Holding[]): {
       totalInvestment,
       totalCurrentValue: null,
       totalUnrealizedGain: null,
-      totalUnrealizedGainRate: null
+      totalUnrealizedGainRate: null,
     };
   }
 
   const totalUnrealizedGain = totalCurrentValue - totalInvestment;
   const totalUnrealizedGainRate =
-    totalInvestment > 0
-      ? Math.round((totalUnrealizedGain / totalInvestment) * 10000) / 10000
-      : 0;
+    totalInvestment > 0 ? Math.round((totalUnrealizedGain / totalInvestment) * 10000) / 10000 : 0;
 
   return {
     totalInvestment,
     totalCurrentValue,
     totalUnrealizedGain,
-    totalUnrealizedGainRate
+    totalUnrealizedGainRate,
   };
 }

@@ -10,25 +10,33 @@ export function calculateUnits(amount: number, fee: number, navValue: number): R
   if (amount <= 0) {
     return {
       success: false,
-      error: { type: 'validation', message: '購入金額は0より大きい必要があります。', field: 'amount' }
+      error: {
+        type: 'validation',
+        message: '購入金額は0より大きい必要があります。',
+        field: 'amount',
+      },
     };
   }
   if (fee < 0) {
     return {
       success: false,
-      error: { type: 'validation', message: '手数料は0以上で入力してください。', field: 'fee' }
+      error: { type: 'validation', message: '手数料は0以上で入力してください。', field: 'fee' },
     };
   }
   if (fee >= amount) {
     return {
       success: false,
-      error: { type: 'validation', message: '手数料が購入金額を超えています。', field: 'fee' }
+      error: { type: 'validation', message: '手数料が購入金額を超えています。', field: 'fee' },
     };
   }
   if (navValue <= 0) {
     return {
       success: false,
-      error: { type: 'validation', message: '基準価額は0より大きい必要があります。', field: 'navValue' }
+      error: {
+        type: 'validation',
+        message: '基準価額は0より大きい必要があります。',
+        field: 'navValue',
+      },
     };
   }
 
@@ -39,8 +47,8 @@ export function calculateUnits(amount: number, fee: number, navValue: number): R
       error: {
         type: 'validation',
         message: '計算された口数が0以下です。購入金額を見直してください。',
-        field: 'amount'
-      }
+        field: 'amount',
+      },
     };
   }
 

@@ -49,8 +49,8 @@ export function createTransactionRepository(
           transaction.units,
           transaction.recurringPurchaseId ?? '',
           transaction.idempotencyKey ?? '',
-          transaction.createdAt
-        ]
+          transaction.createdAt,
+        ],
       ]);
     },
     findByIdempotencyKey: (idempotencyKey: string): Result<Transaction | null> => {
@@ -70,7 +70,7 @@ export function createTransactionRepository(
       }
 
       return { success: true, value: null };
-    }
+    },
   };
 
   return repository;
@@ -88,7 +88,7 @@ function parseRow(row: unknown[], index: number): Result<Transaction> {
     units,
     recurringPurchaseId,
     idempotencyKey,
-    createdAt
+    createdAt,
   ] = row;
 
   if (typeof id !== 'string' || id === '') {
@@ -132,8 +132,8 @@ function parseRow(row: unknown[], index: number): Result<Transaction> {
       units,
       recurringPurchaseId: normalizeOptionalString(recurringPurchaseId),
       idempotencyKey: normalizeOptionalString(idempotencyKey),
-      createdAt
-    }
+      createdAt,
+    },
   };
 }
 

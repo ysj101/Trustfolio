@@ -19,7 +19,10 @@ export function doPost(e: GoogleAppsScript.Events.DoPost): GoogleAppsScript.Cont
   if (contents.length === 0) {
     return createJsonResponse({
       success: false,
-      error: { type: 'validation', message: 'POSTデータが空です。JSONリクエストを送信してください。' }
+      error: {
+        type: 'validation',
+        message: 'POSTデータが空です。JSONリクエストを送信してください。',
+      },
     });
   }
 
@@ -33,9 +36,7 @@ export function doPost(e: GoogleAppsScript.Events.DoPost): GoogleAppsScript.Cont
  */
 export function onOpen(): void {
   const ui = SpreadsheetApp.getUi();
-  ui.createMenu('Trustfolio')
-    .addItem('シート初期化', 'initializeSheets')
-    .addToUi();
+  ui.createMenu('Trustfolio').addItem('シート初期化', 'initializeSheets').addToUi();
 }
 
 /**

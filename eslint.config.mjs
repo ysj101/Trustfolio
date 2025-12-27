@@ -1,11 +1,14 @@
 import eslint from "@eslint/js";
 import tseslint from "typescript-eslint";
 import boundaries from "eslint-plugin-boundaries";
+import prettier from "eslint-plugin-prettier";
+import prettierConfig from "eslint-config-prettier";
 
 export default tseslint.config(
   eslint.configs.recommended,
   ...tseslint.configs.strictTypeChecked,
   ...tseslint.configs.stylisticTypeChecked,
+  prettierConfig,
   {
     languageOptions: {
       parserOptions: {
@@ -17,6 +20,7 @@ export default tseslint.config(
   {
     plugins: {
       boundaries,
+      prettier,
     },
     settings: {
       "boundaries/elements": [
@@ -161,6 +165,9 @@ export default tseslint.config(
       // === Promise rejection ===
       // 我々はResult型を使用するため、エラーオブジェクトの代わりにRepositoryError等を使用する
       "@typescript-eslint/prefer-promise-reject-errors": "off",
+
+      // === Prettier ===
+      "prettier/prettier": "error",
     },
   },
   {

@@ -22,7 +22,7 @@ export function createHoldingUseCase(
       if (typeof fundId !== 'string' || fundId.trim() === '') {
         return {
           success: false,
-          error: { type: 'validation', message: '銘柄を選択してください。', field: 'fundId' }
+          error: { type: 'validation', message: '銘柄を選択してください。', field: 'fundId' },
         };
       }
 
@@ -33,7 +33,7 @@ export function createHoldingUseCase(
       if (!fundResult.value) {
         return {
           success: false,
-          error: { type: 'not_found', message: '対象の銘柄が存在しません。', field: 'fundId' }
+          error: { type: 'not_found', message: '対象の銘柄が存在しません。', field: 'fundId' },
         };
       }
 
@@ -76,6 +76,6 @@ export function createHoldingUseCase(
       }
 
       return { success: true, value: holdings };
-    }
+    },
   };
 }

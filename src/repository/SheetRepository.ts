@@ -76,7 +76,7 @@ function createSheetRepository(
 
       sheet.getRange(startRow, 1, rows.length, columnCount).setValues(rows);
       return { success: true, value: undefined };
-    }
+    },
   };
 
   return repository;
@@ -105,13 +105,15 @@ function ensureHeader(
     .map((expected, index) => ({
       expected,
       actual: String(actualHeaders[index] ?? ''),
-      index
+      index,
     }))
     .filter((item) => item.expected !== item.actual);
 
   if (mismatches.length > 0) {
     const detail = mismatches
-      .map((item) => `${String(item.index + 1)}列目 expected=${item.expected} actual=${item.actual}`)
+      .map(
+        (item) => `${String(item.index + 1)}列目 expected=${item.expected} actual=${item.actual}`
+      )
       .join(', ');
     return fail('unexpected', `シートヘッダーが一致しません: ${sheetName}. ${detail}`);
   }
