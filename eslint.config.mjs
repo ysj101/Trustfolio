@@ -20,41 +20,33 @@ export default tseslint.config(
     },
     settings: {
       "boundaries/elements": [
-        { type: "shared", pattern: "src/shared/**" },
         { type: "domain", pattern: "src/domain/**" },
         { type: "usecase", pattern: "src/usecase/**" },
-        { type: "infrastructure", pattern: "src/infrastructure/**" },
-        { type: "presentation", pattern: "src/presentation/**" },
+        { type: "repository", pattern: "src/repository/**" },
+        { type: "api", pattern: "src/api/**" },
+        { type: "ui", pattern: "src/ui/**" },
+        { type: "utils", pattern: "src/utils/**" },
       ],
       "boundaries/ignore": ["**/*.test.ts", "**/*.spec.ts"],
     },
     rules: {
       // === レイヤー間依存ルール ===
-      // Domain層: sharedのみ依存可能
-      // UseCase層: domain, sharedのみ依存可能
-      // Infrastructure層: usecase, domain, sharedのみ依存可能
-      // Presentation層: usecase, domain, sharedのみ依存可能
+      // Domain層: utilsのみ依存可能
+      // UseCase層: domain, repository, utilsのみ依存可能
+      // Repository層: domain, utilsのみ依存可能
+      // API層: usecase, domain, repository, utilsのみ依存可能
+      // UI層: apiのみ依存可能
       "boundaries/element-types": [
         "error",
         {
           default: "disallow",
           rules: [
-            // shared は外部依存なし（他レイヤーからimportされるのみ）
-            { from: "shared", allow: [] },
-            // domain は shared のみ依存可能
-            { from: "domain", allow: ["shared", "domain"] },
-            // usecase は domain, shared のみ依存可能
-            { from: "usecase", allow: ["shared", "domain", "usecase"] },
-            // infrastructure は usecase, domain, shared のみ依存可能
-            {
-              from: "infrastructure",
-              allow: ["shared", "domain", "usecase", "infrastructure"],
-            },
-            // presentation は usecase, domain, shared のみ依存可能
-            {
-              from: "presentation",
-              allow: ["shared", "domain", "usecase", "presentation"],
-            },
+            { from: "domain", allow: ["domain", "utils"] },
+            { from: "usecase", allow: ["usecase", "domain", "repository", "utils"] },
+            { from: "repository", allow: ["repository", "domain", "utils"] },
+            { from: "api", allow: ["api", "usecase", "domain", "repository", "utils"] },
+            { from: "ui", allow: ["ui", "api"] },
+            { from: "utils", allow: ["utils"] },
           ],
         },
       ],
@@ -172,6 +164,11 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ["dist/**", "node_modules/**", "coverage/**", "web/**", "*.config.*"],
+    ignores: [
+      "dist/**",
+      "node_modules/**",
+      "coverage/**",
+      "*.config.*",
+    ],
   }
 );

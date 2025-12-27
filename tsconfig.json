@@ -1,27 +1,17 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "lib": ["ES2022"],
-    "outDir": "./dist",
-    "rootDir": "./src",
+    "types": ["google-apps-script"],
     "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "noUncheckedIndexedAccess": true,
-    "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true,
+    "noImplicitAny": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "exactOptionalPropertyTypes": true,
-    "isolatedModules": true,
-    "verbatimModuleSyntax": true
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*.ts"]
 }

@@ -1,0 +1,572 @@
+<script>
+  'use strict';
+
+  const state = {
+    funds: [],
+    selectedFundId: null,
+    selectedTransactionFundId: null
+  };
+
+  const app = document.querySelector('.app');
+  const fundForm = document.getElementById('fundForm');
+  const fundNameInput = document.getElementById('fundName');
+  const fundList = document.getElementById('fundList');
+  const navForm = document.getElementById('navForm');
+  const navFundSelect = document.getElementById('navFundSelect');
+  const navDateInput = document.getElementById('navDate');
+  const navValueInput = document.getElementById('navValue');
+  const navList = document.getElementById('navList');
+  const transactionForm = document.getElementById('transactionForm');
+  const transactionFundSelect = document.getElementById('transactionFundSelect');
+  const transactionDateInput = document.getElementById('transactionDate');
+  const transactionAmountInput = document.getElementById('transactionAmount');
+  const transactionFeeInput = document.getElementById('transactionFee');
+  const transactionNavValueInput = document.getElementById('transactionNavValue');
+  const transactionList = document.getElementById('transactionList');
+  const recurringForm = document.getElementById('recurringForm');
+  const recurringFundSelect = document.getElementById('recurringFundSelect');
+  const recurringMonthlyAmountInput = document.getElementById('recurringMonthlyAmount');
+  const recurringExecutionDayInput = document.getElementById('recurringExecutionDay');
+  const recurringStartDateInput = document.getElementById('recurringStartDate');
+  const recurringEndDateInput = document.getElementById('recurringEndDate');
+  const recurringIsActiveInput = document.getElementById('recurringIsActive');
+  const recurringList = document.getElementById('recurringList');
+  const recurringTargetDateInput = document.getElementById('recurringTargetDate');
+  const recurringExecuteButton = document.getElementById('recurringExecuteButton');
+  const recurringResultList = document.getElementById('recurringResultList');
+  const holdingList = document.getElementById('holdingList');
+  const portfolioInvestment = document.getElementById('portfolioInvestment');
+  const portfolioValue = document.getElementById('portfolioValue');
+  const portfolioGain = document.getElementById('portfolioGain');
+  const portfolioGainRate = document.getElementById('portfolioGainRate');
+  const message = document.getElementById('message');
+  const refreshButton = document.getElementById('refreshButton');
+
+  function setLoading(isLoading) {
+    if (isLoading) {
+      app.classList.add('loading');
+    } else {
+      app.classList.remove('loading');
+    }
+    document.querySelectorAll('button, input, select').forEach((element) => {
+      element.disabled = isLoading;
+    });
+    refreshButton.disabled = false;
+  }
+
+  function callApi(request) {
+    return new Promise((resolve, reject) => {
+      google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler((error) => {
+          reject(error);
+        })
+        .handleApiRequest(request);
+    });
+  }
+
+  function setMessage(text, stateValue) {
+    message.textContent = text;
+    if (stateValue) {
+      message.setAttribute('data-state', stateValue);
+    } else {
+      message.removeAttribute('data-state');
+    }
+  }
+
+  function formatCurrency(value) {
+    return `${value.toLocaleString()}円`;
+  }
+
+  function formatRate(value) {
+    return `${(value * 100).toFixed(2)}%`;
+  }
+
+  function renderFunds() {
+    fundList.innerHTML = '';
+    if (state.funds.length === 0) {
+      const empty = document.createElement('li');
+      empty.textContent = '銘柄が登録されていません。';
+      fundList.appendChild(empty);
+      return;
+    }
+
+    state.funds.forEach((fund) => {
+      const item = document.createElement('li');
+      const name = document.createElement('strong');
+      name.textContent = fund.name;
+      const meta = document.createElement('span');
+      meta.textContent = fund.createdAt.split('T')[0];
+      item.appendChild(name);
+      item.appendChild(meta);
+      fundList.appendChild(item);
+    });
+  }
+
+  function renderFundSelect() {
+    navFundSelect.innerHTML = '';
+    if (state.funds.length === 0) {
+      navFundSelect.disabled = true;
+      const option = document.createElement('option');
+      option.textContent = '銘柄がありません';
+      option.value = '';
+      navFundSelect.appendChild(option);
+      return;
+    }
+
+    navFundSelect.disabled = false;
+    state.funds.forEach((fund) => {
+      const option = document.createElement('option');
+      option.value = fund.id;
+      option.textContent = fund.name;
+      navFundSelect.appendChild(option);
+    });
+
+    if (!state.selectedFundId || !state.funds.find((fund) => fund.id === state.selectedFundId)) {
+      state.selectedFundId = state.funds[0].id;
+    }
+    navFundSelect.value = state.selectedFundId;
+  }
+
+  function renderTransactionSelect() {
+    transactionFundSelect.innerHTML = '';
+    if (state.funds.length === 0) {
+      transactionFundSelect.disabled = true;
+      const option = document.createElement('option');
+      option.textContent = '銘柄がありません';
+      option.value = '';
+      transactionFundSelect.appendChild(option);
+      return;
+    }
+
+    transactionFundSelect.disabled = false;
+    state.funds.forEach((fund) => {
+      const option = document.createElement('option');
+      option.value = fund.id;
+      option.textContent = fund.name;
+      transactionFundSelect.appendChild(option);
+    });
+
+    if (
+      !state.selectedTransactionFundId ||
+      !state.funds.find((fund) => fund.id === state.selectedTransactionFundId)
+    ) {
+      state.selectedTransactionFundId = state.funds[0].id;
+    }
+    transactionFundSelect.value = state.selectedTransactionFundId;
+  }
+
+  function renderRecurringSelect() {
+    recurringFundSelect.innerHTML = '';
+    if (state.funds.length === 0) {
+      recurringFundSelect.disabled = true;
+      const option = document.createElement('option');
+      option.textContent = '銘柄がありません';
+      option.value = '';
+      recurringFundSelect.appendChild(option);
+      return;
+    }
+
+    recurringFundSelect.disabled = false;
+    state.funds.forEach((fund) => {
+      const option = document.createElement('option');
+      option.value = fund.id;
+      option.textContent = fund.name;
+      recurringFundSelect.appendChild(option);
+    });
+  }
+
+  function renderNavs(navs) {
+    navList.innerHTML = '';
+    if (navs.length === 0) {
+      const empty = document.createElement('li');
+      empty.textContent = '履歴がありません。';
+      navList.appendChild(empty);
+      return;
+    }
+
+    navs.forEach((nav) => {
+      const item = document.createElement('li');
+      const date = document.createElement('strong');
+      date.textContent = nav.date;
+      const value = document.createElement('span');
+      value.textContent = `${nav.value.toLocaleString()} 円`;
+      item.appendChild(date);
+      item.appendChild(value);
+      navList.appendChild(item);
+    });
+  }
+
+  function renderTransactions(transactions) {
+    transactionList.innerHTML = '';
+    if (transactions.length === 0) {
+      const empty = document.createElement('li');
+      empty.textContent = '取引履歴がありません。';
+      transactionList.appendChild(empty);
+      return;
+    }
+
+    transactions.forEach((transaction) => {
+      const item = document.createElement('li');
+      const date = document.createElement('strong');
+      date.textContent = transaction.date;
+      const detail = document.createElement('span');
+      detail.textContent = `${transaction.amount.toLocaleString()}円 / ${transaction.units.toLocaleString()}口`;
+      item.appendChild(date);
+      item.appendChild(detail);
+      transactionList.appendChild(item);
+    });
+  }
+
+  function renderRecurringList(recurrings) {
+    recurringList.innerHTML = '';
+    if (recurrings.length === 0) {
+      const empty = document.createElement('li');
+      empty.textContent = '積立設定がありません。';
+      recurringList.appendChild(empty);
+      return;
+    }
+
+    recurrings.forEach((recurring) => {
+      const item = document.createElement('li');
+      const title = document.createElement('strong');
+      title.textContent = `${recurring.monthlyAmount.toLocaleString()}円 / 毎月${recurring.executionDay}日`;
+      const detail = document.createElement('span');
+      const period = recurring.endDate ? `${recurring.startDate}〜${recurring.endDate}` : recurring.startDate;
+      const status = recurring.isActive ? 'アクティブ' : '停止中';
+      detail.textContent = `${period} / ${status}`;
+      item.appendChild(title);
+      item.appendChild(detail);
+      recurringList.appendChild(item);
+    });
+  }
+
+  function renderRecurringResult(result) {
+    recurringResultList.innerHTML = '';
+    if (!result) {
+      return;
+    }
+
+    const executedItem = document.createElement('li');
+    executedItem.textContent = `実行件数: ${result.executed.length}件`;
+    recurringResultList.appendChild(executedItem);
+
+    result.skipped.forEach((item) => {
+      const line = document.createElement('li');
+      line.textContent = `スキップ: ${item.recurringPurchaseId} (${item.reason})`;
+      recurringResultList.appendChild(line);
+    });
+  }
+
+  function renderHoldings(holdings) {
+    holdingList.innerHTML = '';
+    if (holdings.length === 0) {
+      const empty = document.createElement('li');
+      empty.textContent = '保有情報がありません。';
+      holdingList.appendChild(empty);
+      return;
+    }
+
+    holdings.forEach((holding) => {
+      const item = document.createElement('li');
+      const title = document.createElement('strong');
+      title.textContent = holding.fundName;
+      const detail = document.createElement('span');
+      const valueText =
+        holding.currentValue === null ? 'NAV未登録' : formatCurrency(holding.currentValue);
+      detail.textContent = `${holding.totalUnits.toLocaleString()}口 / ${valueText}`;
+      item.appendChild(title);
+      item.appendChild(detail);
+      holdingList.appendChild(item);
+    });
+  }
+
+  function renderPortfolioSummary(portfolio) {
+    portfolioInvestment.textContent = formatCurrency(portfolio.totalInvestment);
+    if (portfolio.totalCurrentValue === null) {
+      portfolioValue.textContent = 'NAV未登録';
+      portfolioValue.className = 'summary-value muted';
+      portfolioGain.textContent = '-';
+      portfolioGain.className = 'summary-value muted';
+      portfolioGainRate.textContent = '-';
+      portfolioGainRate.className = 'summary-value muted';
+      return;
+    }
+
+    portfolioValue.textContent = formatCurrency(portfolio.totalCurrentValue);
+    portfolioValue.className = 'summary-value';
+    portfolioGain.textContent = formatCurrency(portfolio.totalUnrealizedGain);
+    portfolioGain.className = `summary-value ${
+      portfolio.totalUnrealizedGain >= 0 ? 'positive' : 'negative'
+    }`;
+    portfolioGainRate.textContent = formatRate(portfolio.totalUnrealizedGainRate);
+    portfolioGainRate.className = `summary-value ${
+      portfolio.totalUnrealizedGainRate >= 0 ? 'positive' : 'negative'
+    }`;
+  }
+
+  async function loadFunds() {
+    const response = await callApi({ action: 'listFunds' });
+    if (!response.success) {
+      throw new Error(response.error.message);
+    }
+    state.funds = response.value;
+    renderFunds();
+    renderFundSelect();
+    renderTransactionSelect();
+    renderRecurringSelect();
+    if (state.selectedFundId) {
+      await loadNavs(state.selectedFundId);
+    }
+    if (state.selectedTransactionFundId) {
+      if (state.selectedTransactionFundId) {
+        await loadTransactions(state.selectedTransactionFundId);
+      }
+    }
+    await loadRecurringPurchases();
+    await loadHoldings();
+    await loadPortfolioSummary();
+  }
+
+  async function loadNavs(fundId) {
+    const response = await callApi({ action: 'getNavHistory', fundId });
+    if (!response.success) {
+      throw new Error(response.error.message);
+    }
+    renderNavs(response.value);
+  }
+
+  async function loadTransactions(fundId) {
+    const response = await callApi({ action: 'getTransactionHistory', fundId });
+    if (!response.success) {
+      throw new Error(response.error.message);
+    }
+    renderTransactions(response.value);
+  }
+
+  async function loadRecurringPurchases() {
+    const response = await callApi({ action: 'listRecurringPurchases' });
+    if (!response.success) {
+      throw new Error(response.error.message);
+    }
+    renderRecurringList(response.value);
+  }
+
+  async function loadHoldings() {
+    const response = await callApi({ action: 'listHoldings' });
+    if (!response.success) {
+      throw new Error(response.error.message);
+    }
+    renderHoldings(response.value);
+  }
+
+  async function loadPortfolioSummary() {
+    const response = await callApi({ action: 'getPortfolioSummary' });
+    if (!response.success) {
+      throw new Error(response.error.message);
+    }
+    renderPortfolioSummary(response.value);
+  }
+
+  fundForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const name = fundNameInput.value;
+    setMessage('登録中...', null);
+    setLoading(true);
+    try {
+      const response = await callApi({ action: 'createFund', name });
+      if (!response.success) {
+        setMessage(response.error.message, 'error');
+        return;
+      }
+      fundNameInput.value = '';
+      setMessage('銘柄を登録しました。', 'success');
+      await loadFunds();
+    } catch (error) {
+      setMessage(error.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  });
+
+  navForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const fundId = navFundSelect.value;
+    const date = navDateInput.value;
+    const value = Number(navValueInput.value);
+    setMessage('登録中...', null);
+    setLoading(true);
+    try {
+      const response = await callApi({ action: 'registerNav', fundId, date, value });
+      if (!response.success) {
+        setMessage(response.error.message, 'error');
+        return;
+      }
+      navDateInput.value = '';
+      navValueInput.value = '';
+      setMessage('基準価額を登録しました。', 'success');
+      await loadNavs(fundId);
+      await loadHoldings();
+      await loadPortfolioSummary();
+    } catch (error) {
+      setMessage(error.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  });
+
+  transactionForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const fundId = transactionFundSelect.value;
+    const date = transactionDateInput.value;
+    const amount = Number(transactionAmountInput.value);
+    const fee = Number(transactionFeeInput.value || 0);
+    const navValue = Number(transactionNavValueInput.value);
+    setMessage('購入登録中...', null);
+    setLoading(true);
+    try {
+      const response = await callApi({
+        action: 'executeSpotPurchase',
+        fundId,
+        date,
+        amount,
+        fee,
+        navValue
+      });
+      if (!response.success) {
+        setMessage(response.error.message, 'error');
+        return;
+      }
+      transactionDateInput.value = '';
+      transactionAmountInput.value = '';
+      transactionFeeInput.value = '0';
+      transactionNavValueInput.value = '';
+      setMessage('スポット購入を登録しました。', 'success');
+      await loadTransactions(fundId);
+      await loadHoldings();
+      await loadPortfolioSummary();
+    } catch (error) {
+      setMessage(error.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  });
+
+  recurringForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const fundId = recurringFundSelect.value;
+    const monthlyAmount = Number(recurringMonthlyAmountInput.value);
+    const executionDay = Number(recurringExecutionDayInput.value);
+    const startDate = recurringStartDateInput.value;
+    const endDate = recurringEndDateInput.value || null;
+    const isActive = recurringIsActiveInput.checked;
+    setMessage('積立設定を登録中...', null);
+    setLoading(true);
+    try {
+      const response = await callApi({
+        action: 'createRecurringPurchase',
+        fundId,
+        monthlyAmount,
+        executionDay,
+        startDate,
+        endDate,
+        isActive
+      });
+      if (!response.success) {
+        setMessage(response.error.message, 'error');
+        return;
+      }
+      recurringMonthlyAmountInput.value = '';
+      recurringExecutionDayInput.value = '';
+      recurringStartDateInput.value = '';
+      recurringEndDateInput.value = '';
+      recurringIsActiveInput.checked = true;
+      setMessage('積立設定を追加しました。', 'success');
+      await loadRecurringPurchases();
+    } catch (error) {
+      setMessage(error.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  });
+
+  navFundSelect.addEventListener('change', async (event) => {
+    const fundId = event.target.value;
+    state.selectedFundId = fundId;
+    if (!fundId) {
+      renderNavs([]);
+      return;
+    }
+    try {
+      await loadNavs(fundId);
+    } catch (error) {
+      setMessage(error.message, 'error');
+    }
+  });
+
+  transactionFundSelect.addEventListener('change', async (event) => {
+    const fundId = event.target.value;
+    state.selectedTransactionFundId = fundId;
+    if (!fundId) {
+      renderTransactions([]);
+      return;
+    }
+    try {
+      await loadTransactions(fundId);
+    } catch (error) {
+      setMessage(error.message, 'error');
+    }
+  });
+
+  recurringExecuteButton.addEventListener('click', async () => {
+    const targetDate = recurringTargetDateInput.value;
+    setMessage('積立を実行中...', null);
+    setLoading(true);
+    try {
+      const response = await callApi({ action: 'executeRecurringPurchases', targetDate });
+      if (!response.success) {
+        setMessage(response.error.message, 'error');
+        return;
+      }
+      renderRecurringResult(response.value);
+      setMessage(
+        `積立実行が完了しました。実行: ${response.value.executed.length}件`,
+        'success'
+      );
+      await loadTransactions(state.selectedTransactionFundId);
+      await loadHoldings();
+      await loadPortfolioSummary();
+    } catch (error) {
+      setMessage(error.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  });
+
+  refreshButton.addEventListener('click', async () => {
+    setMessage('再読み込み中...', null);
+    setLoading(true);
+    try {
+      await loadFunds();
+      setMessage('最新の情報を取得しました。', 'success');
+    } catch (error) {
+      setMessage(error.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  });
+
+  (async () => {
+    setMessage('読み込み中...', null);
+    setLoading(true);
+    try {
+      recurringTargetDateInput.value = new Date().toISOString().split('T')[0];
+      await loadFunds();
+      setMessage('準備ができました。', 'success');
+    } catch (error) {
+      setMessage(error.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  })();
+</script>
