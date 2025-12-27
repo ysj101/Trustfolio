@@ -159,6 +159,11 @@ export default tseslint.config(
           selector: "import",
           format: null,
         },
+        {
+          // as constオブジェクトのプロパティ名はUPPER_CASEを許可（定数として使用）
+          selector: "objectLiteralProperty",
+          format: ["camelCase", "UPPER_CASE"],
+        },
       ],
 
       // === Promise rejection ===
@@ -167,6 +172,6 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ["dist/**", "node_modules/**", "*.config.*"],
+    ignores: ["dist/**", "node_modules/**", "coverage/**", "web/**", "*.config.*"],
   }
 );

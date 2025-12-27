@@ -1,0 +1,566 @@
+openapi: 3.0.3
+info:
+  title: Trustfolio API
+  description: 投資信託ポートフォリオ管理API
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:3000
+    description: 開発サーバー
+
+paths:
+  /health:
+    get:
+      summary: ヘルスチェック
+      responses:
+        '200':
+          description: 正常
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /api/funds:
+    get:
+      summary: 投資信託一覧取得
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  funds:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Fund'
+    post:
+      summary: 投資信託登録
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                  example: eMAXIS Slim 全世界株式（オール・カントリー）
+      responses:
+        '201':
+          description: 登録成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Fund'
+        '400':
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: 重複エラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/funds/{fundId}/navs:
+    parameters:
+      - name: fundId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: 基準価額履歴取得
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  navs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Nav'
+        '404':
+          description: 投資信託が存在しない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      summary: 基準価額登録
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - date
+                - value
+              properties:
+                date:
+                  type: string
+                  format: date
+                  example: '2024-03-15'
+                value:
+                  type: integer
+                  minimum: 1
+                  example: 12345
+      responses:
+        '200':
+          description: 登録成功（上書き）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nav:
+                    $ref: '#/components/schemas/Nav'
+                  isOverwritten:
+                    type: boolean
+        '201':
+          description: 登録成功（新規）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nav:
+                    $ref: '#/components/schemas/Nav'
+                  isOverwritten:
+                    type: boolean
+        '400':
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: 投資信託が存在しない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/funds/{fundId}/transactions:
+    parameters:
+      - name: fundId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: 取引履歴取得
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  transactions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Transaction'
+        '404':
+          description: 投資信託が存在しない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/funds/{fundId}/transactions/spot:
+    parameters:
+      - name: fundId
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      summary: スポット購入実行
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - date
+                - amount
+              properties:
+                date:
+                  type: string
+                  format: date
+                  example: '2024-03-15'
+                amount:
+                  type: integer
+                  minimum: 1
+                  example: 10000
+                fee:
+                  type: integer
+                  minimum: 0
+                  default: 0
+      responses:
+        '201':
+          description: 購入成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  transaction:
+                    $ref: '#/components/schemas/Transaction'
+        '400':
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: 投資信託またはNAVが存在しない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/funds/{fundId}/holding:
+    parameters:
+      - name: fundId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: 保有情報取得
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  holding:
+                    $ref: '#/components/schemas/Holding'
+        '404':
+          description: 投資信託が存在しない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/recurring:
+    get:
+      summary: 積立設定一覧取得
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  recurringPurchases:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RecurringPurchase'
+    post:
+      summary: 積立設定登録
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - fundId
+                - monthlyAmount
+                - executionDay
+                - startDate
+              properties:
+                fundId:
+                  type: string
+                monthlyAmount:
+                  type: integer
+                  minimum: 1
+                  example: 10000
+                executionDay:
+                  type: integer
+                  minimum: 1
+                  maximum: 28
+                  example: 1
+                startDate:
+                  type: string
+                  format: date
+                  example: '2024-01-01'
+                endDate:
+                  type: string
+                  format: date
+                  example: '2024-12-31'
+      responses:
+        '201':
+          description: 登録成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  recurringPurchase:
+                    $ref: '#/components/schemas/RecurringPurchase'
+        '400':
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: 投資信託が存在しない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/recurring/execute:
+    post:
+      summary: 積立一括実行
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - targetDate
+              properties:
+                targetDate:
+                  type: string
+                  format: date
+                  example: '2024-03-15'
+      responses:
+        '200':
+          description: 実行成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  summary:
+                    type: object
+                    properties:
+                      executed:
+                        type: integer
+                      skipped:
+                        type: integer
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        recurringPurchaseId:
+                          type: string
+                        status:
+                          type: string
+                          enum: [executed, skipped]
+        '400':
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/portfolio:
+    get:
+      summary: ポートフォリオ取得
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Portfolio'
+
+components:
+  schemas:
+    Fund:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 01HXYZ123456789ABCDEFGH
+        name:
+          type: string
+          example: eMAXIS Slim 全世界株式（オール・カントリー）
+        createdAt:
+          type: string
+          format: date-time
+          example: '2024-03-15T10:00:00.000Z'
+
+    Nav:
+      type: object
+      properties:
+        fundId:
+          type: string
+        date:
+          type: string
+          format: date
+        value:
+          type: integer
+          description: 基準価額（1万口あたり円）
+
+    Transaction:
+      type: object
+      properties:
+        id:
+          type: string
+        fundId:
+          type: string
+        type:
+          type: string
+          enum: [SPOT_PURCHASE, RECURRING_PURCHASE]
+        date:
+          type: string
+          format: date
+        amount:
+          type: integer
+          description: 購入金額（円）
+        navValue:
+          type: integer
+          description: 約定時基準価額
+        units:
+          type: integer
+          description: 取得口数
+        idempotencyKey:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    RecurringPurchase:
+      type: object
+      properties:
+        id:
+          type: string
+        fundId:
+          type: string
+        monthlyAmount:
+          type: integer
+          description: 月額購入金額（円）
+        executionDay:
+          type: integer
+          description: 実行日（1-28）
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+          nullable: true
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    Holding:
+      type: object
+      nullable: true
+      properties:
+        fundId:
+          type: string
+        fundName:
+          type: string
+        totalUnits:
+          type: integer
+          description: 保有口数
+        averageCost:
+          type: integer
+          description: 平均取得単価（1万口あたり円）
+        totalInvestment:
+          type: integer
+          description: 投資総額（円）
+        currentNavValue:
+          type: integer
+          nullable: true
+          description: 最新基準価額
+        currentNavDate:
+          type: string
+          format: date
+          nullable: true
+        currentValue:
+          type: integer
+          nullable: true
+          description: 評価額（円）
+        unrealizedGain:
+          type: integer
+          nullable: true
+          description: 含み損益（円）
+        unrealizedGainRate:
+          type: number
+          nullable: true
+          description: 損益率（%表示、例：12.34）
+
+    Portfolio:
+      type: object
+      properties:
+        holdings:
+          type: array
+          items:
+            $ref: '#/components/schemas/Holding'
+        summary:
+          type: object
+          properties:
+            totalInvestment:
+              type: integer
+              description: 投資総額（円）
+            totalCurrentValue:
+              type: integer
+              nullable: true
+              description: 評価額合計（円）
+            totalUnrealizedGain:
+              type: integer
+              nullable: true
+              description: 含み損益合計（円）
+            totalUnrealizedGainRate:
+              type: number
+              nullable: true
+              description: 全体損益率（%表示）
+
+    Error:
+      type: object
+      properties:
+        type:
+          type: string
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          example: 銘柄名は1文字以上200文字以下で入力してください

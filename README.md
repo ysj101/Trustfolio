@@ -81,6 +81,13 @@ type Money = Branded<number, "Money">;  // 円単位の整数
 | GET | /api/funds | 投資信託一覧取得 |
 | POST | /api/funds/:fundId/navs | 基準価額登録 |
 | GET | /api/funds/:fundId/navs | 基準価額履歴取得 |
+| POST | /api/funds/:fundId/transactions/spot | スポット購入実行 |
+| GET | /api/funds/:fundId/transactions | 取引履歴取得 |
+| POST | /api/recurring | 積立設定登録 |
+| GET | /api/recurring | 積立設定一覧取得 |
+| POST | /api/recurring/execute | 積立一括実行 |
+| GET | /api/funds/:fundId/holding | 個別保有情報取得 |
+| GET | /api/portfolio | ポートフォリオ全体取得 |
 
 ## セットアップ
 
@@ -163,6 +170,33 @@ pnpm test:coverage
 | created_at | INTEGER | 登録日時（Unix timestamp） |
 | UNIQUE(fund_id, date) | | 同一銘柄・日付は1件 |
 
+### transactions（取引）
+
+| カラム | 型 | 説明 |
+|--------|-----|------|
+| id | TEXT PK | ULID |
+| fund_id | TEXT FK | 投資信託ID |
+| type | TEXT | 取引タイプ（SPOT_PURCHASE, RECURRING_PURCHASE） |
+| date | TEXT | 取引日（YYYY-MM-DD） |
+| amount | INTEGER | 購入金額（円） |
+| nav_value | INTEGER | 約定時基準価額 |
+| units | INTEGER | 取得口数 |
+| idempotency_key | TEXT UNIQUE | 冪等性キー（積立用） |
+| created_at | INTEGER | 登録日時（Unix timestamp） |
+
+### recurring_purchases（積立設定）
+
+| カラム | 型 | 説明 |
+|--------|-----|------|
+| id | TEXT PK | ULID |
+| fund_id | TEXT FK | 投資信託ID |
+| monthly_amount | INTEGER | 月額購入金額（円） |
+| execution_day | INTEGER | 実行日（1〜28） |
+| start_date | TEXT | 開始日（YYYY-MM-DD） |
+| end_date | TEXT | 終了日（YYYY-MM-DD、nullで無期限） |
+| is_active | INTEGER | アクティブフラグ（1/0） |
+| created_at | INTEGER | 登録日時（Unix timestamp） |
+
 ## 計算ルール
 
 ### 購入口数計算
@@ -185,10 +219,10 @@ pnpm test:coverage
 
 - [x] Phase 1: 基盤構築（shared, Money VO, ESLint設定）
 - [x] Phase 2: 投資信託・基準価額（Fund, NAV, API）
-- [ ] Phase 3: 取引機能（スポット購入, 積立）
-- [ ] Phase 4: ポートフォリオ（保有計算, 損益）
-- [ ] Phase 5: フロントエンド（React）
-- [ ] Phase 6: 品質向上（テストカバレッジ, ドキュメント）
+- [x] Phase 3: 取引機能（スポット購入, 積立）
+- [x] Phase 4: ポートフォリオ（保有計算, 損益）
+- [x] Phase 5: フロントエンド（React）
+- [x] Phase 6: 品質向上（テストカバレッジ, ドキュメント）
 
 ## ライセンス
 

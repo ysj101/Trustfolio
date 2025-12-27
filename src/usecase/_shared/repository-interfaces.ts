@@ -9,7 +9,9 @@ import { type ResultAsync } from "neverthrow";
 import { type RepositoryError } from "../../shared/errors/base-error.js";
 import { type Fund } from "../../domain/fund/index.js";
 import { type Nav, type NavDate } from "../../domain/nav/index.js";
-import { type FundId } from "../../domain/_shared/index.js";
+import { type FundId, type RecurringPurchaseId } from "../../domain/_shared/index.js";
+import { type Transaction, type IdempotencyKey } from "../../domain/transaction/index.js";
+import { type RecurringPurchase } from "../../domain/recurring/index.js";
 
 /**
  * 投資信託リポジトリインターフェース
@@ -93,6 +95,93 @@ export type NavRepository = {
 };
 
 /**
+ * 取引リポジトリインターフェース
+ */
+export type TransactionRepository = {
+  /**
+   * 取引を保存する
+   *
+   * @param transaction - 保存する取引
+   */
+  readonly save: (transaction: Transaction) => ResultAsync<void, RepositoryError>;
+
+  /**
+   * 冪等性キーで取引を取得する
+   *
+   * @param key - 冪等性キー
+   * @returns 存在すればTransaction、なければnull
+   */
+  readonly findByIdempotencyKey: (
+    key: IdempotencyKey
+  ) => ResultAsync<Transaction | null, RepositoryError>;
+
+  /**
+   * 銘柄の取引履歴を取得する
+   *
+   * @param fundId - 投資信託ID
+   * @param limit - 取得件数上限（未指定で全件）
+   * @returns 取引の配列（日付降順）
+   */
+  readonly findByFund: (
+    fundId: FundId,
+    limit?: number
+  ) => ResultAsync<readonly Transaction[], RepositoryError>;
+
+  /**
+   * 全取引を取得する
+   *
+   * @returns 全取引の配列
+   */
+  readonly findAll: () => ResultAsync<readonly Transaction[], RepositoryError>;
+};
+
+/**
+ * 積立設定リポジトリインターフェース
+ */
+export type RecurringPurchaseRepository = {
+  /**
+   * 積立設定を保存する
+   *
+   * @param recurringPurchase - 保存する積立設定
+   */
+  readonly save: (recurringPurchase: RecurringPurchase) => ResultAsync<void, RepositoryError>;
+
+  /**
+   * IDで積立設定を取得する
+   *
+   * @param id - 積立設定ID
+   * @returns 存在すればRecurringPurchase、なければnull
+   */
+  readonly findById: (
+    id: RecurringPurchaseId
+  ) => ResultAsync<RecurringPurchase | null, RepositoryError>;
+
+  /**
+   * 銘柄のアクティブな積立設定を取得する
+   *
+   * @param fundId - 投資信託ID
+   * @returns アクティブな積立設定の配列
+   */
+  readonly findActiveByFund: (
+    fundId: FundId
+  ) => ResultAsync<readonly RecurringPurchase[], RepositoryError>;
+
+  /**
+   * 全積立設定を取得する
+   *
+   * @returns 全積立設定の配列
+   */
+  readonly findAll: () => ResultAsync<readonly RecurringPurchase[], RepositoryError>;
+
+  /**
+   * 全アクティブな積立設定を取得する
+   *
+   * @returns アクティブな積立設定の配列
+   */
+  readonly findAllActive: () => ResultAsync<readonly RecurringPurchase[], RepositoryError>;
+};
+
+/**
  * リポジトリコンテナ
  *
  * UseCase層で使用するリポジトリをまとめたオブジェクト。
@@ -100,4 +189,6 @@ export type NavRepository = {
 export type Repositories = {
   readonly fund: FundRepository;
   readonly nav: NavRepository;
+  readonly transaction: TransactionRepository;
+  readonly recurringPurchase: RecurringPurchaseRepository;
 };
