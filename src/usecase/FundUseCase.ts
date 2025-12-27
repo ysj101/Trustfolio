@@ -19,7 +19,7 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
       if (typeof name !== 'string' || name.trim() === '') {
         return {
           success: false,
-          error: { type: 'validation', message: '銘柄名を入力してください。', field: 'name' }
+          error: { type: 'validation', message: '銘柄名を入力してください。', field: 'name' },
         };
       }
 
@@ -31,14 +31,14 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
       if (existingResult.value) {
         return {
           success: false,
-          error: { type: 'conflict', message: '同名の銘柄が既に存在します。', field: 'name' }
+          error: { type: 'conflict', message: '同名の銘柄が既に存在します。', field: 'name' },
         };
       }
 
       const fund: Fund = {
         id: generateUlid(),
         name: trimmedName,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
       };
 
       const createResult = fundRepository.createFund(fund);
@@ -47,6 +47,6 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
       }
 
       return { success: true, value: fund };
-    }
+    },
   };
 }

@@ -45,7 +45,7 @@ export function createRecurringUseCase(
       if (typeof fundId !== 'string' || fundId.trim() === '') {
         return {
           success: false,
-          error: { type: 'validation', message: '銘柄を選択してください。', field: 'fundId' }
+          error: { type: 'validation', message: '銘柄を選択してください。', field: 'fundId' },
         };
       }
       if (typeof monthlyAmount !== 'number' || Number.isNaN(monthlyAmount) || monthlyAmount <= 0) {
@@ -54,8 +54,8 @@ export function createRecurringUseCase(
           error: {
             type: 'validation',
             message: '月額購入金額は0より大きい数値で入力してください。',
-            field: 'monthlyAmount'
-          }
+            field: 'monthlyAmount',
+          },
         };
       }
       if (typeof executionDay !== 'number' || Number.isNaN(executionDay)) {
@@ -64,8 +64,8 @@ export function createRecurringUseCase(
           error: {
             type: 'validation',
             message: '実行日は1〜28の範囲で入力してください。',
-            field: 'executionDay'
-          }
+            field: 'executionDay',
+          },
         };
       }
       if (executionDay < 1 || executionDay > 28) {
@@ -74,8 +74,8 @@ export function createRecurringUseCase(
           error: {
             type: 'validation',
             message: '実行日は1〜28の範囲で入力してください。',
-            field: 'executionDay'
-          }
+            field: 'executionDay',
+          },
         };
       }
       if (!isValidIsoDate(startDate)) {
@@ -84,8 +84,8 @@ export function createRecurringUseCase(
           error: {
             type: 'validation',
             message: '開始日はYYYY-MM-DD形式で入力してください。',
-            field: 'startDate'
-          }
+            field: 'startDate',
+          },
         };
       }
       if (endDate !== null && endDate !== '' && !isValidIsoDate(endDate)) {
@@ -94,8 +94,8 @@ export function createRecurringUseCase(
           error: {
             type: 'validation',
             message: '終了日はYYYY-MM-DD形式で入力してください。',
-            field: 'endDate'
-          }
+            field: 'endDate',
+          },
         };
       }
       if (endDate !== null && endDate !== '' && parseIsoDate(endDate) < parseIsoDate(startDate)) {
@@ -104,8 +104,8 @@ export function createRecurringUseCase(
           error: {
             type: 'validation',
             message: '終了日は開始日以降である必要があります。',
-            field: 'endDate'
-          }
+            field: 'endDate',
+          },
         };
       }
 
@@ -116,7 +116,7 @@ export function createRecurringUseCase(
       if (!fundResult.value) {
         return {
           success: false,
-          error: { type: 'not_found', message: '対象の銘柄が存在しません。', field: 'fundId' }
+          error: { type: 'not_found', message: '対象の銘柄が存在しません。', field: 'fundId' },
         };
       }
 
@@ -128,7 +128,7 @@ export function createRecurringUseCase(
         startDate,
         endDate: endDate !== null && endDate !== '' ? endDate : null,
         isActive,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
       };
 
       const createResult = recurringRepository.createRecurringPurchase(recurring);
@@ -145,8 +145,8 @@ export function createRecurringUseCase(
           error: {
             type: 'validation',
             message: '実行日はYYYY-MM-DD形式で入力してください。',
-            field: 'targetDate'
-          }
+            field: 'targetDate',
+          },
         };
       }
 
@@ -206,7 +206,7 @@ export function createRecurringUseCase(
           units: unitsResult.value,
           recurringPurchaseId: recurring.id,
           idempotencyKey,
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
         };
 
         const createResult = transactionRepository.createTransaction(transaction);
@@ -219,7 +219,7 @@ export function createRecurringUseCase(
       });
 
       return { success: true, value: { executed, skipped } };
-    }
+    },
   };
 }
 

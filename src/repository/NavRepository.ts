@@ -63,9 +63,9 @@ export function createNavRepository(sheetRepository: SheetRepository): NavReposi
     },
     createNav: (nav: Nav): Result<void> => {
       return sheetRepository.appendRows(SHEET_NAMES.NAVS, [
-        [nav.id, nav.fundId, nav.date, nav.value, nav.createdAt]
+        [nav.id, nav.fundId, nav.date, nav.value, nav.createdAt],
       ]);
-    }
+    },
   };
 
   return repository;

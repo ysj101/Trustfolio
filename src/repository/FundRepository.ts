@@ -51,7 +51,7 @@ export function createFundRepository(sheetRepository: SheetRepository): FundRepo
     },
     createFund: (fund: Fund): Result<void> => {
       return sheetRepository.appendRows(SHEET_NAMES.FUNDS, [[fund.id, fund.name, fund.createdAt]]);
-    }
+    },
   };
 
   return repository;

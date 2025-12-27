@@ -27,7 +27,7 @@ export function createTransactionUseCase(
       if (typeof fundId !== 'string' || fundId.trim() === '') {
         return {
           success: false,
-          error: { type: 'validation', message: '銘柄を選択してください。', field: 'fundId' }
+          error: { type: 'validation', message: '銘柄を選択してください。', field: 'fundId' },
         };
       }
 
@@ -38,7 +38,7 @@ export function createTransactionUseCase(
       if (!fundResult.value) {
         return {
           success: false,
-          error: { type: 'not_found', message: '対象の銘柄が存在しません。', field: 'fundId' }
+          error: { type: 'not_found', message: '対象の銘柄が存在しません。', field: 'fundId' },
         };
       }
 
@@ -56,31 +56,43 @@ export function createTransactionUseCase(
       if (typeof fundId !== 'string' || fundId.trim() === '') {
         return {
           success: false,
-          error: { type: 'validation', message: '銘柄を選択してください。', field: 'fundId' }
+          error: { type: 'validation', message: '銘柄を選択してください。', field: 'fundId' },
         };
       }
       if (!isValidIsoDate(date)) {
         return {
           success: false,
-          error: { type: 'validation', message: '日付はYYYY-MM-DD形式で入力してください。', field: 'date' }
+          error: {
+            type: 'validation',
+            message: '日付はYYYY-MM-DD形式で入力してください。',
+            field: 'date',
+          },
         };
       }
       if (typeof amount !== 'number' || Number.isNaN(amount) || amount <= 0) {
         return {
           success: false,
-          error: { type: 'validation', message: '購入金額は0より大きい数値で入力してください。', field: 'amount' }
+          error: {
+            type: 'validation',
+            message: '購入金額は0より大きい数値で入力してください。',
+            field: 'amount',
+          },
         };
       }
       if (typeof fee !== 'number' || Number.isNaN(fee) || fee < 0) {
         return {
           success: false,
-          error: { type: 'validation', message: '手数料は0以上で入力してください。', field: 'fee' }
+          error: { type: 'validation', message: '手数料は0以上で入力してください。', field: 'fee' },
         };
       }
       if (typeof navValue !== 'number' || Number.isNaN(navValue) || navValue <= 0) {
         return {
           success: false,
-          error: { type: 'validation', message: '基準価額は0より大きい数値で入力してください。', field: 'navValue' }
+          error: {
+            type: 'validation',
+            message: '基準価額は0より大きい数値で入力してください。',
+            field: 'navValue',
+          },
         };
       }
 
@@ -91,7 +103,7 @@ export function createTransactionUseCase(
       if (!fundResult.value) {
         return {
           success: false,
-          error: { type: 'not_found', message: '対象の銘柄が存在しません。', field: 'fundId' }
+          error: { type: 'not_found', message: '対象の銘柄が存在しません。', field: 'fundId' },
         };
       }
 
@@ -111,7 +123,7 @@ export function createTransactionUseCase(
         units: unitsResult.value,
         recurringPurchaseId: null,
         idempotencyKey: null,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
       };
 
       const createResult = transactionRepository.createTransaction(transaction);
@@ -120,7 +132,7 @@ export function createTransactionUseCase(
       }
 
       return { success: true, value: transaction };
-    }
+    },
   };
 }
 

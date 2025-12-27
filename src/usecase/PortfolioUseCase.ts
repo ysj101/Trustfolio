@@ -47,9 +47,9 @@ export function createPortfolioUseCase(
         success: true,
         value: {
           ...summary,
-          holdings
-        }
+          holdings,
+        },
       };
-    }
+    },
   };
 }

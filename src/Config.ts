@@ -6,7 +6,7 @@ export const SHEET_NAMES = {
   FUNDS: '_funds',
   NAVS: '_navs',
   TRANSACTIONS: '_transactions',
-  RECURRING: '_recurring'
+  RECURRING: '_recurring',
 } as const;
 
 /**
@@ -27,7 +27,7 @@ export const SHEET_HEADERS = {
     'units',
     'recurringPurchaseId',
     'idempotencyKey',
-    'createdAt'
+    'createdAt',
   ],
   [SHEET_NAMES.RECURRING]: [
     'id',
@@ -37,8 +37,8 @@ export const SHEET_HEADERS = {
     'startDate',
     'endDate',
     'isActive',
-    'createdAt'
-  ]
+    'createdAt',
+  ],
 } as const;
 
 export type SheetName = (typeof SHEET_NAMES)[keyof typeof SHEET_NAMES];
@@ -55,5 +55,5 @@ export const SHEET_DEFINITIONS: readonly SheetDefinition[] = [
   { name: SHEET_NAMES.FUNDS, headers: SHEET_HEADERS[SHEET_NAMES.FUNDS] },
   { name: SHEET_NAMES.NAVS, headers: SHEET_HEADERS[SHEET_NAMES.NAVS] },
   { name: SHEET_NAMES.TRANSACTIONS, headers: SHEET_HEADERS[SHEET_NAMES.TRANSACTIONS] },
-  { name: SHEET_NAMES.RECURRING, headers: SHEET_HEADERS[SHEET_NAMES.RECURRING] }
+  { name: SHEET_NAMES.RECURRING, headers: SHEET_HEADERS[SHEET_NAMES.RECURRING] },
 ];

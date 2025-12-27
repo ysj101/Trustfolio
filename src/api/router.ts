@@ -115,11 +115,7 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
   const fundUseCase = createFundUseCase(fundRepository);
   const navUseCase = createNavUseCase(fundRepository, navRepository);
   const transactionUseCase = createTransactionUseCase(fundRepository, transactionRepository);
-  const holdingUseCase = createHoldingUseCase(
-    fundRepository,
-    navRepository,
-    transactionRepository
-  );
+  const holdingUseCase = createHoldingUseCase(fundRepository, navRepository, transactionRepository);
   const portfolioUseCase = createPortfolioUseCase(
     fundRepository,
     navRepository,
@@ -152,7 +148,7 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
       return navUseCase.registerNav({
         fundId: request.fundId,
         date: request.date,
-        value: request.value
+        value: request.value,
       });
     case 'getTransactionHistory':
       return transactionUseCase.getHistory(request.fundId);
@@ -162,7 +158,7 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
         date: request.date,
         amount: request.amount,
         fee: request.fee,
-        navValue: request.navValue
+        navValue: request.navValue,
       });
     case 'listRecurringPurchases':
       return recurringUseCase.listRecurringPurchases();
@@ -173,7 +169,7 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
         executionDay: request.executionDay,
         startDate: request.startDate,
         endDate: request.endDate,
-        isActive: request.isActive
+        isActive: request.isActive,
       });
     case 'executeRecurringPurchases':
       return recurringUseCase.executeRecurringPurchases(request.targetDate);
@@ -188,8 +184,8 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
         success: false,
         error: {
           type: 'unexpected',
-          message: '未対応のアクションです。'
-        }
+          message: '未対応のアクションです。',
+        },
       };
   }
 }

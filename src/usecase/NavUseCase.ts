@@ -20,7 +20,7 @@ export function createNavUseCase(
       if (typeof fundId !== 'string' || fundId.trim() === '') {
         return {
           success: false,
-          error: { type: 'validation', message: '銘柄を選択してください。', field: 'fundId' }
+          error: { type: 'validation', message: '銘柄を選択してください。', field: 'fundId' },
         };
       }
 
@@ -31,7 +31,7 @@ export function createNavUseCase(
       if (!fundResult.value) {
         return {
           success: false,
-          error: { type: 'not_found', message: '対象の銘柄が存在しません。', field: 'fundId' }
+          error: { type: 'not_found', message: '対象の銘柄が存在しません。', field: 'fundId' },
         };
       }
 
@@ -43,21 +43,29 @@ export function createNavUseCase(
       if (typeof fundId !== 'string' || fundId.trim() === '') {
         return {
           success: false,
-          error: { type: 'validation', message: '銘柄を選択してください。', field: 'fundId' }
+          error: { type: 'validation', message: '銘柄を選択してください。', field: 'fundId' },
         };
       }
 
       if (!isValidIsoDate(date)) {
         return {
           success: false,
-          error: { type: 'validation', message: '日付はYYYY-MM-DD形式で入力してください。', field: 'date' }
+          error: {
+            type: 'validation',
+            message: '日付はYYYY-MM-DD形式で入力してください。',
+            field: 'date',
+          },
         };
       }
 
       if (typeof value !== 'number' || Number.isNaN(value) || value <= 0) {
         return {
           success: false,
-          error: { type: 'validation', message: '基準価額は0より大きい数値で入力してください。', field: 'value' }
+          error: {
+            type: 'validation',
+            message: '基準価額は0より大きい数値で入力してください。',
+            field: 'value',
+          },
         };
       }
 
@@ -68,7 +76,7 @@ export function createNavUseCase(
       if (!fundResult.value) {
         return {
           success: false,
-          error: { type: 'not_found', message: '対象の銘柄が存在しません。', field: 'fundId' }
+          error: { type: 'not_found', message: '対象の銘柄が存在しません。', field: 'fundId' },
         };
       }
 
@@ -82,8 +90,8 @@ export function createNavUseCase(
           error: {
             type: 'conflict',
             message: '同一日付の基準価額が既に登録されています。',
-            field: 'date'
-          }
+            field: 'date',
+          },
         };
       }
 
@@ -92,7 +100,7 @@ export function createNavUseCase(
         fundId,
         date,
         value,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
       };
 
       const createResult = navRepository.createNav(nav);
@@ -101,7 +109,7 @@ export function createNavUseCase(
       }
 
       return { success: true, value: nav };
-    }
+    },
   };
 }
 

@@ -50,10 +50,10 @@ export function createRecurringPurchaseRepository(
           recurring.startDate,
           recurring.endDate ?? '',
           recurring.isActive,
-          recurring.createdAt
-        ]
+          recurring.createdAt,
+        ],
       ]);
-    }
+    },
   };
 
   return repository;
@@ -91,8 +91,8 @@ function parseRow(row: unknown[], index: number): Result<RecurringPurchase> {
       startDate,
       endDate: normalizeOptionalString(endDate),
       isActive: normalizeBoolean(isActive),
-      createdAt
-    }
+      createdAt,
+    },
   };
 }
 
