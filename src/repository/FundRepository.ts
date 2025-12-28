@@ -7,6 +7,7 @@ export type FundRepository = {
   findByName: (name: string) => Result<Fund | null>;
   findById: (id: string) => Result<Fund | null>;
   createFund: (fund: Fund) => Result<void>;
+  updateFund: (fund: Fund) => Result<void>;
 };
 
 /**
@@ -50,7 +51,27 @@ export function createFundRepository(sheetRepository: SheetRepository): FundRepo
       return { success: true, value: fund };
     },
     createFund: (fund: Fund): Result<void> => {
-      return sheetRepository.appendRows(SHEET_NAMES.FUNDS, [[fund.id, fund.name, fund.createdAt]]);
+      return sheetRepository.appendRows(SHEET_NAMES.FUNDS, [
+        [fund.id, fund.name, fund.morningstarCode ?? '', fund.createdAt],
+      ]);
+    },
+    updateFund: (fund: Fund): Result<void> => {
+      const rowsResult = sheetRepository.readAllRows(SHEET_NAMES.FUNDS);
+      if (!rowsResult.success) {
+        return rowsResult;
+      }
+
+      const rowIndex = rowsResult.value.findIndex((row) => row[0] === fund.id);
+      if (rowIndex === -1) {
+        return fail('not_found', `対象の銘柄が見つかりません: id=${fund.id}`);
+      }
+
+      return sheetRepository.updateRow(SHEET_NAMES.FUNDS, rowIndex, [
+        fund.id,
+        fund.name,
+        fund.morningstarCode ?? '',
+        fund.createdAt,
+      ]);
     },
   };
 
@@ -58,7 +79,7 @@ export function createFundRepository(sheetRepository: SheetRepository): FundRepo
 }
 
 function parseRow(row: unknown[], index: number): Result<Fund> {
-  const [id, name, createdAt] = row;
+  const [id, name, morningstarCode, createdAt] = row;
 
   if (typeof id !== 'string' || id === '') {
     return fail('unexpected', `fundsの${String(index + 2)}行目のidが不正です。`);
@@ -70,7 +91,11 @@ function parseRow(row: unknown[], index: number): Result<Fund> {
     return fail('unexpected', `fundsの${String(index + 2)}行目のcreatedAtが不正です。`);
   }
 
-  return { success: true, value: { id, name, createdAt } };
+  // morningstarCodeは空文字列の場合はnullとして扱う
+  const parsedMorningstarCode =
+    typeof morningstarCode === 'string' && morningstarCode !== '' ? morningstarCode : null;
+
+  return { success: true, value: { id, name, morningstarCode: parsedMorningstarCode, createdAt } };
 }
 
 function fail<T>(type: AppError['type'], message: string): Result<T> {

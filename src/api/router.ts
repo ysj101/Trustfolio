@@ -5,8 +5,10 @@ import { createNavRepository } from '../repository/NavRepository';
 import { createRecurringPurchaseRepository } from '../repository/RecurringPurchaseRepository';
 import { openSheetRepository } from '../repository/SheetRepository';
 import { createTransactionRepository } from '../repository/TransactionRepository';
+import { createMorningstarService } from '../service/MorningstarService';
 import { createFundUseCase } from '../usecase/FundUseCase';
 import { createHoldingUseCase } from '../usecase/HoldingUseCase';
+import { createNavFetchUseCase } from '../usecase/NavFetchUseCase';
 import { createNavUseCase } from '../usecase/NavUseCase';
 import { createPortfolioUseCase } from '../usecase/PortfolioUseCase';
 import { createRecurringUseCase } from '../usecase/RecurringUseCase';
@@ -23,6 +25,14 @@ type ListFundsRequest = {
 type CreateFundRequest = {
   action: 'createFund';
   name: string;
+  morningstarCode: string | null;
+};
+
+type UpdateFundRequest = {
+  action: 'updateFund';
+  id: string;
+  name: string;
+  morningstarCode: string | null;
 };
 
 type GetNavHistoryRequest = {
@@ -83,10 +93,15 @@ type GetPortfolioSummaryRequest = {
   action: 'getPortfolioSummary';
 };
 
+type FetchAllNavsRequest = {
+  action: 'fetchAllNavs';
+};
+
 export type ApiRequest =
   | InitializeSheetsRequest
   | ListFundsRequest
   | CreateFundRequest
+  | UpdateFundRequest
   | GetNavHistoryRequest
   | RegisterNavRequest
   | GetTransactionHistoryRequest
@@ -96,7 +111,8 @@ export type ApiRequest =
   | ExecuteRecurringPurchasesRequest
   | ListHoldingsRequest
   | GetHoldingRequest
-  | GetPortfolioSummaryRequest;
+  | GetPortfolioSummaryRequest
+  | FetchAllNavsRequest;
 
 /**
  * APIリクエストをハンドリングする。
@@ -127,6 +143,8 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
     recurringRepository,
     transactionRepository
   );
+  const morningstarService = createMorningstarService();
+  const navFetchUseCase = createNavFetchUseCase(fundRepository, navRepository, morningstarService);
 
   switch (request.action) {
     case 'initializeSheets': {
@@ -141,7 +159,16 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
     case 'listFunds':
       return fundUseCase.listFunds();
     case 'createFund':
-      return fundUseCase.createFund(request.name);
+      return fundUseCase.createFund({
+        name: request.name,
+        morningstarCode: request.morningstarCode,
+      });
+    case 'updateFund':
+      return fundUseCase.updateFund({
+        id: request.id,
+        name: request.name,
+        morningstarCode: request.morningstarCode,
+      });
     case 'getNavHistory':
       return navUseCase.getNavHistory(request.fundId);
     case 'registerNav':
@@ -179,6 +206,8 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
       return holdingUseCase.getHolding(request.fundId);
     case 'getPortfolioSummary':
       return portfolioUseCase.getPortfolioSummary();
+    case 'fetchAllNavs':
+      return navFetchUseCase.fetchAndRegisterAllNavs();
     default:
       return {
         success: false,

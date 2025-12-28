@@ -10,7 +10,9 @@
   const app = document.querySelector('.app');
   const fundForm = document.getElementById('fundForm');
   const fundNameInput = document.getElementById('fundName');
+  const fundMorningstarCodeInput = document.getElementById('fundMorningstarCode');
   const fundList = document.getElementById('fundList');
+  const fetchAllNavsButton = document.getElementById('fetchAllNavsButton');
   const navForm = document.getElementById('navForm');
   const navFundSelect = document.getElementById('navFundSelect');
   const navDateInput = document.getElementById('navDate');
@@ -96,7 +98,8 @@
       const name = document.createElement('strong');
       name.textContent = fund.name;
       const meta = document.createElement('span');
-      meta.textContent = fund.createdAt.split('T')[0];
+      const codeText = fund.morningstarCode ? ` (${fund.morningstarCode})` : '';
+      meta.textContent = `${fund.createdAt.split('T')[0]}${codeText}`;
       item.appendChild(name);
       item.appendChild(meta);
       fundList.appendChild(item);
@@ -371,15 +374,17 @@
   fundForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     const name = fundNameInput.value;
+    const morningstarCode = fundMorningstarCodeInput.value.trim() || null;
     setMessage('登録中...', null);
     setLoading(true);
     try {
-      const response = await callApi({ action: 'createFund', name });
+      const response = await callApi({ action: 'createFund', name, morningstarCode });
       if (!response.success) {
         setMessage(response.error.message, 'error');
         return;
       }
       fundNameInput.value = '';
+      fundMorningstarCodeInput.value = '';
       setMessage('銘柄を登録しました。', 'success');
       await loadFunds();
     } catch (error) {
@@ -549,6 +554,30 @@
     try {
       await loadFunds();
       setMessage('最新の情報を取得しました。', 'success');
+    } catch (error) {
+      setMessage(error.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  });
+
+  fetchAllNavsButton.addEventListener('click', async () => {
+    setMessage('基準価額を取得中...（しばらくお待ちください）', null);
+    setLoading(true);
+    try {
+      const response = await callApi({ action: 'fetchAllNavs' });
+      if (!response.success) {
+        setMessage(response.error.message, 'error');
+        return;
+      }
+      const result = response.value;
+      const message = `基準価額の取得が完了しました。成功: ${result.successCount}件, 既存: ${result.alreadyExistsCount}件, スキップ: ${result.skippedCount}件, 失敗: ${result.failedCount}件`;
+      setMessage(message, result.failedCount > 0 ? 'error' : 'success');
+      if (state.selectedFundId) {
+        await loadNavs(state.selectedFundId);
+      }
+      await loadHoldings();
+      await loadPortfolioSummary();
     } catch (error) {
       setMessage(error.message, 'error');
     } finally {
