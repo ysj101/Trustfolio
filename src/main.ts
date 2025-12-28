@@ -1,5 +1,6 @@
 import type { ApiRequest } from './api/router';
 import { handleApiRequest } from './api/router';
+export { handleApiRequest } from './api/router';
 
 /**
  * Webアプリのエントリーポイント（GET）。
