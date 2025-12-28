@@ -6,6 +6,11 @@ export type SheetRepository = {
   getRequiredSheet: (sheetName: string) => Result<GoogleAppsScript.Spreadsheet.Sheet>;
   readAllRows: (sheetName: string) => Result<unknown[][]>;
   appendRows: (sheetName: string, rows: unknown[][]) => Result<void>;
+  /**
+   * 指定された行インデックス（0始まり、データ行基準）の行を更新する。
+   * 実際のシート上では行番号はヘッダー行（1行目）を除いた2行目以降となる。
+   */
+  updateRow: (sheetName: string, rowIndex: number, row: unknown[]) => Result<void>;
 };
 
 /**
@@ -75,6 +80,30 @@ function createSheetRepository(
       }
 
       sheet.getRange(startRow, 1, rows.length, columnCount).setValues(rows);
+      return { success: true, value: undefined };
+    },
+    updateRow: (sheetName: string, rowIndex: number, row: unknown[]): Result<void> => {
+      if (row.length === 0) {
+        return fail('validation', '更新する行が空です。');
+      }
+
+      const sheetResult = repository.getRequiredSheet(sheetName);
+      if (!sheetResult.success) {
+        return sheetResult;
+      }
+
+      const sheet = sheetResult.value;
+      // rowIndexは0始まりのデータ行インデックス。シート上ではヘッダー行が1行目なので、データは2行目から始まる。
+      const sheetRowNumber = rowIndex + 2;
+
+      if (sheetRowNumber > sheet.getLastRow()) {
+        return fail(
+          'not_found',
+          `指定された行が存在しません: ${sheetName} row=${String(rowIndex)}`
+        );
+      }
+
+      sheet.getRange(sheetRowNumber, 1, 1, row.length).setValues([row]);
       return { success: true, value: undefined };
     },
   };

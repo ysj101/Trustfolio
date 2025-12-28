@@ -28,6 +28,15 @@
                 placeholder="例: つみたて全世界株式"
                 required
               />
+              <label for="fundMorningstarCode">モーニングスターコード (10桁)</label>
+              <input
+                type="text"
+                id="fundMorningstarCode"
+                name="fundMorningstarCode"
+                placeholder="例: 2017092908"
+                pattern="\d{10}"
+                title="10桁の数字を入力してください"
+              />
               <button type="submit" class="primary">登録</button>
             </form>
             <div class="list-block">
@@ -40,6 +49,9 @@
         <section class="panel">
           <h2>基準価額</h2>
           <div class="panel-body">
+            <div class="form-inline" style="margin-bottom: 1rem;">
+              <button type="button" id="fetchAllNavsButton" class="ghost">全銘柄の基準価額を取得</button>
+            </div>
             <form id="navForm" class="form">
               <label for="navFundSelect">対象銘柄</label>
               <select id="navFundSelect" name="navFundSelect"></select>

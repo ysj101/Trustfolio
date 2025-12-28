@@ -1,6 +1,7 @@
 import type { ApiRequest } from './api/router';
 import { handleApiRequest } from './api/router';
 export { handleApiRequest } from './api/router';
+export type { NavFetchResult } from './usecase/NavFetchUseCase';
 
 /**
  * Webアプリのエントリーポイント（GET）。
@@ -60,5 +61,35 @@ export function include(filename: string): string {
 function createJsonResponse(response: unknown): GoogleAppsScript.Content.TextOutput {
   return ContentService.createTextOutput(JSON.stringify(response)).setMimeType(
     ContentService.MimeType.JSON
+  );
+}
+
+/**
+ * 全銘柄の基準価額を自動取得する。
+ * Google Apps Scriptのトリガーから呼び出すための関数。
+ * 毎日21:00〜22:00頃に実行することを推奨（投資信託協会の基準価額公開後）。
+ */
+export function fetchAllNavs(): void {
+  const response = handleApiRequest({ action: 'fetchAllNavs' });
+  if (!response.success) {
+    console.error('基準価額の自動取得に失敗しました:', response.error.message);
+    return;
+  }
+
+  const result = response.value as {
+    totalCount: number;
+    successCount: number;
+    skippedCount: number;
+    alreadyExistsCount: number;
+    failedCount: number;
+  };
+
+  console.log(
+    `基準価額の自動取得が完了しました。` +
+      `総数: ${String(result.totalCount)}, ` +
+      `成功: ${String(result.successCount)}, ` +
+      `既存: ${String(result.alreadyExistsCount)}, ` +
+      `スキップ: ${String(result.skippedCount)}, ` +
+      `失敗: ${String(result.failedCount)}`
   );
 }

@@ -17,7 +17,14 @@ export type AppError = {
  */
 export type Fund = {
   id: string;
+  /** 銘柄名 */
   name: string;
+  /**
+   * モーニングスターコード（10桁）。
+   * 基準価額の自動取得に使用する。
+   * 未設定の場合はnull。
+   */
+  morningstarCode: string | null;
   createdAt: string;
 };
 
