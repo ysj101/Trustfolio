@@ -1,7 +1,7 @@
 import type { Fund, Nav, Result } from '../domain/types';
 import type { FundRepository } from '../repository/FundRepository';
 import type { NavRepository } from '../repository/NavRepository';
-import type { MorningstarService } from '../service/MorningstarService';
+import type { RakutenService } from '../service/RakutenService';
 import { generateUlid } from '../utils/ulid';
 
 /**
@@ -28,7 +28,7 @@ export type NavFetchResult = {
   totalCount: number;
   /** 成功した銘柄数 */
   successCount: number;
-  /** スキップした銘柄数（モーニングスターコード未設定） */
+  /** スキップした銘柄数（楽天ファンドID未設定） */
   skippedCount: number;
   /** 既に登録済みの銘柄数 */
   alreadyExistsCount: number;
@@ -40,8 +40,8 @@ export type NavFetchResult = {
 
 export type NavFetchUseCase = {
   /**
-   * 全銘柄の最新基準価額をモーニングスターから取得し、登録する。
-   * モーニングスターコードが設定されていない銘柄はスキップする。
+   * 全銘柄の最新基準価額を楽天証券から取得し、登録する。
+   * 楽天ファンドIDが設定されていない銘柄はスキップする。
    * 同一日付の基準価額が既に登録されている場合もスキップする。
    */
   fetchAndRegisterAllNavs: () => Result<NavFetchResult>;
@@ -53,7 +53,7 @@ export type NavFetchUseCase = {
 export function createNavFetchUseCase(
   fundRepository: FundRepository,
   navRepository: NavRepository,
-  morningstarService: MorningstarService
+  rakutenService: RakutenService
 ): NavFetchUseCase {
   return {
     fetchAndRegisterAllNavs: (): Result<NavFetchResult> => {
@@ -67,7 +67,7 @@ export function createNavFetchUseCase(
       const items: NavFetchResultItem[] = [];
 
       for (const fund of funds) {
-        const item = processFund(fund, navRepository, morningstarService);
+        const item = processFund(fund, navRepository, rakutenService);
         items.push(item);
       }
 
@@ -98,20 +98,20 @@ export function createNavFetchUseCase(
 function processFund(
   fund: Fund,
   navRepository: NavRepository,
-  morningstarService: MorningstarService
+  rakutenService: RakutenService
 ): NavFetchResultItem {
-  // モーニングスターコードが未設定の場合はスキップ
-  if (fund.morningstarCode === null) {
+  // 楽天ファンドIDが未設定の場合はスキップ
+  if (fund.rakutenFundId === null) {
     return {
       fundId: fund.id,
       fundName: fund.name,
       status: 'skipped',
-      message: 'モーニングスターコードが設定されていません。',
+      message: '楽天ファンドIDが設定されていません。',
     };
   }
 
-  // モーニングスターから基準価額を取得
-  const fetchResult = morningstarService.fetchLatestNav(fund.morningstarCode);
+  // 楽天証券から基準価額を取得
+  const fetchResult = rakutenService.fetchLatestNav(fund.rakutenFundId);
   if (!fetchResult.success) {
     return {
       fundId: fund.id,

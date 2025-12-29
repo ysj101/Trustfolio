@@ -5,7 +5,7 @@ import { createNavRepository } from '../repository/NavRepository';
 import { createRecurringPurchaseRepository } from '../repository/RecurringPurchaseRepository';
 import { openSheetRepository } from '../repository/SheetRepository';
 import { createTransactionRepository } from '../repository/TransactionRepository';
-import { createMorningstarService } from '../service/MorningstarService';
+import { createRakutenService } from '../service/RakutenService';
 import { createFundUseCase } from '../usecase/FundUseCase';
 import { createHoldingUseCase } from '../usecase/HoldingUseCase';
 import { createNavFetchUseCase } from '../usecase/NavFetchUseCase';
@@ -25,14 +25,14 @@ type ListFundsRequest = {
 type CreateFundRequest = {
   action: 'createFund';
   name: string;
-  morningstarCode: string | null;
+  rakutenFundId: string | null;
 };
 
 type UpdateFundRequest = {
   action: 'updateFund';
   id: string;
   name: string;
-  morningstarCode: string | null;
+  rakutenFundId: string | null;
 };
 
 type GetNavHistoryRequest = {
@@ -143,8 +143,8 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
     recurringRepository,
     transactionRepository
   );
-  const morningstarService = createMorningstarService();
-  const navFetchUseCase = createNavFetchUseCase(fundRepository, navRepository, morningstarService);
+  const rakutenService = createRakutenService();
+  const navFetchUseCase = createNavFetchUseCase(fundRepository, navRepository, rakutenService);
 
   switch (request.action) {
     case 'initializeSheets': {
@@ -161,13 +161,13 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
     case 'createFund':
       return fundUseCase.createFund({
         name: request.name,
-        morningstarCode: request.morningstarCode,
+        rakutenFundId: request.rakutenFundId,
       });
     case 'updateFund':
       return fundUseCase.updateFund({
         id: request.id,
         name: request.name,
-        morningstarCode: request.morningstarCode,
+        rakutenFundId: request.rakutenFundId,
       });
     case 'getNavHistory':
       return navUseCase.getNavHistory(request.fundId);

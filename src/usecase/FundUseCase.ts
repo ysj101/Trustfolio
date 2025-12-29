@@ -4,8 +4,8 @@ import { generateUlid } from '../utils/ulid';
 
 export type FundUseCase = {
   listFunds: () => Result<Fund[]>;
-  createFund: (input: { name: string; morningstarCode: string | null }) => Result<Fund>;
-  updateFund: (input: { id: string; name: string; morningstarCode: string | null }) => Result<Fund>;
+  createFund: (input: { name: string; rakutenFundId: string | null }) => Result<Fund>;
+  updateFund: (input: { id: string; name: string; rakutenFundId: string | null }) => Result<Fund>;
 };
 
 /**
@@ -16,8 +16,8 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
     listFunds: (): Result<Fund[]> => {
       return fundRepository.listFunds();
     },
-    createFund: (input: { name: string; morningstarCode: string | null }): Result<Fund> => {
-      const { name, morningstarCode } = input;
+    createFund: (input: { name: string; rakutenFundId: string | null }): Result<Fund> => {
+      const { name, rakutenFundId } = input;
 
       if (typeof name !== 'string' || name.trim() === '') {
         return {
@@ -26,9 +26,9 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
         };
       }
 
-      // モーニングスターコードのバリデーション（設定されている場合のみ）
-      if (morningstarCode !== null) {
-        const codeValidation = validateMorningstarCode(morningstarCode);
+      // 楽天ファンドIDのバリデーション（設定されている場合のみ）
+      if (rakutenFundId !== null) {
+        const codeValidation = validateRakutenFundId(rakutenFundId);
         if (!codeValidation.success) {
           return codeValidation;
         }
@@ -49,8 +49,8 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
       const fund: Fund = {
         id: generateUlid(),
         name: trimmedName,
-        morningstarCode:
-          morningstarCode !== null && morningstarCode.trim() !== '' ? morningstarCode.trim() : null,
+        rakutenFundId:
+          rakutenFundId !== null && rakutenFundId.trim() !== '' ? rakutenFundId.trim() : null,
         createdAt: new Date().toISOString(),
       };
 
@@ -64,9 +64,9 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
     updateFund: (input: {
       id: string;
       name: string;
-      morningstarCode: string | null;
+      rakutenFundId: string | null;
     }): Result<Fund> => {
-      const { id, name, morningstarCode } = input;
+      const { id, name, rakutenFundId } = input;
 
       if (typeof id !== 'string' || id.trim() === '') {
         return {
@@ -82,9 +82,9 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
         };
       }
 
-      // モーニングスターコードのバリデーション（設定されている場合のみ）
-      if (morningstarCode !== null) {
-        const codeValidation = validateMorningstarCode(morningstarCode);
+      // 楽天ファンドIDのバリデーション（設定されている場合のみ）
+      if (rakutenFundId !== null) {
+        const codeValidation = validateRakutenFundId(rakutenFundId);
         if (!codeValidation.success) {
           return codeValidation;
         }
@@ -117,8 +117,8 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
       const updatedFund: Fund = {
         id,
         name: trimmedName,
-        morningstarCode:
-          morningstarCode !== null && morningstarCode.trim() !== '' ? morningstarCode.trim() : null,
+        rakutenFundId:
+          rakutenFundId !== null && rakutenFundId.trim() !== '' ? rakutenFundId.trim() : null,
         createdAt: existingResult.value.createdAt,
       };
 
@@ -133,21 +133,21 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
 }
 
 /**
- * モーニングスターコードのバリデーション。
- * 10桁の数字であることを確認する。
+ * 楽天ファンドIDのバリデーション。
+ * 12桁の英数字であることを確認する。
  */
-function validateMorningstarCode(code: string): Result<void> {
+function validateRakutenFundId(code: string): Result<void> {
   const trimmed = code.trim();
   if (trimmed === '') {
     return { success: true, value: undefined };
   }
-  if (!/^\d{10}$/.test(trimmed)) {
+  if (!/^[A-Za-z0-9]{12}$/.test(trimmed)) {
     return {
       success: false,
       error: {
         type: 'validation',
-        message: 'モーニングスターコードは10桁の数字で入力してください。',
-        field: 'morningstarCode',
+        message: '楽天ファンドIDは12桁の英数字で入力してください。',
+        field: 'rakutenFundId',
       },
     };
   }

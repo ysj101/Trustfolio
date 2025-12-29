@@ -52,7 +52,7 @@ export function createFundRepository(sheetRepository: SheetRepository): FundRepo
     },
     createFund: (fund: Fund): Result<void> => {
       return sheetRepository.appendRows(SHEET_NAMES.FUNDS, [
-        [fund.id, fund.name, fund.morningstarCode ?? '', fund.createdAt],
+        [fund.id, fund.name, fund.rakutenFundId ?? '', fund.createdAt],
       ]);
     },
     updateFund: (fund: Fund): Result<void> => {
@@ -69,7 +69,7 @@ export function createFundRepository(sheetRepository: SheetRepository): FundRepo
       return sheetRepository.updateRow(SHEET_NAMES.FUNDS, rowIndex, [
         fund.id,
         fund.name,
-        fund.morningstarCode ?? '',
+        fund.rakutenFundId ?? '',
         fund.createdAt,
       ]);
     },
@@ -79,7 +79,7 @@ export function createFundRepository(sheetRepository: SheetRepository): FundRepo
 }
 
 function parseRow(row: unknown[], index: number): Result<Fund> {
-  const [id, name, morningstarCode, createdAt] = row;
+  const [id, name, rakutenFundId, createdAt] = row;
 
   if (typeof id !== 'string' || id === '') {
     return fail('unexpected', `fundsの${String(index + 2)}行目のidが不正です。`);
@@ -91,11 +91,11 @@ function parseRow(row: unknown[], index: number): Result<Fund> {
     return fail('unexpected', `fundsの${String(index + 2)}行目のcreatedAtが不正です。`);
   }
 
-  // morningstarCodeは空文字列の場合はnullとして扱う
-  const parsedMorningstarCode =
-    typeof morningstarCode === 'string' && morningstarCode !== '' ? morningstarCode : null;
+  // rakutenFundIdは空文字列の場合はnullとして扱う
+  const parsedRakutenFundId =
+    typeof rakutenFundId === 'string' && rakutenFundId !== '' ? rakutenFundId : null;
 
-  return { success: true, value: { id, name, morningstarCode: parsedMorningstarCode, createdAt } };
+  return { success: true, value: { id, name, rakutenFundId: parsedRakutenFundId, createdAt } };
 }
 
 function fail<T>(type: AppError['type'], message: string): Result<T> {
