@@ -10,7 +10,7 @@
   const app = document.querySelector('.app');
   const fundForm = document.getElementById('fundForm');
   const fundNameInput = document.getElementById('fundName');
-  const fundMorningstarCodeInput = document.getElementById('fundMorningstarCode');
+  const fundRakutenFundIdInput = document.getElementById('fundRakutenFundId');
   const fundList = document.getElementById('fundList');
   const fetchAllNavsButton = document.getElementById('fetchAllNavsButton');
   const navForm = document.getElementById('navForm');
@@ -98,7 +98,7 @@
       const name = document.createElement('strong');
       name.textContent = fund.name;
       const meta = document.createElement('span');
-      const codeText = fund.morningstarCode ? ` (${fund.morningstarCode})` : '';
+      const codeText = fund.rakutenFundId ? ` (${fund.rakutenFundId})` : '';
       meta.textContent = `${fund.createdAt.split('T')[0]}${codeText}`;
       item.appendChild(name);
       item.appendChild(meta);
@@ -374,17 +374,17 @@
   fundForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     const name = fundNameInput.value;
-    const morningstarCode = fundMorningstarCodeInput.value.trim() || null;
+    const rakutenFundId = fundRakutenFundIdInput.value.trim() || null;
     setMessage('登録中...', null);
     setLoading(true);
     try {
-      const response = await callApi({ action: 'createFund', name, morningstarCode });
+      const response = await callApi({ action: 'createFund', name, rakutenFundId });
       if (!response.success) {
         setMessage(response.error.message, 'error');
         return;
       }
       fundNameInput.value = '';
-      fundMorningstarCodeInput.value = '';
+      fundRakutenFundIdInput.value = '';
       setMessage('銘柄を登録しました。', 'success');
       await loadFunds();
     } catch (error) {

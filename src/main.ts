@@ -1,6 +1,7 @@
 import type { ApiRequest } from './api/router';
 import { handleApiRequest } from './api/router';
 export { handleApiRequest } from './api/router';
+export { runRakutenIntegrationTest } from './integration/RakutenIntegrationTest';
 export type { NavFetchResult } from './usecase/NavFetchUseCase';
 
 /**

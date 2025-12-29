@@ -28,14 +28,14 @@
                 placeholder="例: つみたて全世界株式"
                 required
               />
-              <label for="fundMorningstarCode">モーニングスターコード (10桁)</label>
+              <label for="fundRakutenFundId">楽天ファンドID (12桁)</label>
               <input
                 type="text"
-                id="fundMorningstarCode"
-                name="fundMorningstarCode"
-                placeholder="例: 2017092908"
-                pattern="\d{10}"
-                title="10桁の数字を入力してください"
+                id="fundRakutenFundId"
+                name="fundRakutenFundId"
+                placeholder="例: JP90C000H1T1"
+                pattern="[A-Za-z0-9]{12}"
+                title="12桁の英数字を入力してください"
               />
               <button type="submit" class="primary">登録</button>
             </form>

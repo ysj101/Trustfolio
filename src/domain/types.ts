@@ -20,11 +20,11 @@ export type Fund = {
   /** 銘柄名 */
   name: string;
   /**
-   * モーニングスターコード（10桁）。
+   * 楽天ファンドID（12桁）。
    * 基準価額の自動取得に使用する。
    * 未設定の場合はnull。
    */
-  morningstarCode: string | null;
+  rakutenFundId: string | null;
   createdAt: string;
 };
 

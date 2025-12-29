@@ -20,6 +20,9 @@ const footer = [
   '}',
   'function include(filename) {',
   '  return TrustfolioApp.include(filename);',
+  '}',
+  'function runRakutenIntegrationTest() {',
+  '  return TrustfolioApp.runRakutenIntegrationTest();',
   '}'
 ].join('\n');
 
