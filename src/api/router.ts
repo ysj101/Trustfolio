@@ -41,13 +41,6 @@ type GetNavHistoryRequest = {
   fundId: string;
 };
 
-type RegisterNavRequest = {
-  action: 'registerNav';
-  fundId: string;
-  date: string;
-  value: number;
-};
-
 type GetTransactionHistoryRequest = {
   action: 'getTransactionHistory';
   fundId: string;
@@ -104,7 +97,6 @@ export type ApiRequest =
   | CreateFundRequest
   | UpdateFundRequest
   | GetNavHistoryRequest
-  | RegisterNavRequest
   | GetTransactionHistoryRequest
   | ExecuteSpotPurchaseRequest
   | ListRecurringPurchasesRequest
@@ -172,12 +164,6 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
       });
     case 'getNavHistory':
       return navUseCase.getNavHistory(request.fundId);
-    case 'registerNav':
-      return navUseCase.registerNav({
-        fundId: request.fundId,
-        date: request.date,
-        value: request.value,
-      });
     case 'getTransactionHistory':
       return transactionUseCase.getHistory(request.fundId);
     case 'executeSpotPurchase':

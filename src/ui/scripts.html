@@ -3,7 +3,6 @@
 
   const state = {
     funds: [],
-    selectedFundId: null,
     selectedTransactionFundId: null
   };
 
@@ -12,12 +11,6 @@
   const fundNameInput = document.getElementById('fundName');
   const fundRakutenFundIdInput = document.getElementById('fundRakutenFundId');
   const fundList = document.getElementById('fundList');
-  const fetchAllNavsButton = document.getElementById('fetchAllNavsButton');
-  const navForm = document.getElementById('navForm');
-  const navFundSelect = document.getElementById('navFundSelect');
-  const navDateInput = document.getElementById('navDate');
-  const navValueInput = document.getElementById('navValue');
-  const navList = document.getElementById('navList');
   const transactionForm = document.getElementById('transactionForm');
   const transactionFundSelect = document.getElementById('transactionFundSelect');
   const transactionDateInput = document.getElementById('transactionDate');
@@ -106,31 +99,6 @@
     });
   }
 
-  function renderFundSelect() {
-    navFundSelect.innerHTML = '';
-    if (state.funds.length === 0) {
-      navFundSelect.disabled = true;
-      const option = document.createElement('option');
-      option.textContent = '銘柄がありません';
-      option.value = '';
-      navFundSelect.appendChild(option);
-      return;
-    }
-
-    navFundSelect.disabled = false;
-    state.funds.forEach((fund) => {
-      const option = document.createElement('option');
-      option.value = fund.id;
-      option.textContent = fund.name;
-      navFundSelect.appendChild(option);
-    });
-
-    if (!state.selectedFundId || !state.funds.find((fund) => fund.id === state.selectedFundId)) {
-      state.selectedFundId = state.funds[0].id;
-    }
-    navFundSelect.value = state.selectedFundId;
-  }
-
   function renderTransactionSelect() {
     transactionFundSelect.innerHTML = '';
     if (state.funds.length === 0) {
@@ -176,27 +144,6 @@
       option.value = fund.id;
       option.textContent = fund.name;
       recurringFundSelect.appendChild(option);
-    });
-  }
-
-  function renderNavs(navs) {
-    navList.innerHTML = '';
-    if (navs.length === 0) {
-      const empty = document.createElement('li');
-      empty.textContent = '履歴がありません。';
-      navList.appendChild(empty);
-      return;
-    }
-
-    navs.forEach((nav) => {
-      const item = document.createElement('li');
-      const date = document.createElement('strong');
-      date.textContent = nav.date;
-      const value = document.createElement('span');
-      value.textContent = `${nav.value.toLocaleString()} 円`;
-      item.appendChild(date);
-      item.appendChild(value);
-      navList.appendChild(item);
     });
   }
 
@@ -315,28 +262,14 @@
     }
     state.funds = response.value;
     renderFunds();
-    renderFundSelect();
     renderTransactionSelect();
     renderRecurringSelect();
-    if (state.selectedFundId) {
-      await loadNavs(state.selectedFundId);
-    }
     if (state.selectedTransactionFundId) {
-      if (state.selectedTransactionFundId) {
-        await loadTransactions(state.selectedTransactionFundId);
-      }
+      await loadTransactions(state.selectedTransactionFundId);
     }
     await loadRecurringPurchases();
     await loadHoldings();
     await loadPortfolioSummary();
-  }
-
-  async function loadNavs(fundId) {
-    const response = await callApi({ action: 'getNavHistory', fundId });
-    if (!response.success) {
-      throw new Error(response.error.message);
-    }
-    renderNavs(response.value);
   }
 
   async function loadTransactions(fundId) {
@@ -387,32 +320,6 @@
       fundRakutenFundIdInput.value = '';
       setMessage('銘柄を登録しました。', 'success');
       await loadFunds();
-    } catch (error) {
-      setMessage(error.message, 'error');
-    } finally {
-      setLoading(false);
-    }
-  });
-
-  navForm.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const fundId = navFundSelect.value;
-    const date = navDateInput.value;
-    const value = Number(navValueInput.value);
-    setMessage('登録中...', null);
-    setLoading(true);
-    try {
-      const response = await callApi({ action: 'registerNav', fundId, date, value });
-      if (!response.success) {
-        setMessage(response.error.message, 'error');
-        return;
-      }
-      navDateInput.value = '';
-      navValueInput.value = '';
-      setMessage('基準価額を登録しました。', 'success');
-      await loadNavs(fundId);
-      await loadHoldings();
-      await loadPortfolioSummary();
     } catch (error) {
       setMessage(error.message, 'error');
     } finally {
@@ -495,20 +402,6 @@
     }
   });
 
-  navFundSelect.addEventListener('change', async (event) => {
-    const fundId = event.target.value;
-    state.selectedFundId = fundId;
-    if (!fundId) {
-      renderNavs([]);
-      return;
-    }
-    try {
-      await loadNavs(fundId);
-    } catch (error) {
-      setMessage(error.message, 'error');
-    }
-  });
-
   transactionFundSelect.addEventListener('change', async (event) => {
     const fundId = event.target.value;
     state.selectedTransactionFundId = fundId;
@@ -561,29 +454,6 @@
     }
   });
 
-  fetchAllNavsButton.addEventListener('click', async () => {
-    setMessage('基準価額を取得中...（しばらくお待ちください）', null);
-    setLoading(true);
-    try {
-      const response = await callApi({ action: 'fetchAllNavs' });
-      if (!response.success) {
-        setMessage(response.error.message, 'error');
-        return;
-      }
-      const result = response.value;
-      const message = `基準価額の取得が完了しました。成功: ${result.successCount}件, 既存: ${result.alreadyExistsCount}件, スキップ: ${result.skippedCount}件, 失敗: ${result.failedCount}件`;
-      setMessage(message, result.failedCount > 0 ? 'error' : 'success');
-      if (state.selectedFundId) {
-        await loadNavs(state.selectedFundId);
-      }
-      await loadHoldings();
-      await loadPortfolioSummary();
-    } catch (error) {
-      setMessage(error.message, 'error');
-    } finally {
-      setLoading(false);
-    }
-  });
 
   (async () => {
     setMessage('読み込み中...', null);
