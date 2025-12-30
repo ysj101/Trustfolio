@@ -94,3 +94,47 @@ export function fetchAllNavs(): void {
       `失敗: ${String(result.failedCount)}`
   );
 }
+
+/**
+ * NAV自動取得の時間駆動トリガーを設定する。
+ * この関数を1回だけ手動実行することで、毎日21:00-22:00に自動実行されるトリガーが設定される。
+ * 既存のトリガーは削除してから新しいトリガーを設定する。
+ */
+export function setupNavFetchTrigger(): void {
+  // 既存のfetchAllNavsトリガーを削除
+  const existingTriggers = ScriptApp.getProjectTriggers();
+  for (const trigger of existingTriggers) {
+    if (trigger.getHandlerFunction() === 'fetchAllNavs') {
+      ScriptApp.deleteTrigger(trigger);
+      console.log(`既存のトリガーを削除しました: ${trigger.getUniqueId()}`);
+    }
+  }
+
+  // 新しいトリガーを設定（毎日21:00-22:00に実行）
+  ScriptApp.newTrigger('fetchAllNavs').timeBased().everyDays(1).atHour(21).create();
+
+  console.log('NAV自動取得トリガーを設定しました（毎日21:00-22:00実行）');
+}
+
+/**
+ * NAV自動取得の時間駆動トリガーを削除する。
+ * 自動取得を停止したい場合に実行する。
+ */
+export function deleteNavFetchTrigger(): void {
+  const triggers = ScriptApp.getProjectTriggers();
+  let deletedCount = 0;
+
+  for (const trigger of triggers) {
+    if (trigger.getHandlerFunction() === 'fetchAllNavs') {
+      ScriptApp.deleteTrigger(trigger);
+      deletedCount++;
+      console.log(`トリガーを削除しました: ${trigger.getUniqueId()}`);
+    }
+  }
+
+  if (deletedCount === 0) {
+    console.log('削除対象のトリガーが見つかりませんでした。');
+  } else {
+    console.log(`${String(deletedCount)}個のトリガーを削除しました。`);
+  }
+}
