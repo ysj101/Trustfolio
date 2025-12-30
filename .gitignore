@@ -19,6 +19,9 @@ Thumbs.db
 .env.local
 .env.*.local
 
+# Clasp (contains project-specific IDs)
+.clasp.json
+
 # Logs
 *.log
 npm-debug.log*

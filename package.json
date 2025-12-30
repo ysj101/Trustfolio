@@ -4,11 +4,8 @@
   "version": "0.1.0",
   "scripts": {
     "build": "rollup -c",
-    "push": "clasp push",
-    "deploy": "pnpm build && pnpm push && pnpm deploy:gas",
-    "deploy:gas": "clasp deploy -i AKfycbxLIgQIbBNy_I93j1mWJpfWlzoJGfC_wagxfyd4E2o -d \"Auto deployment $(date +'%Y-%m-%d %H:%M:%S')\"",
-    "deploy:new": "pnpm build && pnpm push && clasp deploy -d \"New deployment $(date +'%Y-%m-%d %H:%M:%S')\"",
-    "predeploy": "pnpm lint",
+    "push": "pnpm lint && pnpm build && clasp push",
+    "setup:clasp": "scripts/setup-clasp.sh",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "format": "prettier --write \"src/**/*.ts\"",
