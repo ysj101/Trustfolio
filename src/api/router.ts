@@ -1,8 +1,9 @@
-import { SHEET_DEFINITIONS } from '../Config';
+import { SHEET_DEFINITIONS, SHEET_NAMES } from '../Config';
 import type { Result } from '../domain/types';
 import { createFundRepository } from '../repository/FundRepository';
 import { createNavRepository } from '../repository/NavRepository';
 import { createRecurringPurchaseRepository } from '../repository/RecurringPurchaseRepository';
+import type { SheetRepository } from '../repository/SheetRepository';
 import { openSheetRepository } from '../repository/SheetRepository';
 import { createTransactionRepository } from '../repository/TransactionRepository';
 import { createRakutenService } from '../service/RakutenService';
@@ -206,8 +207,13 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
       return holdingUseCase.getHolding(request.fundId);
     case 'getPortfolioSummary':
       return portfolioUseCase.getPortfolioSummary();
-    case 'fetchAllNavs':
+    case 'fetchAllNavs': {
+      const ensureResult = ensureRequiredSheetsForNavFetch(sheetRepository);
+      if (!ensureResult.success) {
+        return ensureResult;
+      }
       return navFetchUseCase.fetchAndRegisterAllNavs();
+    }
     default:
       return {
         success: false,
@@ -217,4 +223,23 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
         },
       };
   }
+}
+
+/**
+ * NAV自動取得に必要なシートが存在し、ヘッダーも正しいことを事前に検証する。
+ * シートが存在しない場合は自動作成するため、初期化漏れを原因とした失敗を防ぐ。
+ */
+function ensureRequiredSheetsForNavFetch(sheetRepository: SheetRepository): Result<void> {
+  const requiredDefinitions = SHEET_DEFINITIONS.filter(
+    (definition) => definition.name === SHEET_NAMES.FUNDS || definition.name === SHEET_NAMES.NAVS
+  );
+
+  for (const definition of requiredDefinitions) {
+    const result = sheetRepository.ensureSheet(definition);
+    if (!result.success) {
+      return result;
+    }
+  }
+
+  return { success: true, value: undefined };
 }
