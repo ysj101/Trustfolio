@@ -11,6 +11,7 @@
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\"",
     "test:rakuten": "node scripts/rakuten-integration-test.mjs",
+    "test:nav-fetch": "node scripts/nav-fetch-test.mjs",
     "prepare": "husky"
   },
   "devDependencies": {
