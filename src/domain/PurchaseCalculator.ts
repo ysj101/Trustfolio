@@ -40,7 +40,7 @@ export function calculateUnits(amount: number, fee: number, navValue: number): R
     };
   }
 
-  const units = Math.floor(((amount - fee) / navValue) * UNITS_BASE);
+  const units = Math.ceil(((amount - fee) / navValue) * UNITS_BASE);
   if (units <= 0) {
     return {
       success: false,
