@@ -111,6 +111,10 @@ function createSheetRepository(
   return repository;
 }
 
+/**
+ * シートのヘッダー行を検証し、不足カラムがあれば自動追加する。
+ * カラムの順序は定義順に従い、途中に不足カラムがあれば列を挿入する。
+ */
 function ensureHeader(
   sheet: GoogleAppsScript.Spreadsheet.Sheet,
   headers: readonly string[],
@@ -119,27 +123,41 @@ function ensureHeader(
   const lastRow = sheet.getLastRow();
   const lastColumn = sheet.getLastColumn();
 
+  // 空シートの場合はヘッダーを設定して終了
   if (lastRow === 0 || lastColumn === 0) {
     sheet.getRange(1, 1, 1, headers.length).setValues([Array.from(headers)]);
     return { success: true, value: undefined };
   }
 
-  if (lastColumn < headers.length) {
-    return fail('unexpected', `シートの列数が不足しています: ${sheetName}`);
+  // 現在のヘッダーを取得
+  const actualHeaders = sheet.getRange(1, 1, 1, lastColumn).getValues()[0] as string[];
+
+  // 期待するヘッダーと実際のヘッダーを比較し、不足カラムを特定
+  const missingColumns = findMissingColumns(headers, actualHeaders);
+
+  // 不足カラムがあれば挿入
+  for (const missing of missingColumns) {
+    // 列を挿入（1-indexed）
+    sheet.insertColumnBefore(missing.insertAt + 1);
+    // ヘッダーを設定
+    sheet.getRange(1, missing.insertAt + 1).setValue(missing.columnName);
   }
 
-  const actualHeaders = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
+  // 再度ヘッダーを取得して検証
+  const updatedLastColumn = sheet.getLastColumn();
+  const updatedHeaders = sheet.getRange(1, 1, 1, updatedLastColumn).getValues()[0] as string[];
 
-  const mismatches = headers
+  // 最終検証：期待するヘッダーと一致するか確認
+  const finalMismatches = headers
     .map((expected, index) => ({
       expected,
-      actual: String(actualHeaders[index] ?? ''),
+      actual: updatedHeaders[index] ?? '',
       index,
     }))
     .filter((item) => item.expected !== item.actual);
 
-  if (mismatches.length > 0) {
-    const detail = mismatches
+  if (finalMismatches.length > 0) {
+    const detail = finalMismatches
       .map(
         (item) => `${String(item.index + 1)}列目 expected=${item.expected} actual=${item.actual}`
       )
@@ -148,6 +166,36 @@ function ensureHeader(
   }
 
   return { success: true, value: undefined };
+}
+
+/**
+ * 期待するヘッダーと実際のヘッダーを比較し、不足しているカラムを特定する。
+ * 挿入位置は期待する順序に基づいて決定する。
+ */
+function findMissingColumns(
+  expectedHeaders: readonly string[],
+  actualHeaders: string[]
+): { columnName: string; insertAt: number }[] {
+  const missing: { columnName: string; insertAt: number }[] = [];
+  let actualIndex = 0;
+
+  for (let expectedIndex = 0; expectedIndex < expectedHeaders.length; expectedIndex++) {
+    const expectedColumn = expectedHeaders[expectedIndex];
+
+    if (actualIndex < actualHeaders.length && actualHeaders[actualIndex] === expectedColumn) {
+      // 一致する場合は次へ
+      actualIndex++;
+    } else {
+      // 不足カラムを記録（挿入位置は現在のexpectedIndex）
+      // 既に挿入したカラム分を考慮
+      missing.push({
+        columnName: expectedColumn,
+        insertAt: expectedIndex + missing.length,
+      });
+    }
+  }
+
+  return missing;
 }
 
 function fail<T>(type: AppError['type'], message: string, field?: string): Result<T> {
