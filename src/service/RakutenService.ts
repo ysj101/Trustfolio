@@ -43,7 +43,8 @@ export type RakutenQuoteResult = {
 export function createRakutenService(): RakutenService {
   return {
     fetchLatestNav: (rakutenFundId: string): Result<FetchNavResult> => {
-      if (!/^[A-Za-z0-9]{12}$/.test(rakutenFundId)) {
+      const trimmed = rakutenFundId.trim();
+      if (!/^[A-Za-z0-9]{12}$/.test(trimmed)) {
         return {
           success: false,
           error: {
@@ -54,11 +55,28 @@ export function createRakutenService(): RakutenService {
         };
       }
 
-      const nav = fetchNavFromRakuten(rakutenFundId);
+      const quoteResult = fetchRakutenQuote(trimmed);
+      if (!quoteResult.success) {
+        return { success: false, error: quoteResult.error };
+      }
+
+      const nav = quoteResult.value.nav;
+      if (nav === null) {
+        return {
+          success: false,
+          error: {
+            type: 'unexpected',
+            message: `基準価額データを取得できませんでした。statusCode=${String(
+              quoteResult.value.statusCode
+            )} url=${quoteResult.value.url}`,
+          },
+        };
+      }
+
       return {
         success: true,
         value: {
-          rakutenFundId,
+          rakutenFundId: trimmed,
           nav,
         },
       };
@@ -88,6 +106,10 @@ export function fetchRakutenQuote(rakutenFundId: string): Result<RakutenQuoteRes
     headers: {
       // eslint-disable-next-line @typescript-eslint/naming-convention
       'User-Agent': 'Mozilla/5.0 (compatible; TrustfolioBot/1.0)',
+      // eslint-disable-next-line @typescript-eslint/naming-convention
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      // eslint-disable-next-line @typescript-eslint/naming-convention
+      'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8',
     },
     muteHttpExceptions: true,
   });
@@ -124,34 +146,6 @@ export function fetchRakutenQuote(rakutenFundId: string): Result<RakutenQuoteRes
       nav,
     },
   };
-}
-
-/**
- * 楽天証券のファンド詳細ページから基準価額を取得する。
- * 取得できない場合はnullを返す。
- * 注意: この関数は外部APIを呼び出すため、腐敗防止層として例外をキャッチしてnullを返す。
- */
-function fetchNavFromRakuten(rakutenFundId: string): RakutenNavData | null {
-  const url = `https://www.rakuten-sec.co.jp/web/fund/detail/?ID=${rakutenFundId}`;
-  const response = safeFetch(url, {
-    method: 'get',
-    headers: {
-      // eslint-disable-next-line @typescript-eslint/naming-convention
-      'User-Agent': 'Mozilla/5.0 (compatible; TrustfolioBot/1.0)',
-    },
-    muteHttpExceptions: true,
-  });
-  if (response === null) {
-    return null;
-  }
-
-  const responseCode = response.getResponseCode();
-  if (responseCode !== 200) {
-    return null;
-  }
-
-  const html = response.getContentText();
-  return parseNavFromRakutenHtml(html);
 }
 
 /**
