@@ -39,13 +39,17 @@ jobs:
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
+            EVENT ACTION: ${{ github.event.action }}
 
-            Please review this pull request and provide feedback on:
-            - Code quality and best practices
-            - Potential bugs or issues
-            - Performance considerations
-            - Security concerns
-            - Test coverage
+            If EVENT ACTION is 'opened':
+            - This is the initial PR review. Please provide a comprehensive review of all changes.
+            - Review all aspects: code quality, best practices, potential bugs, performance, security, and test coverage.
+
+            If EVENT ACTION is 'synchronize':
+            - This is an update to an existing PR. Please review only the newly added changes since the last review.
+            - Focus on the incremental changes and how they affect previously reviewed code.
+            - First, use `gh pr diff` to understand what changed in this update compared to the previous commit.
+            - Only review the modified/added code, not the entire PR again.
 
             Use the repository's CLAUDE.md for guidance on style and conventions. Be constructive and helpful in your feedback.
 
