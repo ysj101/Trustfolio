@@ -61,32 +61,66 @@ Google Sheets上で管理するGASアプリケーションです。
 pnpm install
 ```
 
+### 環境変数の設定
+
+1. `.env.example`をコピーして`.env`を作成します。
+
+```bash
+cp .env.example .env
+```
+
+2. `.env`ファイルに以下の値を設定します。
+
+| 環境変数 | 説明 | 取得方法 |
+|----------|------|----------|
+| `GAS_SCRIPT_ID` | GASプロジェクトのScript ID | GASエディタのURL `https://script.google.com/home/projects/{SCRIPT_ID}/edit` から取得 |
+
+3. `.clasp.json`を生成します。
+
+```bash
+pnpm setup:clasp
+```
+
 ### ビルド
 
 ```bash
-pnpm run build
+pnpm build
 ```
 
-### GASへ反映
+## デプロイ
+
+### 開発フロー
 
 ```bash
-pnpm exec clasp push --force
+pnpm push
 ```
 
-## 画面のデプロイ方法と開き方
+このコマンドで以下が自動実行されます：
 
-### デプロイ方法（Webアプリ）
+1. ESLintによるコードチェック
+2. TypeScriptのビルド
+3. GASへのコードpush（`@HEAD`デプロイメント更新）
 
-1. Apps Scriptエディタを開きます。
-2. 右上の`デプロイ` → `新しいデプロイ`を選択します。
-3. 種類で`ウェブアプリ`を選択します。
-4. `次のユーザーとして実行`は`自分`、`アクセスできるユーザー`は`自分のみ`を選択します。
-5. `デプロイ`を実行し、表示されたURLを控えます。
+### 本番反映
+
+GASエディタで既存デプロイメントを更新します（URLが固定されます）：
+
+1. GASエディタを開く
+2. 「デプロイ」→「デプロイを管理」
+3. 編集（鉛筆アイコン）をクリック
+4. バージョンで「新バージョン」を選択
+5. 「デプロイ」をクリック
+
+### 初回Webアプリデプロイ（新規プロジェクトのみ）
+
+1. GASエディタで「デプロイ」→「新しいデプロイ」
+2. 種類で「ウェブアプリ」を選択
+3. 実行ユーザー・アクセス権限を設定
+4. 「デプロイ」をクリック
 
 ### 画面の開き方
 
-- デプロイ時に表示されたWebアプリのURLにアクセスします。
-- 既存のデプロイURLを確認する場合は、`デプロイ` → `デプロイを管理`から確認できます。
+- GASエディタの「デプロイ」→「デプロイを管理」からWebアプリURLを確認できます。
 
 ## 使い方
 
@@ -108,8 +142,9 @@ pnpm exec clasp push --force
 
 | コマンド | 説明 |
 |----------|------|
-| `pnpm run build` | GAS用にバンドルして`dist/`へ出力 |
-| `pnpm exec clasp push --force` | GASプロジェクトへ反映 |
+| `pnpm push` | lint→ビルド→GASへpush（メインコマンド） |
+| `pnpm setup:clasp` | `.env`から`.clasp.json`を生成 |
+| `pnpm build` | GAS用にバンドルして`dist/`へ出力 |
 | `pnpm lint` | ESLintでコード検査 |
 | `pnpm lint:fix` | ESLintで自動修正 |
 
