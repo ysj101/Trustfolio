@@ -23,6 +23,15 @@ const footer = [
   '}',
   'function runRakutenIntegrationTest() {',
   '  return TrustfolioApp.runRakutenIntegrationTest();',
+  '}',
+  'function fetchAllNavs() {',
+  '  return TrustfolioApp.fetchAllNavs();',
+  '}',
+  'function setupNavFetchTrigger() {',
+  '  return TrustfolioApp.setupNavFetchTrigger();',
+  '}',
+  'function deleteNavFetchTrigger() {',
+  '  return TrustfolioApp.deleteNavFetchTrigger();',
   '}'
 ].join('\n');
 
