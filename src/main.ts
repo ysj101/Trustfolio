@@ -78,7 +78,11 @@ export function fetchAllNavs(): void {
     return;
   }
 
-  const result = response.value as NavFetchResult;
+  const result = response.value;
+  if (!isNavFetchResult(result)) {
+    console.error('基準価額の自動取得結果の形式が不正です');
+    return;
+  }
 
   console.log(
     `基準価額の自動取得が完了しました。` +
@@ -153,4 +157,22 @@ export function deleteNavFetchTrigger(): void {
   } else {
     console.log(`${String(deletedCount)}個のトリガーを削除しました。`);
   }
+}
+
+/**
+ * NavFetchResultの型ガード関数。
+ */
+function isNavFetchResult(value: unknown): value is NavFetchResult {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const obj = value as Record<string, unknown>;
+  return (
+    typeof obj.totalCount === 'number' &&
+    typeof obj.successCount === 'number' &&
+    typeof obj.alreadyExistsCount === 'number' &&
+    typeof obj.skippedCount === 'number' &&
+    typeof obj.failedCount === 'number' &&
+    Array.isArray(obj.items)
+  );
 }
