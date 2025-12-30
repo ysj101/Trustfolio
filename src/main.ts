@@ -3,6 +3,7 @@ import { handleApiRequest } from './api/router';
 export { handleApiRequest } from './api/router';
 export { runRakutenIntegrationTest } from './integration/RakutenIntegrationTest';
 export type { NavFetchResult } from './usecase/NavFetchUseCase';
+import type { NavFetchResult, NavFetchResultItem } from './usecase/NavFetchUseCase';
 
 /**
  * Webアプリのエントリーポイント（GET）。
@@ -77,13 +78,7 @@ export function fetchAllNavs(): void {
     return;
   }
 
-  const result = response.value as {
-    totalCount: number;
-    successCount: number;
-    skippedCount: number;
-    alreadyExistsCount: number;
-    failedCount: number;
-  };
+  const result = response.value as NavFetchResult;
 
   console.log(
     `基準価額の自動取得が完了しました。` +
@@ -93,6 +88,27 @@ export function fetchAllNavs(): void {
       `スキップ: ${String(result.skippedCount)}, ` +
       `失敗: ${String(result.failedCount)}`
   );
+
+  logNavFetchFailures(result.items);
+}
+
+/**
+ * NAV自動取得で失敗した銘柄の詳細をログ出力する。
+ * 失敗理由を即時に把握できるようにするための補助関数。
+ */
+function logNavFetchFailures(items: NavFetchResultItem[]): void {
+  const failedItems = items.filter((item) => item.status === 'failed');
+  if (failedItems.length === 0) {
+    return;
+  }
+
+  for (const item of failedItems) {
+    console.error(
+      `基準価額取得に失敗しました: fundId=${item.fundId}, fundName=${item.fundName}, reason=${
+        item.message ?? '不明なエラー'
+      }`
+    );
+  }
 }
 
 /**
