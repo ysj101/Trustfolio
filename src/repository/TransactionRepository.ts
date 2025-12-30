@@ -23,6 +23,12 @@ export function createTransactionRepository(
 
       const transactions: Transaction[] = [];
       for (const [index, row] of rowsResult.value.entries()) {
+        // 空行はスキップ
+        const isEmpty = row.every((cell) => cell === '' || cell === null || cell === undefined);
+        if (isEmpty) {
+          continue;
+        }
+
         const parsed = parseRow(row, index);
         if (!parsed.success) {
           return parsed;
@@ -60,7 +66,14 @@ export function createTransactionRepository(
       }
 
       for (let index = 0; index < rowsResult.value.length; index += 1) {
-        const parsed = parseRow(rowsResult.value[index], index);
+        const row = rowsResult.value[index];
+        // 空行はスキップ
+        const isEmpty = row.every((cell) => cell === '' || cell === null || cell === undefined);
+        if (isEmpty) {
+          continue;
+        }
+
+        const parsed = parseRow(row, index);
         if (!parsed.success) {
           return parsed;
         }
@@ -100,8 +113,25 @@ function parseRow(row: unknown[], index: number): Result<Transaction> {
   if (type !== 'SPOT_PURCHASE' && type !== 'RECURRING_PURCHASE') {
     return fail('unexpected', `transactionsの${String(index + 2)}行目のtypeが不正です。`);
   }
-  if (typeof date !== 'string' || date === '') {
-    return fail('unexpected', `transactionsの${String(index + 2)}行目のdateが不正です。`);
+
+  // dateはスプレッドシートからDateオブジェクトとして返される可能性があるため、文字列に変換
+  let dateStr: string;
+  if (date instanceof Date) {
+    // Dateオブジェクトが無効な日付でないかチェック
+    if (Number.isNaN(date.getTime())) {
+      return fail(
+        'unexpected',
+        `transactionsの${String(index + 2)}行目のdateが無効な日付です。値: ${String(date)}`
+      );
+    }
+    dateStr = formatDateToIso(date);
+  } else if (typeof date === 'string' && date !== '') {
+    dateStr = date;
+  } else {
+    return fail(
+      'unexpected',
+      `transactionsの${String(index + 2)}行目のdateが不正です。型: ${typeof date}, 値: ${String(date)}`
+    );
   }
   if (typeof amount !== 'number' || Number.isNaN(amount)) {
     return fail('unexpected', `transactionsの${String(index + 2)}行目のamountが不正です。`);
@@ -125,7 +155,7 @@ function parseRow(row: unknown[], index: number): Result<Transaction> {
       id,
       fundId,
       type,
-      date,
+      date: dateStr,
       amount,
       fee,
       navValue,
@@ -147,4 +177,15 @@ function normalizeOptionalString(value: unknown): string | null {
 
 function fail<T>(type: AppError['type'], message: string): Result<T> {
   return { success: false, error: { type, message } };
+}
+
+/**
+ * DateオブジェクトをYYYY-MM-DD形式の文字列に変換する。
+ * タイムゾーンに依存せず、Dateオブジェクトのローカル日付を使用する。
+ */
+function formatDateToIso(date: Date): string {
+  const year = String(date.getFullYear());
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }

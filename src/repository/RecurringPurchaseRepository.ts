@@ -23,6 +23,12 @@ export function createRecurringPurchaseRepository(
 
       const recurrings: RecurringPurchase[] = [];
       for (const [index, row] of rowsResult.value.entries()) {
+        // 空行はスキップ
+        const isEmpty = row.every((cell) => cell === '' || cell === null || cell === undefined);
+        if (isEmpty) {
+          continue;
+        }
+
         const parsed = parseRow(row, index);
         if (!parsed.success) {
           return parsed;
@@ -74,9 +80,42 @@ function parseRow(row: unknown[], index: number): Result<RecurringPurchase> {
   if (typeof executionDay !== 'number' || Number.isNaN(executionDay)) {
     return fail('unexpected', `recurringの${String(index + 2)}行目のexecutionDayが不正です。`);
   }
-  if (typeof startDate !== 'string' || startDate === '') {
-    return fail('unexpected', `recurringの${String(index + 2)}行目のstartDateが不正です。`);
+
+  // startDateはスプレッドシートからDateオブジェクトとして返される可能性があるため、文字列に変換
+  let startDateStr: string;
+  if (startDate instanceof Date) {
+    // Dateオブジェクトが無効な日付でないかチェック
+    if (Number.isNaN(startDate.getTime())) {
+      return fail(
+        'unexpected',
+        `recurringの${String(index + 2)}行目のstartDateが無効な日付です。値: ${String(startDate)}`
+      );
+    }
+    startDateStr = formatDateToIso(startDate);
+  } else if (typeof startDate === 'string' && startDate !== '') {
+    startDateStr = startDate;
+  } else {
+    return fail(
+      'unexpected',
+      `recurringの${String(index + 2)}行目のstartDateが不正です。型: ${typeof startDate}, 値: ${String(startDate)}`
+    );
   }
+
+  // endDateはスプレッドシートからDateオブジェクトとして返される可能性があるため、文字列に変換
+  let endDateStr: string | null;
+  if (endDate instanceof Date) {
+    // Dateオブジェクトが無効な日付でないかチェック
+    if (Number.isNaN(endDate.getTime())) {
+      return fail(
+        'unexpected',
+        `recurringの${String(index + 2)}行目のendDateが無効な日付です。値: ${String(endDate)}`
+      );
+    }
+    endDateStr = formatDateToIso(endDate);
+  } else {
+    endDateStr = normalizeOptionalString(endDate);
+  }
+
   if (typeof createdAt !== 'string' || createdAt === '') {
     return fail('unexpected', `recurringの${String(index + 2)}行目のcreatedAtが不正です。`);
   }
@@ -88,8 +127,8 @@ function parseRow(row: unknown[], index: number): Result<RecurringPurchase> {
       fundId,
       monthlyAmount,
       executionDay,
-      startDate,
-      endDate: normalizeOptionalString(endDate),
+      startDate: startDateStr,
+      endDate: endDateStr,
       isActive: normalizeBoolean(isActive),
       createdAt,
     },
@@ -116,4 +155,15 @@ function normalizeBoolean(value: unknown): boolean {
 
 function fail<T>(type: AppError['type'], message: string): Result<T> {
   return { success: false, error: { type, message } };
+}
+
+/**
+ * DateオブジェクトをYYYY-MM-DD形式の文字列に変換する。
+ * タイムゾーンに依存せず、Dateオブジェクトのローカル日付を使用する。
+ */
+function formatDateToIso(date: Date): string {
+  const year = String(date.getFullYear());
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
