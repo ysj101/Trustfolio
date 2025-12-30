@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "scripts": {
     "build": "rollup -c",
-    "push": "pnpm lint && pnpm build && clasp push",
+    "push": "pnpm lint && pnpm build && clasp push --force",
     "setup:clasp": "scripts/setup-clasp.sh",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
