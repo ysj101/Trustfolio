@@ -287,7 +287,7 @@ export function createRecurringUseCase(
           continue;
         }
 
-        const unitsResult = calculateUnits(recurring.monthlyAmount, 0, navValue.value);
+        const unitsResult = calculateUnits(recurring.monthlyAmount, navValue.value);
         if (!unitsResult.success) {
           skipped.push({ recurringPurchaseId: recurring.id, reason: 'NO_NAV' });
           continue;
@@ -299,7 +299,6 @@ export function createRecurringUseCase(
           type: 'RECURRING_PURCHASE',
           date: targetDate,
           amount: recurring.monthlyAmount,
-          fee: 0,
           navValue: navValue.value,
           units: unitsResult.value,
           recurringPurchaseId: recurring.id,

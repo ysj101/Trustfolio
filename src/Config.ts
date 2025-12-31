@@ -22,7 +22,6 @@ export const SHEET_HEADERS = {
     'type',
     'date',
     'amount',
-    'fee',
     'navValue',
     'units',
     'recurringPurchaseId',

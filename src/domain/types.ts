@@ -66,7 +66,6 @@ export type Transaction = {
   type: 'SPOT_PURCHASE' | 'RECURRING_PURCHASE' | 'REDEMPTION';
   date: string;
   amount: number;
-  fee: number;
   navValue: number;
   units: number;
   recurringPurchaseId: string | null;

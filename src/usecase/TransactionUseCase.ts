@@ -10,7 +10,6 @@ export type TransactionUseCase = {
     fundId: string;
     date: string;
     amount: number;
-    fee: number;
     navValue: number;
   }) => Result<Transaction>;
   /**
@@ -33,7 +32,6 @@ export type TransactionUseCase = {
     fundId: string;
     date: string;
     amount: number;
-    fee: number;
     navValue: number;
   }) => Result<Transaction>;
   /**
@@ -75,7 +73,6 @@ export function createTransactionUseCase(
       fundId: string;
       date: string;
       amount: number;
-      fee: number;
       navValue: number;
     }): Result<Transaction> => {
       const validateResult = validateSpotPurchaseInput(input);
@@ -83,7 +80,7 @@ export function createTransactionUseCase(
         return validateResult as Result<Transaction>;
       }
 
-      const { fundId, date, amount, fee, navValue } = validateResult.value;
+      const { fundId, date, amount, navValue } = validateResult.value;
 
       const fundResult = fundRepository.findById(fundId);
       if (!fundResult.success) {
@@ -96,7 +93,7 @@ export function createTransactionUseCase(
         };
       }
 
-      const unitsResult = calculateUnits(amount, fee, navValue);
+      const unitsResult = calculateUnits(amount, navValue);
       if (!unitsResult.success) {
         return unitsResult;
       }
@@ -107,7 +104,6 @@ export function createTransactionUseCase(
         type: 'SPOT_PURCHASE',
         date,
         amount,
-        fee,
         navValue,
         units: unitsResult.value,
         recurringPurchaseId: null,
@@ -207,7 +203,7 @@ export function createTransactionUseCase(
         return validateResult as Result<Transaction>;
       }
 
-      const { fundId, date, amount, fee, navValue } = validateResult.value;
+      const { fundId, date, amount, navValue } = validateResult.value;
 
       const existingResult = transactionRepository.findById(input.id);
       if (!existingResult.success) {
@@ -241,7 +237,7 @@ export function createTransactionUseCase(
         };
       }
 
-      const unitsResult = calculateUnits(amount, fee, navValue);
+      const unitsResult = calculateUnits(amount, navValue);
       if (!unitsResult.success) {
         return unitsResult;
       }
@@ -252,7 +248,6 @@ export function createTransactionUseCase(
         type: 'SPOT_PURCHASE',
         date,
         amount,
-        fee,
         navValue,
         units: unitsResult.value,
         recurringPurchaseId: null,
@@ -313,16 +308,14 @@ function validateSpotPurchaseInput(input: {
   fundId: string;
   date: string;
   amount: number;
-  fee: number;
   navValue: number;
 }): Result<{
   fundId: string;
   date: string;
   amount: number;
-  fee: number;
   navValue: number;
 }> {
-  const { fundId, date, amount, fee, navValue } = input;
+  const { fundId, date, amount, navValue } = input;
 
   if (typeof fundId !== 'string' || fundId.trim() === '') {
     return {
@@ -350,12 +343,6 @@ function validateSpotPurchaseInput(input: {
       },
     };
   }
-  if (typeof fee !== 'number' || Number.isNaN(fee) || fee < 0) {
-    return {
-      success: false,
-      error: { type: 'validation', message: '手数料は0以上で入力してください。', field: 'fee' },
-    };
-  }
   if (typeof navValue !== 'number' || Number.isNaN(navValue) || navValue <= 0) {
     return {
       success: false,
@@ -367,7 +354,7 @@ function validateSpotPurchaseInput(input: {
     };
   }
 
-  return { success: true, value: { fundId, date, amount, fee, navValue } };
+  return { success: true, value: { fundId, date, amount, navValue } };
 }
 
 /**

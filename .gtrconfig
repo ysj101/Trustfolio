@@ -4,12 +4,8 @@
     include = **/.env
     include = *.md
 
-[copy]
-    includeDirs = node_modules
-    excludeDirs = node_modules/.cache
-
 [hooks]
-    postCreate = npm install
+    postCreate = pnpm install
 
 [defaults]
     editor = code
