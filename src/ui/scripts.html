@@ -50,6 +50,7 @@
   const portfolioTotalGainRate = document.getElementById('portfolioTotalGainRate');
   const portfolioToggleButton = document.getElementById('portfolioToggleButton');
   const portfolioDetails = document.getElementById('portfolioDetails');
+  const recurringTransactionList = document.getElementById('recurringTransactionList');
   const message = document.getElementById('message');
   const refreshButton = document.getElementById('refreshButton');
 
@@ -504,6 +505,7 @@
     await loadRecurringPurchases();
     await loadHoldings();
     await loadPortfolioSummary();
+    await loadRecurringTransactionHistory();
   }
 
   async function loadTransactions(fundId) {
@@ -536,6 +538,82 @@
       throw new Error(response.error.message);
     }
     renderPortfolioSummary(response.value);
+  }
+
+  async function loadRecurringTransactionHistory() {
+    const response = await callApi({ action: 'listAllTransactions' });
+    if (!response.success) {
+      throw new Error(response.error.message);
+    }
+    renderRecurringTransactionHistory(response.value);
+  }
+
+  function renderRecurringTransactionHistory(allTransactions) {
+    recurringTransactionList.innerHTML = '';
+
+    // 最新10件を取得（全ての取引種別を含む）
+    const recentTransactions = allTransactions.slice(0, 10);
+
+    if (recentTransactions.length === 0) {
+      const emptyItem = document.createElement('li');
+      emptyItem.textContent = '取引履歴がありません。';
+      recurringTransactionList.appendChild(emptyItem);
+      return;
+    }
+
+    recentTransactions.forEach((transaction) => {
+      const fund = state.funds.find((f) => f.id === transaction.fundId);
+      const fundName = fund ? fund.name : '不明な銘柄';
+
+      const item = document.createElement('li');
+      const content = document.createElement('div');
+      content.className = 'list-content';
+
+      // 日付と取引種別バッジを含むヘッダー行
+      const header = document.createElement('div');
+      header.style.display = 'flex';
+      header.style.alignItems = 'center';
+      header.style.gap = '8px';
+      header.style.marginBottom = '4px';
+
+      const date = document.createElement('strong');
+      date.textContent = transaction.date;
+
+      const badge = document.createElement('span');
+      badge.className = 'transaction-badge';
+      if (transaction.type === 'SPOT_PURCHASE') {
+        badge.classList.add('spot-purchase');
+        badge.textContent = 'スポット購入';
+      } else if (transaction.type === 'REDEMPTION') {
+        badge.classList.add('redemption');
+        badge.textContent = '売却';
+      } else {
+        badge.classList.add('recurring-purchase');
+        badge.textContent = '積立購入';
+      }
+
+      header.appendChild(date);
+      header.appendChild(badge);
+
+      // 銘柄名と取引詳細
+      const fundNameDiv = document.createElement('div');
+      fundNameDiv.style.fontWeight = '500';
+      fundNameDiv.style.marginBottom = '4px';
+      fundNameDiv.textContent = fundName;
+
+      const detail = document.createElement('span');
+      const unitsDisplay = transaction.type === 'REDEMPTION'
+        ? `${Math.abs(transaction.units).toLocaleString()}口`
+        : `${transaction.units.toLocaleString()}口`;
+      const navDisplay = `${transaction.navValue.toLocaleString()}円`;
+      detail.textContent = `${transaction.amount.toLocaleString()}円 / ${unitsDisplay} / 基準価額: ${navDisplay}`;
+
+      content.appendChild(header);
+      content.appendChild(fundNameDiv);
+      content.appendChild(detail);
+      item.appendChild(content);
+      recurringTransactionList.appendChild(item);
+    });
   }
 
   fundForm.addEventListener('submit', async (event) => {
