@@ -53,7 +53,6 @@ export function createTransactionRepository(
           transaction.type,
           transaction.date,
           transaction.amount,
-          transaction.fee,
           transaction.navValue,
           transaction.units,
           transaction.recurringPurchaseId ?? '',
@@ -109,7 +108,6 @@ export function createTransactionRepository(
         transaction.type,
         transaction.date,
         transaction.amount,
-        transaction.fee,
         transaction.navValue,
         transaction.units,
         transaction.recurringPurchaseId ?? '',
@@ -172,7 +170,6 @@ function parseRow(row: unknown[], index: number): Result<Transaction> {
     type,
     date,
     amount,
-    fee,
     navValue,
     units,
     recurringPurchaseId,
@@ -212,9 +209,6 @@ function parseRow(row: unknown[], index: number): Result<Transaction> {
   if (typeof amount !== 'number' || Number.isNaN(amount)) {
     return fail('unexpected', `transactionsの${String(index + 2)}行目のamountが不正です。`);
   }
-  if (typeof fee !== 'number' || Number.isNaN(fee)) {
-    return fail('unexpected', `transactionsの${String(index + 2)}行目のfeeが不正です。`);
-  }
   if (typeof navValue !== 'number' || Number.isNaN(navValue)) {
     return fail('unexpected', `transactionsの${String(index + 2)}行目のnavValueが不正です。`);
   }
@@ -233,7 +227,6 @@ function parseRow(row: unknown[], index: number): Result<Transaction> {
       type,
       date: dateStr,
       amount,
-      fee,
       navValue,
       units,
       recurringPurchaseId: normalizeOptionalString(recurringPurchaseId),
