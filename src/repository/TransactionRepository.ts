@@ -183,7 +183,7 @@ function parseRow(row: unknown[], index: number): Result<Transaction> {
   if (typeof fundId !== 'string' || fundId === '') {
     return fail('unexpected', `transactionsの${String(index + 2)}行目のfundIdが不正です。`);
   }
-  if (type !== 'SPOT_PURCHASE' && type !== 'RECURRING_PURCHASE') {
+  if (type !== 'SPOT_PURCHASE' && type !== 'RECURRING_PURCHASE' && type !== 'REDEMPTION') {
     return fail('unexpected', `transactionsの${String(index + 2)}行目のtypeが不正です。`);
   }
 
