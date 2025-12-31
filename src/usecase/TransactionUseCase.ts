@@ -154,28 +154,33 @@ export function createTransactionUseCase(
         };
       }
 
-      // 売却日時点での保有口数をチェック
+      // 売却日時点および全期間で保有口数がマイナスにならないことをチェック
       const transactionsResult = transactionRepository.listByFundId(fundId);
       if (!transactionsResult.success) {
         return transactionsResult as Result<Transaction>;
       }
 
-      // 売却日以前の取引から保有口数を計算（同日の取引も含む）
-      // 同日の購入・売却は許容するが、売却後に口数がマイナスにならないことを確認
-      const holdingUnits = transactionsResult.value
-        .filter((t) => t.date <= date)
-        .reduce((sum, t) => sum + t.units, 0);
+      // 新しい売却取引を含めて、全期間で保有口数がマイナスにならないことを検証
+      const newSaleTransaction: Transaction = {
+        id: generateUlid(),
+        fundId,
+        type: 'REDEMPTION',
+        date,
+        amount: 0, // 後で計算
+        navValue,
+        units: -units,
+        recurringPurchaseId: null,
+        idempotencyKey: null,
+        createdAt: new Date().toISOString(),
+      };
 
-      // 売却後に口数がマイナスにならないことを確認
-      if (holdingUnits - units < 0) {
-        return {
-          success: false,
-          error: {
-            type: 'validation',
-            message: `売却口数が保有口数を超えています。売却日時点の保有口数: ${holdingUnits.toFixed(0)}口`,
-            field: 'units',
-          },
-        };
+      const validationResult = validateHoldingsAcrossAllDates(
+        [...transactionsResult.value, newSaleTransaction],
+        null // 更新対象なし（新規登録）
+      );
+
+      if (!validationResult.success) {
+        return validationResult as Result<Transaction>;
       }
 
       // 売却金額の計算: amount = units * navValue / 10000
@@ -326,33 +331,10 @@ export function createTransactionUseCase(
         };
       }
 
-      // 売却日時点での保有口数をチェック（更新対象の売却取引を除く）
-      const transactionsResult = transactionRepository.listByFundId(fundId);
-      if (!transactionsResult.success) {
-        return transactionsResult as Result<Transaction>;
-      }
-
-      // 売却日以前の取引から保有口数を計算（更新対象の取引は除外、同日の取引も含む）
-      // 同日の購入・売却は許容するが、更新後に口数がマイナスにならないことを確認
-      const holdingUnits = transactionsResult.value
-        .filter((t) => t.date <= date && t.id !== input.id)
-        .reduce((sum, t) => sum + t.units, 0);
-
-      // 売却後に口数がマイナスにならないことを確認
-      if (holdingUnits - units < 0) {
-        return {
-          success: false,
-          error: {
-            type: 'validation',
-            message: `売却口数が保有口数を超えています。売却日時点の保有口数: ${holdingUnits.toFixed(0)}口`,
-            field: 'units',
-          },
-        };
-      }
-
       // 売却金額の計算
       const amount = Math.round((units / 10000) * navValue);
 
+      // 更新後の売却取引
       const transaction: Transaction = {
         id: existingResult.value.id,
         fundId,
@@ -365,6 +347,22 @@ export function createTransactionUseCase(
         idempotencyKey: null,
         createdAt: existingResult.value.createdAt,
       };
+
+      // 全期間で保有口数がマイナスにならないことを検証（更新対象の売却取引を除く）
+      const transactionsResult = transactionRepository.listByFundId(fundId);
+      if (!transactionsResult.success) {
+        return transactionsResult as Result<Transaction>;
+      }
+
+      // 更新後の売却取引を含めて、全期間で保有口数がマイナスにならないことを検証
+      const validationResult = validateHoldingsAcrossAllDates(
+        [...transactionsResult.value, transaction],
+        input.id // 更新対象の取引IDを除外
+      );
+
+      if (!validationResult.success) {
+        return validationResult as Result<Transaction>;
+      }
 
       const updateResult = transactionRepository.updateTransaction(transaction);
       if (!updateResult.success) {
@@ -523,6 +521,50 @@ function validateSaleTransactionInput(input: {
   }
 
   return { success: true, value: { fundId, date, units, navValue } };
+}
+
+/**
+ * 全取引を時系列順に並べ、全期間で保有口数がマイナスにならないことを検証する。
+ * 過去日付での売却登録により、未来の時点で保有口数がマイナスになることを防ぐ。
+ *
+ * @param transactions 全取引（検証対象の新規/更新取引を含む）
+ * @param excludeTransactionId 更新時に除外する取引ID（新規登録時はnull）
+ */
+function validateHoldingsAcrossAllDates(
+  transactions: Transaction[],
+  excludeTransactionId: string | null
+): Result<void> {
+  // 更新対象の取引を除外
+  const filteredTransactions =
+    excludeTransactionId !== null
+      ? transactions.filter((t) => t.id !== excludeTransactionId)
+      : transactions;
+
+  // 日付順にソート（同日の場合は作成日時順）
+  const sortedTransactions = [...filteredTransactions].sort((a, b) => {
+    if (a.date !== b.date) {
+      return a.date < b.date ? -1 : 1;
+    }
+    return a.createdAt < b.createdAt ? -1 : 1;
+  });
+
+  // 各時点での累積保有口数を計算し、マイナスにならないことを確認
+  let cumulativeUnits = 0;
+  for (const transaction of sortedTransactions) {
+    cumulativeUnits += transaction.units;
+    if (cumulativeUnits < 0) {
+      return {
+        success: false,
+        error: {
+          type: 'validation',
+          message: `売却により、${transaction.date}時点で保有口数がマイナス（${cumulativeUnits.toFixed(0)}口）になります。売却口数を減らすか、登録順序を見直してください。`,
+          field: 'units',
+        },
+      };
+    }
+  }
+
+  return { success: true, value: undefined };
 }
 
 function isValidIsoDate(value: string): boolean {
