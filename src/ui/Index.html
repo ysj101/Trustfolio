@@ -8,14 +8,49 @@
     <div class="app">
       <header class="hero">
         <div class="title-block">
-          <p class="eyebrow">GAS Portfolio Console</p>
           <h1>Trustfolio</h1>
           <p class="subtitle">投資信託と基準価額をシンプルに記録するための管理画面。</p>
         </div>
         <button id="refreshButton" class="ghost">再読み込み</button>
       </header>
 
+      <aside id="message" class="message" role="status" aria-live="polite"></aside>
+
       <main class="grid">
+        <section class="panel">
+          <h2>ポートフォリオ</h2>
+          <div class="panel-body">
+            <div class="summary-card">
+              <div>
+                <p class="summary-label">投資総額</p>
+                <p id="portfolioInvestment" class="summary-value">-</p>
+              </div>
+              <div>
+                <p class="summary-label">評価額</p>
+                <p id="portfolioValue" class="summary-value">-</p>
+              </div>
+              <div>
+                <p class="summary-label">含み損益</p>
+                <p id="portfolioGain" class="summary-value">-</p>
+              </div>
+              <div>
+                <p class="summary-label">損益率</p>
+                <p id="portfolioGainRate" class="summary-value">-</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>保有情報</h2>
+          <div class="panel-body">
+            <div class="list-block">
+              <h3>保有一覧</h3>
+              <ul id="holdingList" class="list"></ul>
+            </div>
+          </div>
+        </section>
+
         <section class="panel">
           <h2>投資信託</h2>
           <div class="panel-body">
@@ -132,43 +167,7 @@
             </div>
           </div>
         </section>
-
-        <section class="panel">
-          <h2>保有情報</h2>
-          <div class="panel-body">
-            <div class="list-block">
-              <h3>保有一覧</h3>
-              <ul id="holdingList" class="list"></ul>
-            </div>
-          </div>
-        </section>
-
-        <section class="panel">
-          <h2>ポートフォリオ</h2>
-          <div class="panel-body">
-            <div class="summary-card">
-              <div>
-                <p class="summary-label">投資総額</p>
-                <p id="portfolioInvestment" class="summary-value">-</p>
-              </div>
-              <div>
-                <p class="summary-label">評価額</p>
-                <p id="portfolioValue" class="summary-value">-</p>
-              </div>
-              <div>
-                <p class="summary-label">含み損益</p>
-                <p id="portfolioGain" class="summary-value">-</p>
-              </div>
-              <div>
-                <p class="summary-label">損益率</p>
-                <p id="portfolioGainRate" class="summary-value">-</p>
-              </div>
-            </div>
-          </div>
-        </section>
       </main>
-
-      <aside id="message" class="message" role="status" aria-live="polite"></aside>
     </div>
 
     <?!= include('scripts'); ?>
