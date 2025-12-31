@@ -281,7 +281,8 @@
       const unitsDisplay = transaction.type === 'REDEMPTION'
         ? `${Math.abs(transaction.units).toLocaleString()}口`
         : `${transaction.units.toLocaleString()}口`;
-      detail.textContent = `${transaction.amount.toLocaleString()}円 / ${unitsDisplay} / ${typeLabel}`;
+      const navDisplay = `${transaction.navValue.toLocaleString()}円`;
+      detail.textContent = `${transaction.amount.toLocaleString()}円 / ${unitsDisplay} / 基準価額: ${navDisplay} / ${typeLabel}`;
       content.appendChild(date);
       content.appendChild(detail);
       item.appendChild(content);
