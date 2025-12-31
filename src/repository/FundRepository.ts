@@ -52,7 +52,13 @@ export function createFundRepository(sheetRepository: SheetRepository): FundRepo
     },
     createFund: (fund: Fund): Result<void> => {
       return sheetRepository.appendRows(SHEET_NAMES.FUNDS, [
-        [fund.id, fund.name, fund.rakutenFundId ?? '', fund.createdAt],
+        [
+          fund.id,
+          fund.name,
+          fund.rakutenFundId ?? '',
+          fund.settlementBusinessDays ?? '',
+          fund.createdAt,
+        ],
       ]);
     },
     updateFund: (fund: Fund): Result<void> => {
@@ -70,6 +76,7 @@ export function createFundRepository(sheetRepository: SheetRepository): FundRepo
         fund.id,
         fund.name,
         fund.rakutenFundId ?? '',
+        fund.settlementBusinessDays ?? '',
         fund.createdAt,
       ]);
     },
@@ -79,7 +86,7 @@ export function createFundRepository(sheetRepository: SheetRepository): FundRepo
 }
 
 function parseRow(row: unknown[], index: number): Result<Fund> {
-  const [id, name, rakutenFundId, createdAt] = row;
+  const [id, name, rakutenFundId, settlementBusinessDays, createdAt] = row;
 
   if (typeof id !== 'string' || id === '') {
     return fail('unexpected', `fundsの${String(index + 2)}行目のidが不正です。`);
@@ -94,10 +101,53 @@ function parseRow(row: unknown[], index: number): Result<Fund> {
   // rakutenFundIdは空文字列の場合はnullとして扱う
   const parsedRakutenFundId =
     typeof rakutenFundId === 'string' && rakutenFundId !== '' ? rakutenFundId : null;
+  const parsedSettlementBusinessDays = parseSettlementBusinessDays(settlementBusinessDays, index);
+  if (!parsedSettlementBusinessDays.success) {
+    return parsedSettlementBusinessDays;
+  }
 
-  return { success: true, value: { id, name, rakutenFundId: parsedRakutenFundId, createdAt } };
+  return {
+    success: true,
+    value: {
+      id,
+      name,
+      rakutenFundId: parsedRakutenFundId,
+      settlementBusinessDays: parsedSettlementBusinessDays.value,
+      createdAt,
+    },
+  };
 }
 
 function fail<T>(type: AppError['type'], message: string): Result<T> {
   return { success: false, error: { type, message } };
+}
+
+function parseSettlementBusinessDays(value: unknown, index: number): Result<number | null> {
+  if (value === '' || value === null || value === undefined) {
+    return { success: true, value: null };
+  }
+  if (typeof value === 'number') {
+    if (!Number.isInteger(value) || value < 1) {
+      return fail(
+        'unexpected',
+        `fundsの${String(index + 2)}行目のsettlementBusinessDaysが不正です。`
+      );
+    }
+    return { success: true, value };
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed === '') {
+      return { success: true, value: null };
+    }
+    const parsed = Number(trimmed);
+    if (!Number.isInteger(parsed) || parsed < 1) {
+      return fail(
+        'unexpected',
+        `fundsの${String(index + 2)}行目のsettlementBusinessDaysが不正です。`
+      );
+    }
+    return { success: true, value: parsed };
+  }
+  return fail('unexpected', `fundsの${String(index + 2)}行目のsettlementBusinessDaysが不正です。`);
 }
