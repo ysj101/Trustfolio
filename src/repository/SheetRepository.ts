@@ -154,23 +154,97 @@ function ensureHeader(
     return { success: true, value: undefined };
   }
 
-  // 現在のヘッダーを取得
-  const actualHeaders = sheet.getRange(1, 1, 1, lastColumn).getValues()[0] as string[];
+  // 必要な列は再配置し、不要な列は削除する
+  for (let expectedIndex = 0; expectedIndex < headers.length; expectedIndex += 1) {
+    const expectedHeader = headers[expectedIndex] ?? '';
+    const currentHeaders = sheet
+      .getRange(1, 1, 1, sheet.getLastColumn())
+      .getValues()[0] as string[];
+    const currentHeader = currentHeaders[expectedIndex] ?? '';
 
-  // 期待するヘッダーと実際のヘッダーを比較し、不足カラムを特定
-  const missingColumns = findMissingColumns(headers, actualHeaders);
+    if (currentHeader === expectedHeader) {
+      continue;
+    }
 
-  // 不足カラムがあれば挿入
-  for (const missing of missingColumns) {
-    // 列を挿入（1-indexed）
-    sheet.insertColumnBefore(missing.insertAt + 1);
-    // ヘッダーを設定
-    sheet.getRange(1, missing.insertAt + 1).setValue(missing.columnName);
+    const foundIndex = currentHeaders.findIndex((header) => header === expectedHeader);
+    const targetColumnNumber = expectedIndex + 1;
+
+    if (foundIndex === -1) {
+      sheet.insertColumnBefore(targetColumnNumber);
+      sheet.getRange(1, targetColumnNumber).setValue(expectedHeader);
+      continue;
+    }
+
+    const sourceColumnNumber = foundIndex + 1;
+    const columnRange = sheet.getRange(1, sourceColumnNumber, sheet.getMaxRows(), 1);
+    sheet.moveColumns(columnRange, targetColumnNumber);
+  }
+
+  // 空白ヘッダーや不要なヘッダー、重複ヘッダーの列を削除する
+  const cleanupHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0] as string[];
+  const seenHeaders = new Set<string>();
+  const deleteColumns: number[] = [];
+  for (let index = 0; index < cleanupHeaders.length; index += 1) {
+    const header = cleanupHeaders[index] ?? '';
+    const isUnexpectedHeader = header === '' || !headers.includes(header);
+    const isDuplicateHeader = header !== '' && seenHeaders.has(header);
+    if (isUnexpectedHeader || isDuplicateHeader) {
+      deleteColumns.push(index + 1);
+      continue;
+    }
+    seenHeaders.add(header);
+  }
+  for (const columnNumber of deleteColumns.reverse()) {
+    sheet.deleteColumn(columnNumber);
+  }
+
+  // 削除後に再度並び替えを行い、期待する順序に整える
+  for (let expectedIndex = 0; expectedIndex < headers.length; expectedIndex += 1) {
+    const expectedHeader = headers[expectedIndex] ?? '';
+    const currentHeaders = sheet
+      .getRange(1, 1, 1, sheet.getLastColumn())
+      .getValues()[0] as string[];
+    const currentHeader = currentHeaders[expectedIndex] ?? '';
+
+    if (currentHeader === expectedHeader) {
+      continue;
+    }
+
+    const foundIndex = currentHeaders.findIndex((header) => header === expectedHeader);
+    const targetColumnNumber = expectedIndex + 1;
+
+    if (foundIndex === -1) {
+      sheet.insertColumnBefore(targetColumnNumber);
+      sheet.getRange(1, targetColumnNumber).setValue(expectedHeader);
+      continue;
+    }
+
+    const sourceColumnNumber = foundIndex + 1;
+    const columnRange = sheet.getRange(1, sourceColumnNumber, sheet.getMaxRows(), 1);
+    sheet.moveColumns(columnRange, targetColumnNumber);
+  }
+
+  // 期待列数を超える列は不要列として削除する
+  while (sheet.getLastColumn() > headers.length) {
+    sheet.deleteColumn(headers.length + 1);
+  }
+
+  // 末尾に残っている空白列（値が存在しない列）を削除する
+  const maxColumns = sheet.getMaxColumns();
+  const dataLastRow = sheet.getLastRow();
+  for (let column = maxColumns; column > headers.length; column -= 1) {
+    const values = sheet.getRange(1, column, Math.max(dataLastRow, 1), 1).getValues();
+    const hasValue = values.some((row) => row[0] !== '' && row[0] !== null);
+    if (!hasValue) {
+      sheet.deleteColumn(column);
+      continue;
+    }
+    break;
   }
 
   // 再度ヘッダーを取得して検証
-  const updatedLastColumn = sheet.getLastColumn();
-  const updatedHeaders = sheet.getRange(1, 1, 1, updatedLastColumn).getValues()[0] as string[];
+  const finalLastColumn = sheet.getLastColumn();
+  const updatedHeaders = sheet.getRange(1, 1, 1, finalLastColumn).getValues()[0] as string[];
 
   // 最終検証：期待するヘッダーと一致するか確認
   const finalMismatches = headers
@@ -191,36 +265,6 @@ function ensureHeader(
   }
 
   return { success: true, value: undefined };
-}
-
-/**
- * 期待するヘッダーと実際のヘッダーを比較し、不足しているカラムを特定する。
- * 挿入位置は期待する順序に基づいて決定する。
- */
-function findMissingColumns(
-  expectedHeaders: readonly string[],
-  actualHeaders: string[]
-): { columnName: string; insertAt: number }[] {
-  const missing: { columnName: string; insertAt: number }[] = [];
-  let actualIndex = 0;
-
-  for (let expectedIndex = 0; expectedIndex < expectedHeaders.length; expectedIndex++) {
-    const expectedColumn = expectedHeaders[expectedIndex];
-
-    if (actualIndex < actualHeaders.length && actualHeaders[actualIndex] === expectedColumn) {
-      // 一致する場合は次へ
-      actualIndex++;
-    } else {
-      // 不足カラムを記録（挿入位置は現在のexpectedIndex）
-      // 既に挿入したカラム分を考慮
-      missing.push({
-        columnName: expectedColumn,
-        insertAt: expectedIndex + missing.length,
-      });
-    }
-  }
-
-  return missing;
 }
 
 function fail<T>(type: AppError['type'], message: string, field?: string): Result<T> {
