@@ -50,15 +50,13 @@ export type Nav = {
  *
  * 購入時:
  * - amount: 購入金額（円）
- * - fee: 手数料（円）
  * - navValue: 適用基準価額（円/1万口）
  * - units: 取得口数（正の値）
  *
  * 売却時:
  * - amount: 売却金額（円）※売却口数×基準価額で計算された金額
- * - fee: 手数料（円）
  * - navValue: 適用基準価額（円/1万口）
- * - units: 売却口数（負の値）
+ * - units: 売却口数（正の値、計算時にtypeで判別して減算）
  */
 export type Transaction = {
   id: string;
@@ -107,9 +105,23 @@ export type Holding = {
  * ポートフォリオサマリー。
  */
 export type Portfolio = {
+  /** 累計投入額（購入のみの合計） */
   totalInvestment: number;
+  /** 売却総額（売却金額の合計） */
+  totalSaleAmount: number;
+  /** 実現損益（売却による確定損益） */
+  realizedGain: number;
+  /** 残存投資額（購入金額 - 売却金額） */
+  remainingInvestment: number;
+  /** 評価額（現在の保有分） */
   totalCurrentValue: number | null;
+  /** 未実現損益（評価額 - 残存投資額） */
   totalUnrealizedGain: number | null;
+  /** 未実現損益率 */
   totalUnrealizedGainRate: number | null;
+  /** 総損益（実現損益 + 未実現損益） */
+  totalGain: number | null;
+  /** 総損益率 */
+  totalGainRate: number | null;
   holdings: Holding[];
 };

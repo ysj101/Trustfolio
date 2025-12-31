@@ -25,6 +25,12 @@ export function createPortfolioUseCase(
 
       const holdings = [] as Portfolio['holdings'];
 
+      // 全取引履歴を収集（実現損益計算用）
+      const allTransactionsResult = transactionRepository.listAll();
+      if (!allTransactionsResult.success) {
+        return allTransactionsResult as Result<Portfolio>;
+      }
+
       for (const fund of fundResult.value) {
         const transactionResult = transactionRepository.listByFundId(fund.id);
         if (!transactionResult.success) {
@@ -42,7 +48,7 @@ export function createPortfolioUseCase(
         }
       }
 
-      const summary = calculatePortfolio(holdings);
+      const summary = calculatePortfolio(holdings, allTransactionsResult.value);
       return {
         success: true,
         value: {
