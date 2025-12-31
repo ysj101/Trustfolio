@@ -40,10 +40,14 @@
   const recurringSubmitButton = document.getElementById('recurringSubmitButton');
   const recurringCancelEditButton = document.getElementById('recurringCancelEdit');
   const holdingList = document.getElementById('holdingList');
-  const portfolioInvestment = document.getElementById('portfolioInvestment');
+  const portfolioTotalInvestment = document.getElementById('portfolioTotalInvestment');
+  const portfolioTotalSaleAmount = document.getElementById('portfolioTotalSaleAmount');
+  const portfolioRealizedGain = document.getElementById('portfolioRealizedGain');
+  const portfolioRemainingInvestment = document.getElementById('portfolioRemainingInvestment');
   const portfolioValue = document.getElementById('portfolioValue');
-  const portfolioGain = document.getElementById('portfolioGain');
-  const portfolioGainRate = document.getElementById('portfolioGainRate');
+  const portfolioUnrealizedGainRate = document.getElementById('portfolioUnrealizedGainRate');
+  const portfolioTotalGain = document.getElementById('portfolioTotalGain');
+  const portfolioTotalGainRate = document.getElementById('portfolioTotalGainRate');
   const message = document.getElementById('message');
   const refreshButton = document.getElementById('refreshButton');
 
@@ -430,26 +434,56 @@
   }
 
   function renderPortfolioSummary(portfolio) {
-    portfolioInvestment.textContent = formatCurrency(portfolio.totalInvestment);
+    // 残存投資額
+    portfolioRemainingInvestment.textContent = formatCurrency(portfolio.remainingInvestment);
+    portfolioRemainingInvestment.className = 'summary-value';
+
+    // 累計投入額
+    portfolioTotalInvestment.textContent = formatCurrency(portfolio.totalInvestment);
+    portfolioTotalInvestment.className = 'summary-value';
+
+    // 売却総額
+    portfolioTotalSaleAmount.textContent = formatCurrency(portfolio.totalSaleAmount);
+    portfolioTotalSaleAmount.className = 'summary-value';
+
+    // 実現損益
+    portfolioRealizedGain.textContent = formatCurrency(portfolio.realizedGain);
+    portfolioRealizedGain.className = `summary-value ${
+      portfolio.realizedGain >= 0 ? 'positive' : 'negative'
+    }`;
+
     if (portfolio.totalCurrentValue === null) {
       portfolioValue.textContent = 'NAV未登録';
       portfolioValue.className = 'summary-value muted';
-      portfolioGain.textContent = '-';
-      portfolioGain.className = 'summary-value muted';
-      portfolioGainRate.textContent = '-';
-      portfolioGainRate.className = 'summary-value muted';
+      portfolioUnrealizedGainRate.textContent = '-';
+      portfolioUnrealizedGainRate.className = 'summary-value muted';
+      portfolioTotalGain.textContent = '-';
+      portfolioTotalGain.className = 'summary-value muted';
+      portfolioTotalGainRate.textContent = '-';
+      portfolioTotalGainRate.className = 'summary-value muted';
       return;
     }
 
+    // 評価額
     portfolioValue.textContent = formatCurrency(portfolio.totalCurrentValue);
     portfolioValue.className = 'summary-value';
-    portfolioGain.textContent = formatCurrency(portfolio.totalUnrealizedGain);
-    portfolioGain.className = `summary-value ${
-      portfolio.totalUnrealizedGain >= 0 ? 'positive' : 'negative'
-    }`;
-    portfolioGainRate.textContent = formatRate(portfolio.totalUnrealizedGainRate);
-    portfolioGainRate.className = `summary-value ${
+
+    // 未実現損益率
+    portfolioUnrealizedGainRate.textContent = formatRate(portfolio.totalUnrealizedGainRate);
+    portfolioUnrealizedGainRate.className = `summary-value ${
       portfolio.totalUnrealizedGainRate >= 0 ? 'positive' : 'negative'
+    }`;
+
+    // 総損益
+    portfolioTotalGain.textContent = formatCurrency(portfolio.totalGain);
+    portfolioTotalGain.className = `summary-value ${
+      portfolio.totalGain >= 0 ? 'positive' : 'negative'
+    }`;
+
+    // 総損益率
+    portfolioTotalGainRate.textContent = formatRate(portfolio.totalGainRate);
+    portfolioTotalGainRate.className = `summary-value ${
+      portfolio.totalGainRate >= 0 ? 'positive' : 'negative'
     }`;
   }
 

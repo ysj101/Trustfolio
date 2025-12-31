@@ -20,22 +20,44 @@
         <section class="panel">
           <h2>ポートフォリオ</h2>
           <div class="panel-body">
-            <div class="summary-card">
-              <div>
-                <p class="summary-label">投資総額</p>
-                <p id="portfolioInvestment" class="summary-value">-</p>
+            <div class="summary-group">
+              <div class="summary-card">
+                <div>
+                  <p class="summary-label">残存投資額</p>
+                  <p id="portfolioRemainingInvestment" class="summary-value">-</p>
+                </div>
+                <div>
+                  <p class="summary-label">評価額</p>
+                  <p id="portfolioValue" class="summary-value">-</p>
+                </div>
+                <div>
+                  <p class="summary-label">未実現損益率</p>
+                  <p id="portfolioUnrealizedGainRate" class="summary-value">-</p>
+                </div>
               </div>
-              <div>
-                <p class="summary-label">評価額</p>
-                <p id="portfolioValue" class="summary-value">-</p>
+              <div class="summary-card">
+                <div>
+                  <p class="summary-label">累計投入額</p>
+                  <p id="portfolioTotalInvestment" class="summary-value">-</p>
+                </div>
+                <div>
+                  <p class="summary-label">総損益</p>
+                  <p id="portfolioTotalGain" class="summary-value">-</p>
+                </div>
+                <div>
+                  <p class="summary-label">総損益率</p>
+                  <p id="portfolioTotalGainRate" class="summary-value">-</p>
+                </div>
               </div>
-              <div>
-                <p class="summary-label">含み損益</p>
-                <p id="portfolioGain" class="summary-value">-</p>
-              </div>
-              <div>
-                <p class="summary-label">損益率</p>
-                <p id="portfolioGainRate" class="summary-value">-</p>
+              <div class="summary-card">
+                <div>
+                  <p class="summary-label">売却総額</p>
+                  <p id="portfolioTotalSaleAmount" class="summary-value">-</p>
+                </div>
+                <div>
+                  <p class="summary-label">実現損益</p>
+                  <p id="portfolioRealizedGain" class="summary-value">-</p>
+                </div>
               </div>
             </div>
           </div>
@@ -47,44 +69,6 @@
             <div class="list-block">
               <h3>保有一覧</h3>
               <ul id="holdingList" class="list"></ul>
-            </div>
-          </div>
-        </section>
-
-        <section class="panel">
-          <h2>投資信託</h2>
-          <div class="panel-body">
-            <form id="fundForm" class="form">
-              <label for="fundName">銘柄名</label>
-              <input
-                type="text"
-                id="fundName"
-                name="fundName"
-                placeholder="例: つみたて全世界株式"
-                required
-              />
-              <label for="fundRakutenFundId">楽天ファンドID (12桁)</label>
-              <input
-                type="text"
-                id="fundRakutenFundId"
-                name="fundRakutenFundId"
-                placeholder="例: JP90C000H1T1"
-                pattern="[A-Za-z0-9]{12}"
-                title="12桁の英数字を入力してください"
-              />
-              <label for="fundSettlementBusinessDays">約定までの営業日数</label>
-              <input
-                type="number"
-                id="fundSettlementBusinessDays"
-                name="fundSettlementBusinessDays"
-                min="0"
-                step="1"
-              />
-              <button type="submit" class="primary">登録</button>
-            </form>
-            <div class="list-block">
-              <h3>銘柄一覧</h3>
-              <ul id="fundList" class="list"></ul>
             </div>
           </div>
         </section>
@@ -160,6 +144,44 @@
             <div class="list-block">
               <h3>取引履歴</h3>
               <ul id="transactionList" class="list"></ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>投資信託</h2>
+          <div class="panel-body">
+            <form id="fundForm" class="form">
+              <label for="fundName">銘柄名</label>
+              <input
+                type="text"
+                id="fundName"
+                name="fundName"
+                placeholder="例: つみたて全世界株式"
+                required
+              />
+              <label for="fundRakutenFundId">楽天ファンドID (12桁)</label>
+              <input
+                type="text"
+                id="fundRakutenFundId"
+                name="fundRakutenFundId"
+                placeholder="例: JP90C000H1T1"
+                pattern="[A-Za-z0-9]{12}"
+                title="12桁の英数字を入力してください"
+              />
+              <label for="fundSettlementBusinessDays">約定までの営業日数</label>
+              <input
+                type="number"
+                id="fundSettlementBusinessDays"
+                name="fundSettlementBusinessDays"
+                min="0"
+                step="1"
+              />
+              <button type="submit" class="primary">登録</button>
+            </form>
+            <div class="list-block">
+              <h3>銘柄一覧</h3>
+              <ul id="fundList" class="list"></ul>
             </div>
           </div>
         </section>

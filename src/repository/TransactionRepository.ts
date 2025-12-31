@@ -4,6 +4,7 @@ import type { SheetRepository } from './SheetRepository';
 
 export type TransactionRepository = {
   listByFundId: (fundId: string) => Result<Transaction[]>;
+  listAll: () => Result<Transaction[]>;
   createTransaction: (transaction: Transaction) => Result<void>;
   findByIdempotencyKey: (idempotencyKey: string) => Result<Transaction | null>;
   findById: (transactionId: string) => Result<Transaction | null>;
@@ -39,6 +40,31 @@ export function createTransactionRepository(
         if (parsed.value.fundId === fundId) {
           transactions.push(parsed.value);
         }
+      }
+
+      transactions.sort((a, b) => (a.date < b.date ? 1 : -1));
+
+      return { success: true, value: transactions };
+    },
+    listAll: (): Result<Transaction[]> => {
+      const rowsResult = sheetRepository.readAllRows(SHEET_NAMES.TRANSACTIONS);
+      if (!rowsResult.success) {
+        return rowsResult;
+      }
+
+      const transactions: Transaction[] = [];
+      for (const [index, row] of rowsResult.value.entries()) {
+        // 空行はスキップ
+        const isEmpty = row.every((cell) => cell === '' || cell === null || cell === undefined);
+        if (isEmpty) {
+          continue;
+        }
+
+        const parsed = parseRow(row, index);
+        if (!parsed.success) {
+          return parsed;
+        }
+        transactions.push(parsed.value);
       }
 
       transactions.sort((a, b) => (a.date < b.date ? 1 : -1));
