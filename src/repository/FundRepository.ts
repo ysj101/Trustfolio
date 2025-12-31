@@ -127,7 +127,7 @@ function parseSettlementBusinessDays(value: unknown, index: number): Result<numb
     return { success: true, value: null };
   }
   if (typeof value === 'number') {
-    if (!Number.isInteger(value) || value < 1) {
+    if (!Number.isInteger(value) || value < 0) {
       return fail(
         'unexpected',
         `fundsの${String(index + 2)}行目のsettlementBusinessDaysが不正です。`
@@ -141,7 +141,7 @@ function parseSettlementBusinessDays(value: unknown, index: number): Result<numb
       return { success: true, value: null };
     }
     const parsed = Number(trimmed);
-    if (!Number.isInteger(parsed) || parsed < 1) {
+    if (!Number.isInteger(parsed) || parsed < 0) {
       return fail(
         'unexpected',
         `fundsの${String(index + 2)}行目のsettlementBusinessDaysが不正です。`

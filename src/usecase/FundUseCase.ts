@@ -184,15 +184,15 @@ function validateRakutenFundId(code: string): Result<void> {
 
 /**
  * 約定までの営業日数のバリデーション。
- * 1以上の整数であることを確認する。
+ * 0以上の整数であることを確認する。
  */
 function validateSettlementBusinessDays(value: number): Result<void> {
-  if (!Number.isInteger(value) || value < 1) {
+  if (!Number.isInteger(value) || value < 0) {
     return {
       success: false,
       error: {
         type: 'validation',
-        message: '約定までの営業日数は1以上の整数で入力してください。',
+        message: '約定までの営業日数は0以上の整数で入力してください。',
         field: 'settlementBusinessDays',
       },
     };

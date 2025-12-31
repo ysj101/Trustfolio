@@ -200,7 +200,7 @@ export function createRecurringUseCase(
             },
           };
         }
-        if (!Number.isInteger(fund.settlementBusinessDays) || fund.settlementBusinessDays < 1) {
+        if (!Number.isInteger(fund.settlementBusinessDays) || fund.settlementBusinessDays < 0) {
           return {
             success: false,
             error: {
@@ -401,12 +401,17 @@ function isWithinRecurringPeriod(recurring: RecurringPurchase, orderDate: string
 
 /**
  * 注文日より後の営業日をカウントし、N営業日後の日付を返す。
+ * 注文日の翌営業日を1日目としてカウントする。
+ * N=0の場合は注文日が営業日カレンダーに存在する時のみ注文日を返す。
  */
 function addBusinessDays(
   orderDate: string,
   businessDays: number,
   businessDates: string[]
 ): string | null {
+  if (businessDays === 0) {
+    return businessDates.includes(orderDate) ? orderDate : null;
+  }
   let count = 0;
   for (const date of businessDates) {
     if (date <= orderDate) {
