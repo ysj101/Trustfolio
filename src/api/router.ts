@@ -56,12 +56,29 @@ type ExecuteSpotPurchaseRequest = {
   navValue: number;
 };
 
+type ExecuteSaleRequest = {
+  action: 'executeSale';
+  fundId: string;
+  date: string;
+  units: number;
+  navValue: number;
+};
+
 type UpdateSpotPurchaseRequest = {
   action: 'updateSpotPurchase';
   id: string;
   fundId: string;
   date: string;
   amount: number;
+  navValue: number;
+};
+
+type UpdateSaleTransactionRequest = {
+  action: 'updateSaleTransaction';
+  id: string;
+  fundId: string;
+  date: string;
+  units: number;
   navValue: number;
 };
 
@@ -130,7 +147,9 @@ export type ApiRequest =
   | GetNavHistoryRequest
   | GetTransactionHistoryRequest
   | ExecuteSpotPurchaseRequest
+  | ExecuteSaleRequest
   | UpdateSpotPurchaseRequest
+  | UpdateSaleTransactionRequest
   | DeleteSpotPurchaseRequest
   | ListRecurringPurchasesRequest
   | CreateRecurringPurchaseRequest
@@ -210,12 +229,27 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
         amount: request.amount,
         navValue: request.navValue,
       });
+    case 'executeSale':
+      return transactionUseCase.executeSaleTransaction({
+        fundId: request.fundId,
+        date: request.date,
+        units: request.units,
+        navValue: request.navValue,
+      });
     case 'updateSpotPurchase':
       return transactionUseCase.updateSpotPurchase({
         id: request.id,
         fundId: request.fundId,
         date: request.date,
         amount: request.amount,
+        navValue: request.navValue,
+      });
+    case 'updateSaleTransaction':
+      return transactionUseCase.updateSaleTransaction({
+        id: request.id,
+        fundId: request.fundId,
+        date: request.date,
+        units: request.units,
         navValue: request.navValue,
       });
     case 'deleteSpotPurchase':

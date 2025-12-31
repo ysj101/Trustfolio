@@ -90,22 +90,50 @@
         </section>
 
         <section class="panel">
-          <h2>スポット購入</h2>
+          <h2>スポット取引</h2>
           <div class="panel-body">
             <form id="transactionForm" class="form">
+              <fieldset class="radio-group">
+                <legend>取引種別</legend>
+                <label class="radio-label">
+                  <input type="radio" name="transactionType" value="purchase" checked />
+                  購入
+                </label>
+                <label class="radio-label">
+                  <input type="radio" name="transactionType" value="sale" />
+                  売却
+                </label>
+              </fieldset>
+
               <label for="transactionFundSelect">対象銘柄</label>
               <select id="transactionFundSelect" name="transactionFundSelect"></select>
-              <label for="transactionDate">購入日</label>
+              <label for="transactionDate" id="transactionDateLabel">購入日</label>
               <input type="date" id="transactionDate" name="transactionDate" required />
-              <label for="transactionAmount">購入金額 (円)</label>
-              <input
-                type="number"
-                id="transactionAmount"
-                name="transactionAmount"
-                min="1"
-                step="1"
-                required
-              />
+
+              <!-- 購入用フィールド -->
+              <div id="purchaseFields">
+                <label for="transactionAmount">購入金額 (円)</label>
+                <input
+                  type="number"
+                  id="transactionAmount"
+                  name="transactionAmount"
+                  min="1"
+                  step="1"
+                />
+              </div>
+
+              <!-- 売却用フィールド -->
+              <div id="saleFields" class="hidden">
+                <label for="transactionUnits">売却口数</label>
+                <input
+                  type="number"
+                  id="transactionUnits"
+                  name="transactionUnits"
+                  min="1"
+                  step="1"
+                />
+              </div>
+
               <label for="transactionNavValue">適用基準価額 (円/1万口)</label>
               <input
                 type="number"
@@ -115,6 +143,13 @@
                 step="1"
                 required
               />
+
+              <!-- 売却金額表示（売却時のみ） -->
+              <div id="saleAmountDisplay" class="hidden">
+                <label>売却金額（自動計算）</label>
+                <p id="calculatedSaleAmount" class="calculated-value">-</p>
+              </div>
+
               <div class="form-inline">
                 <button type="submit" class="primary" id="transactionSubmitButton">購入登録</button>
                 <button type="button" class="ghost hidden" id="transactionCancelEdit">
