@@ -230,8 +230,13 @@ export function createRecurringUseCase(
         const idempotencyKey = `${recurring.id}_${targetDate}`;
         const existingResult = transactionRepository.findByIdempotencyKey(idempotencyKey);
         if (!existingResult.success) {
-          skipped.push({ recurringPurchaseId: recurring.id, reason: 'NO_NAV' });
-          continue;
+          return {
+            success: false,
+            error: {
+              type: 'unexpected',
+              message: `重複チェックに失敗しました: ${existingResult.error.message}`,
+            },
+          };
         }
         if (existingResult.value) {
           skipped.push({ recurringPurchaseId: recurring.id, reason: 'ALREADY_EXECUTED' });
@@ -266,8 +271,13 @@ export function createRecurringUseCase(
 
         const createResult = transactionRepository.createTransaction(transaction);
         if (!createResult.success) {
-          skipped.push({ recurringPurchaseId: recurring.id, reason: 'NO_NAV' });
-          continue;
+          return {
+            success: false,
+            error: {
+              type: 'unexpected',
+              message: `取引の作成に失敗しました: ${createResult.error.message}`,
+            },
+          };
         }
 
         executed.push(transaction);
@@ -353,7 +363,9 @@ function buildCandidateOrderDates(
   const [yearText, monthText] = targetDate.split('-');
   const year = Number(yearText);
   const month = Number(monthText);
-  const monthsBack = Math.max(1, Math.ceil(settlementBusinessDays / 20) + 1);
+  // 営業日ベースの月概算（候補となる注文月の探索範囲用）
+  const BUSINESS_DAYS_PER_MONTH = 20;
+  const monthsBack = Math.max(1, Math.ceil(settlementBusinessDays / BUSINESS_DAYS_PER_MONTH) + 1);
   const candidates: string[] = [];
 
   for (let offset = 0; offset <= monthsBack; offset += 1) {
