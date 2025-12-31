@@ -160,18 +160,19 @@ export function createTransactionUseCase(
         return transactionsResult as Result<Transaction>;
       }
 
-      // 売却日より前の取引から保有口数を計算
-      // 注意: 同日の売却を複数登録できないよう、売却日当日の取引は除外する
+      // 売却日以前の取引から保有口数を計算（同日の取引も含む）
+      // 同日の購入・売却は許容するが、売却後に口数がマイナスにならないことを確認
       const holdingUnits = transactionsResult.value
-        .filter((t) => t.date < date)
+        .filter((t) => t.date <= date)
         .reduce((sum, t) => sum + t.units, 0);
 
-      if (holdingUnits < units) {
+      // 売却後に口数がマイナスにならないことを確認
+      if (holdingUnits - units < 0) {
         return {
           success: false,
           error: {
             type: 'validation',
-            message: `売却口数が保有口数を超えています。売却日前日時点の保有口数: ${holdingUnits.toFixed(0)}口`,
+            message: `売却口数が保有口数を超えています。売却日時点の保有口数: ${holdingUnits.toFixed(0)}口`,
             field: 'units',
           },
         };
@@ -331,17 +332,19 @@ export function createTransactionUseCase(
         return transactionsResult as Result<Transaction>;
       }
 
-      // 売却日より前の取引から保有口数を計算（更新対象の取引は除外）
+      // 売却日以前の取引から保有口数を計算（更新対象の取引は除外、同日の取引も含む）
+      // 同日の購入・売却は許容するが、更新後に口数がマイナスにならないことを確認
       const holdingUnits = transactionsResult.value
-        .filter((t) => t.date < date && t.id !== input.id)
+        .filter((t) => t.date <= date && t.id !== input.id)
         .reduce((sum, t) => sum + t.units, 0);
 
-      if (holdingUnits < units) {
+      // 売却後に口数がマイナスにならないことを確認
+      if (holdingUnits - units < 0) {
         return {
           success: false,
           error: {
             type: 'validation',
-            message: `売却口数が保有口数を超えています。売却日前日時点の保有口数: ${holdingUnits.toFixed(0)}口`,
+            message: `売却口数が保有口数を超えています。売却日時点の保有口数: ${holdingUnits.toFixed(0)}口`,
             field: 'units',
           },
         };
