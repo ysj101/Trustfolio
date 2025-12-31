@@ -21,7 +21,6 @@ export type TransactionUseCase = {
     date: string;
     units: number;
     navValue: number;
-    fee: number;
   }) => Result<Transaction>;
   /**
    * 既存のスポット購入履歴を更新する。
@@ -123,14 +122,13 @@ export function createTransactionUseCase(
       date: string;
       units: number;
       navValue: number;
-      fee: number;
     }): Result<Transaction> => {
       const validateResult = validateSaleTransactionInput(input);
       if (!validateResult.success) {
         return validateResult as Result<Transaction>;
       }
 
-      const { fundId, date, units, navValue, fee } = validateResult.value;
+      const { fundId, date, units, navValue } = validateResult.value;
 
       // 銘柄の存在確認
       const fundResult = fundRepository.findById(fundId);
@@ -175,7 +173,6 @@ export function createTransactionUseCase(
         type: 'REDEMPTION',
         date,
         amount,
-        fee,
         navValue,
         units: -units, // 売却口数は負の値で保存
         recurringPurchaseId: null,
@@ -365,15 +362,13 @@ function validateSaleTransactionInput(input: {
   date: string;
   units: number;
   navValue: number;
-  fee: number;
 }): Result<{
   fundId: string;
   date: string;
   units: number;
   navValue: number;
-  fee: number;
 }> {
-  const { fundId, date, units, navValue, fee } = input;
+  const { fundId, date, units, navValue } = input;
 
   if (typeof fundId !== 'string' || fundId.trim() === '') {
     return {
@@ -411,14 +406,8 @@ function validateSaleTransactionInput(input: {
       },
     };
   }
-  if (typeof fee !== 'number' || Number.isNaN(fee) || fee < 0) {
-    return {
-      success: false,
-      error: { type: 'validation', message: '手数料は0以上で入力してください。', field: 'fee' },
-    };
-  }
 
-  return { success: true, value: { fundId, date, units, navValue, fee } };
+  return { success: true, value: { fundId, date, units, navValue } };
 }
 
 function isValidIsoDate(value: string): boolean {

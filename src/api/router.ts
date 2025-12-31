@@ -62,7 +62,6 @@ type ExecuteSaleRequest = {
   date: string;
   units: number;
   navValue: number;
-  fee: number;
 };
 
 type UpdateSpotPurchaseRequest = {
@@ -226,7 +225,6 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
         date: request.date,
         units: request.units,
         navValue: request.navValue,
-        fee: request.fee,
       });
     case 'updateSpotPurchase':
       return transactionUseCase.updateSpotPurchase({

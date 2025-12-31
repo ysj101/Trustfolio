@@ -20,7 +20,6 @@
   const transactionDateLabel = document.getElementById('transactionDateLabel');
   const transactionAmountInput = document.getElementById('transactionAmount');
   const transactionUnitsInput = document.getElementById('transactionUnits');
-  const transactionFeeInput = document.getElementById('transactionFee');
   const transactionNavValueInput = document.getElementById('transactionNavValue');
   const transactionList = document.getElementById('transactionList');
   const transactionSubmitButton = document.getElementById('transactionSubmitButton');
@@ -547,7 +546,6 @@
     const transactionType = document.querySelector('input[name="transactionType"]:checked').value;
     const fundId = transactionFundSelect.value;
     const date = transactionDateInput.value;
-    const fee = Number(transactionFeeInput.value || 0);
     const navValue = Number(transactionNavValueInput.value);
     const isEditing = Boolean(state.editingTransactionId);
 
@@ -565,7 +563,6 @@
                 fundId,
                 date,
                 amount,
-                fee,
                 navValue
               }
             : {
@@ -573,7 +570,6 @@
                 fundId,
                 date,
                 amount,
-                fee,
                 navValue
               }
         );
@@ -605,8 +601,7 @@
           fundId,
           date,
           units,
-          navValue,
-          fee
+          navValue
         });
         if (!response.success) {
           setMessage(response.error.message, 'error');
