@@ -64,6 +64,8 @@
     });
   }
 
+  let successMessageTimer = null;
+
   function setMessage(text, stateValue) {
     message.textContent = text;
     if (stateValue) {
@@ -72,13 +74,17 @@
       message.removeAttribute('data-state');
     }
 
-    if (text === '準備ができました。') {
-      setTimeout(() => {
-        if (message.textContent === '準備ができました。') {
+    if (successMessageTimer) {
+      clearTimeout(successMessageTimer);
+      successMessageTimer = null;
+    }
+    if (stateValue === 'success') {
+      successMessageTimer = setTimeout(() => {
+        if (message.getAttribute('data-state') === 'success') {
           message.textContent = '';
           message.removeAttribute('data-state');
         }
-      }, 30000);
+      }, 10000);
     }
   }
 
