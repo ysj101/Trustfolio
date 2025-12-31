@@ -48,6 +48,8 @@
   const portfolioUnrealizedGainRate = document.getElementById('portfolioUnrealizedGainRate');
   const portfolioTotalGain = document.getElementById('portfolioTotalGain');
   const portfolioTotalGainRate = document.getElementById('portfolioTotalGainRate');
+  const portfolioToggleButton = document.getElementById('portfolioToggleButton');
+  const portfolioDetails = document.getElementById('portfolioDetails');
   const message = document.getElementById('message');
   const refreshButton = document.getElementById('refreshButton');
 
@@ -802,6 +804,19 @@
     }
   });
 
+  // ポートフォリオ詳細のトグル
+  portfolioToggleButton.addEventListener('click', () => {
+    const isHidden = portfolioDetails.classList.contains('hidden');
+    if (isHidden) {
+      portfolioDetails.classList.remove('hidden');
+      portfolioToggleButton.classList.add('expanded');
+      portfolioToggleButton.textContent = '詳細を非表示';
+    } else {
+      portfolioDetails.classList.add('hidden');
+      portfolioToggleButton.classList.remove('expanded');
+      portfolioToggleButton.textContent = '詳細を表示';
+    }
+  });
 
   (async () => {
     setMessage('読み込み中...', null);

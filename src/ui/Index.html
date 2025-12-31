@@ -35,37 +35,36 @@
                   <p id="portfolioUnrealizedGainRate" class="summary-value">-</p>
                 </div>
               </div>
-              <div class="summary-card">
-                <div>
-                  <p class="summary-label">累計投入額</p>
-                  <p id="portfolioTotalInvestment" class="summary-value">-</p>
+              <button id="portfolioToggleButton" class="toggle-button" type="button">
+                詳細を表示
+              </button>
+              <div id="portfolioDetails" class="portfolio-details hidden">
+                <div class="summary-card">
+                  <div>
+                    <p class="summary-label">累計投入額</p>
+                    <p id="portfolioTotalInvestment" class="summary-value">-</p>
+                  </div>
+                  <div>
+                    <p class="summary-label">総損益</p>
+                    <p id="portfolioTotalGain" class="summary-value">-</p>
+                  </div>
+                  <div>
+                    <p class="summary-label">総損益率</p>
+                    <p id="portfolioTotalGainRate" class="summary-value">-</p>
+                  </div>
                 </div>
-                <div>
-                  <p class="summary-label">総損益</p>
-                  <p id="portfolioTotalGain" class="summary-value">-</p>
-                </div>
-                <div>
-                  <p class="summary-label">総損益率</p>
-                  <p id="portfolioTotalGainRate" class="summary-value">-</p>
-                </div>
-              </div>
-              <div class="summary-card">
-                <div>
-                  <p class="summary-label">売却総額</p>
-                  <p id="portfolioTotalSaleAmount" class="summary-value">-</p>
-                </div>
-                <div>
-                  <p class="summary-label">実現損益</p>
-                  <p id="portfolioRealizedGain" class="summary-value">-</p>
+                <div class="summary-card">
+                  <div>
+                    <p class="summary-label">売却総額</p>
+                    <p id="portfolioTotalSaleAmount" class="summary-value">-</p>
+                  </div>
+                  <div>
+                    <p class="summary-label">実現損益</p>
+                    <p id="portfolioRealizedGain" class="summary-value">-</p>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </section>
-
-        <section class="panel">
-          <h2>保有情報</h2>
-          <div class="panel-body">
             <div class="list-block">
               <h3>保有一覧</h3>
               <ul id="holdingList" class="list"></ul>

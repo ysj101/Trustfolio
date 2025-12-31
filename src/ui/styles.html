@@ -153,7 +153,6 @@
   .panel:nth-child(3) { animation-delay: 0.15s; }
   .panel:nth-child(4) { animation-delay: 0.2s; }
   .panel:nth-child(5) { animation-delay: 0.25s; }
-  .panel:nth-child(6) { animation-delay: 0.3s; }
 
   .panel:hover {
     border-color: var(--border-hover);
@@ -376,6 +375,7 @@
     display: flex;
     flex-direction: column;
     gap: 20px;
+    margin-bottom: 32px;
   }
 
   /* サマリーカード */
@@ -383,6 +383,69 @@
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 16px;
+  }
+
+  /* トグルボタン */
+  .toggle-button {
+    width: 100%;
+    padding: 10px 16px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .toggle-button:hover {
+    background: var(--bg-hover);
+    border-color: var(--border-hover);
+    color: var(--text-primary);
+  }
+
+  .toggle-button::after {
+    content: '▼';
+    font-size: 0.7rem;
+    transition: transform 0.3s ease;
+  }
+
+  .toggle-button.expanded::after {
+    transform: rotate(180deg);
+  }
+
+  /* ポートフォリオ詳細 */
+  .portfolio-details {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    overflow: hidden;
+    max-height: 0;
+    opacity: 0;
+    transition: max-height 0.4s ease, opacity 0.3s ease, margin-top 0.3s ease;
+  }
+
+  .portfolio-details:not(.hidden) {
+    max-height: 500px;
+    opacity: 1;
+    margin-top: 0;
+  }
+
+  /* リストブロック */
+  .list-block {
+    margin-top: 32px;
+  }
+
+  .list-block h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 16px 0;
   }
 
   .summary-card > div {
