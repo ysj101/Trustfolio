@@ -48,6 +48,10 @@ type GetTransactionHistoryRequest = {
   fundId: string;
 };
 
+type ListAllTransactionsRequest = {
+  action: 'listAllTransactions';
+};
+
 type ExecuteSpotPurchaseRequest = {
   action: 'executeSpotPurchase';
   fundId: string;
@@ -146,6 +150,7 @@ export type ApiRequest =
   | UpdateFundRequest
   | GetNavHistoryRequest
   | GetTransactionHistoryRequest
+  | ListAllTransactionsRequest
   | ExecuteSpotPurchaseRequest
   | ExecuteSaleRequest
   | UpdateSpotPurchaseRequest
@@ -222,6 +227,8 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
       return navUseCase.getNavHistory(request.fundId);
     case 'getTransactionHistory':
       return transactionUseCase.getHistory(request.fundId);
+    case 'listAllTransactions':
+      return transactionUseCase.listAll();
     case 'executeSpotPurchase':
       return transactionUseCase.executeSpotPurchase({
         fundId: request.fundId,

@@ -6,6 +6,7 @@ import { generateUlid } from '../utils/ulid';
 
 export type TransactionUseCase = {
   getHistory: (fundId: string) => Result<Transaction[]>;
+  listAll: () => Result<Transaction[]>;
   executeSpotPurchase: (input: {
     fundId: string;
     date: string;
@@ -79,6 +80,9 @@ export function createTransactionUseCase(
       }
 
       return transactionRepository.listByFundId(fundId);
+    },
+    listAll: (): Result<Transaction[]> => {
+      return transactionRepository.listAll();
     },
     executeSpotPurchase: (input: {
       fundId: string;

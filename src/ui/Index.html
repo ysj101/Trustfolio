@@ -7,10 +7,7 @@
   <body>
     <div class="app">
       <header class="hero">
-        <div class="title-block">
-          <h1>Trustfolio</h1>
-          <p class="subtitle">投資信託と基準価額をシンプルに記録するための管理画面。</p>
-        </div>
+        <h1>Trustfolio</h1>
         <button id="refreshButton" class="ghost">再読み込み</button>
       </header>
 
@@ -68,6 +65,15 @@
             <div class="list-block">
               <h3>保有一覧</h3>
               <ul id="holdingList" class="list"></ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>取引履歴</h2>
+          <div class="panel-body">
+            <div class="list-block">
+              <ul id="recurringTransactionList" class="list"></ul>
             </div>
           </div>
         </section>
