@@ -6,6 +6,9 @@ export type RecurringPurchaseRepository = {
   listAll: () => Result<RecurringPurchase[]>;
   listActive: () => Result<RecurringPurchase[]>;
   createRecurringPurchase: (recurring: RecurringPurchase) => Result<void>;
+  findById: (recurringId: string) => Result<RecurringPurchase | null>;
+  updateRecurringPurchase: (recurring: RecurringPurchase) => Result<void>;
+  deleteRecurringPurchase: (recurringId: string) => Result<void>;
 };
 
 /**
@@ -60,9 +63,79 @@ export function createRecurringPurchaseRepository(
         ],
       ]);
     },
+    findById: (recurringId: string): Result<RecurringPurchase | null> => {
+      const findResult = findRecurringRow(sheetRepository, recurringId);
+      if (!findResult.success) {
+        return findResult;
+      }
+      return { success: true, value: findResult.value?.recurring ?? null };
+    },
+    updateRecurringPurchase: (recurring: RecurringPurchase): Result<void> => {
+      const findResult = findRecurringRow(sheetRepository, recurring.id);
+      if (!findResult.success) {
+        return findResult;
+      }
+      if (findResult.value === null) {
+        return fail('not_found', `対象の積立設定が見つかりません: id=${recurring.id}`);
+      }
+
+      return sheetRepository.updateRow(SHEET_NAMES.RECURRING, findResult.value.rowIndex, [
+        recurring.id,
+        recurring.fundId,
+        recurring.monthlyAmount,
+        recurring.executionDay,
+        recurring.startDate,
+        recurring.endDate ?? '',
+        recurring.isActive,
+        recurring.createdAt,
+      ]);
+    },
+    deleteRecurringPurchase: (recurringId: string): Result<void> => {
+      const findResult = findRecurringRow(sheetRepository, recurringId);
+      if (!findResult.success) {
+        return findResult;
+      }
+      if (findResult.value === null) {
+        return fail('not_found', `対象の積立設定が見つかりません: id=${recurringId}`);
+      }
+
+      return sheetRepository.deleteRow(SHEET_NAMES.RECURRING, findResult.value.rowIndex);
+    },
   };
 
   return repository;
+}
+
+/**
+ * 積立設定IDから該当行を検索する。
+ */
+function findRecurringRow(
+  sheetRepository: SheetRepository,
+  recurringId: string
+): Result<{ rowIndex: number; recurring: RecurringPurchase } | null> {
+  const rowsResult = sheetRepository.readAllRows(SHEET_NAMES.RECURRING);
+  if (!rowsResult.success) {
+    return rowsResult;
+  }
+
+  for (let index = 0; index < rowsResult.value.length; index += 1) {
+    const row = rowsResult.value[index];
+    // 空行はスキップ
+    const isEmpty = row.every((cell) => cell === '' || cell === null || cell === undefined);
+    if (isEmpty) {
+      continue;
+    }
+
+    const parsed = parseRow(row, index);
+    if (!parsed.success) {
+      return parsed;
+    }
+    if (parsed.value.id === recurringId) {
+      return { success: true, value: { rowIndex: index, recurring: parsed.value } };
+    }
+  }
+
+  return { success: true, value: null };
 }
 
 function parseRow(row: unknown[], index: number): Result<RecurringPurchase> {

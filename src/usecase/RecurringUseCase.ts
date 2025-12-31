@@ -28,6 +28,23 @@ export type RecurringUseCase = {
     endDate: string | null;
     isActive: boolean;
   }) => Result<RecurringPurchase>;
+  /**
+   * 既存の積立設定を更新する。
+   * 全項目を指定して更新する（作成日時は保持する）。
+   */
+  updateRecurringPurchase: (input: {
+    id: string;
+    fundId: string;
+    monthlyAmount: number;
+    executionDay: number;
+    startDate: string;
+    endDate: string | null;
+    isActive: boolean;
+  }) => Result<RecurringPurchase>;
+  /**
+   * 既存の積立設定を削除する。
+   */
+  deleteRecurringPurchase: (recurringId: string) => Result<RecurringPurchase>;
   executeRecurringPurchases: (targetDate: string) => Result<ExecuteRecurringResult>;
 };
 
@@ -45,74 +62,13 @@ export function createRecurringUseCase(
       return recurringRepository.listAll();
     },
     createRecurringPurchase: (input): Result<RecurringPurchase> => {
-      const { fundId, monthlyAmount, executionDay, startDate, endDate, isActive } = input;
+      const validateResult = validateRecurringInput(input);
+      if (!validateResult.success) {
+        return validateResult as Result<RecurringPurchase>;
+      }
 
-      if (typeof fundId !== 'string' || fundId.trim() === '') {
-        return {
-          success: false,
-          error: { type: 'validation', message: '銘柄を選択してください。', field: 'fundId' },
-        };
-      }
-      if (typeof monthlyAmount !== 'number' || Number.isNaN(monthlyAmount) || monthlyAmount <= 0) {
-        return {
-          success: false,
-          error: {
-            type: 'validation',
-            message: '月額購入金額は0より大きい数値で入力してください。',
-            field: 'monthlyAmount',
-          },
-        };
-      }
-      if (typeof executionDay !== 'number' || Number.isNaN(executionDay)) {
-        return {
-          success: false,
-          error: {
-            type: 'validation',
-            message: '注文日は1〜28の範囲で入力してください。',
-            field: 'executionDay',
-          },
-        };
-      }
-      if (executionDay < 1 || executionDay > 28) {
-        return {
-          success: false,
-          error: {
-            type: 'validation',
-            message: '注文日は1〜28の範囲で入力してください。',
-            field: 'executionDay',
-          },
-        };
-      }
-      if (!isValidIsoDate(startDate)) {
-        return {
-          success: false,
-          error: {
-            type: 'validation',
-            message: '開始日はYYYY-MM-DD形式で入力してください。',
-            field: 'startDate',
-          },
-        };
-      }
-      if (endDate !== null && endDate !== '' && !isValidIsoDate(endDate)) {
-        return {
-          success: false,
-          error: {
-            type: 'validation',
-            message: '終了日はYYYY-MM-DD形式で入力してください。',
-            field: 'endDate',
-          },
-        };
-      }
-      if (endDate !== null && endDate !== '' && parseIsoDate(endDate) < parseIsoDate(startDate)) {
-        return {
-          success: false,
-          error: {
-            type: 'validation',
-            message: '終了日は開始日以降である必要があります。',
-            field: 'endDate',
-          },
-        };
-      }
+      const { fundId, monthlyAmount, executionDay, startDate, endDate, isActive } =
+        validateResult.value;
 
       const fundResult = fundRepository.findById(fundId);
       if (!fundResult.success) {
@@ -142,6 +98,88 @@ export function createRecurringUseCase(
       }
 
       return { success: true, value: recurring };
+    },
+    updateRecurringPurchase: (input): Result<RecurringPurchase> => {
+      if (typeof input.id !== 'string' || input.id.trim() === '') {
+        return {
+          success: false,
+          error: { type: 'validation', message: '積立設定IDが不正です。', field: 'id' },
+        };
+      }
+
+      const validateResult = validateRecurringInput(input);
+      if (!validateResult.success) {
+        return validateResult as Result<RecurringPurchase>;
+      }
+
+      const { fundId, monthlyAmount, executionDay, startDate, endDate, isActive } =
+        validateResult.value;
+
+      const existingResult = recurringRepository.findById(input.id);
+      if (!existingResult.success) {
+        return existingResult as Result<RecurringPurchase>;
+      }
+      if (!existingResult.value) {
+        return {
+          success: false,
+          error: { type: 'not_found', message: '対象の積立設定が存在しません。', field: 'id' },
+        };
+      }
+
+      const fundResult = fundRepository.findById(fundId);
+      if (!fundResult.success) {
+        return fundResult as Result<RecurringPurchase>;
+      }
+      if (!fundResult.value) {
+        return {
+          success: false,
+          error: { type: 'not_found', message: '対象の銘柄が存在しません。', field: 'fundId' },
+        };
+      }
+
+      const recurring: RecurringPurchase = {
+        id: existingResult.value.id,
+        fundId,
+        monthlyAmount,
+        executionDay,
+        startDate,
+        endDate: endDate !== null && endDate !== '' ? endDate : null,
+        isActive,
+        createdAt: existingResult.value.createdAt,
+      };
+
+      const updateResult = recurringRepository.updateRecurringPurchase(recurring);
+      if (!updateResult.success) {
+        return updateResult as Result<RecurringPurchase>;
+      }
+
+      return { success: true, value: recurring };
+    },
+    deleteRecurringPurchase: (recurringId: string): Result<RecurringPurchase> => {
+      if (typeof recurringId !== 'string' || recurringId.trim() === '') {
+        return {
+          success: false,
+          error: { type: 'validation', message: '積立設定IDが不正です。', field: 'id' },
+        };
+      }
+
+      const existingResult = recurringRepository.findById(recurringId);
+      if (!existingResult.success) {
+        return existingResult as Result<RecurringPurchase>;
+      }
+      if (!existingResult.value) {
+        return {
+          success: false,
+          error: { type: 'not_found', message: '対象の積立設定が存在しません。', field: 'id' },
+        };
+      }
+
+      const deleteResult = recurringRepository.deleteRecurringPurchase(recurringId);
+      if (!deleteResult.success) {
+        return deleteResult as Result<RecurringPurchase>;
+      }
+
+      return { success: true, value: existingResult.value };
     },
     executeRecurringPurchases: (targetDate: string): Result<ExecuteRecurringResult> => {
       if (!isValidIsoDate(targetDate)) {
@@ -284,6 +322,116 @@ export function createRecurringUseCase(
       }
 
       return { success: true, value: { executed, skipped } };
+    },
+  };
+}
+
+/**
+ * 積立設定の入力値を検証し、正規化済みの値を返す。
+ */
+function validateRecurringInput(input: {
+  fundId: string;
+  monthlyAmount: number;
+  executionDay: number;
+  startDate: string;
+  endDate: string | null;
+  isActive: boolean;
+}): Result<{
+  fundId: string;
+  monthlyAmount: number;
+  executionDay: number;
+  startDate: string;
+  endDate: string | null;
+  isActive: boolean;
+}> {
+  const { fundId, monthlyAmount, executionDay, startDate, endDate, isActive } = input;
+
+  if (typeof fundId !== 'string' || fundId.trim() === '') {
+    return {
+      success: false,
+      error: { type: 'validation', message: '銘柄を選択してください。', field: 'fundId' },
+    };
+  }
+  if (typeof monthlyAmount !== 'number' || Number.isNaN(monthlyAmount) || monthlyAmount <= 0) {
+    return {
+      success: false,
+      error: {
+        type: 'validation',
+        message: '月額購入金額は0より大きい数値で入力してください。',
+        field: 'monthlyAmount',
+      },
+    };
+  }
+  if (typeof executionDay !== 'number' || Number.isNaN(executionDay)) {
+    return {
+      success: false,
+      error: {
+        type: 'validation',
+        message: '注文日は1〜28の範囲で入力してください。',
+        field: 'executionDay',
+      },
+    };
+  }
+  if (executionDay < 1 || executionDay > 28) {
+    return {
+      success: false,
+      error: {
+        type: 'validation',
+        message: '注文日は1〜28の範囲で入力してください。',
+        field: 'executionDay',
+      },
+    };
+  }
+  if (!isValidIsoDate(startDate)) {
+    return {
+      success: false,
+      error: {
+        type: 'validation',
+        message: '開始日はYYYY-MM-DD形式で入力してください。',
+        field: 'startDate',
+      },
+    };
+  }
+  if (endDate !== null && endDate !== '' && !isValidIsoDate(endDate)) {
+    return {
+      success: false,
+      error: {
+        type: 'validation',
+        message: '終了日はYYYY-MM-DD形式で入力してください。',
+        field: 'endDate',
+      },
+    };
+  }
+  if (endDate !== null && endDate !== '' && parseIsoDate(endDate) < parseIsoDate(startDate)) {
+    return {
+      success: false,
+      error: {
+        type: 'validation',
+        message: '終了日は開始日以降である必要があります。',
+        field: 'endDate',
+      },
+    };
+  }
+  if (typeof isActive !== 'boolean') {
+    return {
+      success: false,
+      error: {
+        type: 'validation',
+        message: 'アクティブ設定が不正です。',
+        field: 'isActive',
+      },
+    };
+  }
+
+  return {
+    success: true,
+    value: {
+      fundId,
+      monthlyAmount,
+      executionDay,
+      startDate,
+      endDate: endDate !== null && endDate !== '' ? endDate : null,
+      isActive,
     },
   };
 }
