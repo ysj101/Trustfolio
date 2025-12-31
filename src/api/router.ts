@@ -27,6 +27,7 @@ type CreateFundRequest = {
   action: 'createFund';
   name: string;
   rakutenFundId: string | null;
+  settlementBusinessDays: number | null;
 };
 
 type UpdateFundRequest = {
@@ -34,6 +35,7 @@ type UpdateFundRequest = {
   id: string;
   name: string;
   rakutenFundId: string | null;
+  settlementBusinessDays: number | null;
 };
 
 type GetNavHistoryRequest = {
@@ -155,12 +157,14 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
       return fundUseCase.createFund({
         name: request.name,
         rakutenFundId: request.rakutenFundId,
+        settlementBusinessDays: request.settlementBusinessDays,
       });
     case 'updateFund':
       return fundUseCase.updateFund({
         id: request.id,
         name: request.name,
         rakutenFundId: request.rakutenFundId,
+        settlementBusinessDays: request.settlementBusinessDays,
       });
     case 'getNavHistory':
       return navUseCase.getNavHistory(request.fundId);

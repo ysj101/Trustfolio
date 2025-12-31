@@ -3,7 +3,9 @@ import { handleApiRequest } from './api/router';
 export { handleApiRequest } from './api/router';
 export { runRakutenIntegrationTest } from './integration/RakutenIntegrationTest';
 export type { NavFetchResult } from './usecase/NavFetchUseCase';
+import type { Result } from './domain/types';
 import type { NavFetchResult, NavFetchResultItem } from './usecase/NavFetchUseCase';
+import type { ExecuteRecurringResult } from './usecase/RecurringUseCase';
 
 /**
  * Webアプリのエントリーポイント（GET）。
@@ -97,6 +99,49 @@ export function fetchAllNavs(): void {
 }
 
 /**
+ * 積立設定に基づく自動発注を毎日実行する。
+ * 約定日をJSTで生成し、結果の成功/スキップ/失敗をログに記録する。
+ */
+export function executeRecurringPurchasesDaily(): Result<ExecuteRecurringResult> {
+  const today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+  Logger.log(`[executeRecurringPurchasesDaily] 約定日: ${today}`);
+
+  const response = handleApiRequest({
+    action: 'executeRecurringPurchases',
+    targetDate: today,
+  });
+
+  if (!response.success) {
+    Logger.log(
+      `[executeRecurringPurchasesDaily] 失敗: ${response.error.message} (${response.error.type})`
+    );
+    return response as Result<ExecuteRecurringResult>;
+  }
+
+  if (!isExecuteRecurringResult(response.value)) {
+    Logger.log('[executeRecurringPurchasesDaily] 失敗: 実行結果の形式が不正です。');
+    return {
+      success: false,
+      error: {
+        type: 'unexpected',
+        message: '実行結果の形式が不正です。',
+      },
+    };
+  }
+
+  const executedCount = response.value.executed.length;
+  const skippedCount = response.value.skipped.length;
+  const skippedSummary = summarizeSkippedReasons(response.value.skipped);
+
+  Logger.log(
+    `[executeRecurringPurchasesDaily] 成功: ${String(executedCount)}, ` +
+      `スキップ: ${String(skippedCount)}, 内訳: ${JSON.stringify(skippedSummary)}`
+  );
+
+  return { success: true, value: response.value };
+}
+
+/**
  * NAV自動取得で失敗した銘柄の詳細をログ出力する。
  * 失敗理由を即時に把握できるようにするための補助関数。
  */
@@ -134,6 +179,30 @@ export function setupNavFetchTrigger(): void {
   ScriptApp.newTrigger('fetchAllNavs').timeBased().everyDays(1).atHour(21).create();
 
   console.log('NAV自動取得トリガーを設定しました（毎日21:00-22:00実行）');
+}
+
+/**
+ * 積立自動発注の時間駆動トリガーを設定する。
+ * この関数を1回だけ手動実行することで、毎日22:30に自動実行されるトリガーが設定される。
+ * 既存のトリガーは削除してから新しいトリガーを設定する。
+ */
+export function setupRecurringPurchasesTrigger(): void {
+  const existingTriggers = ScriptApp.getProjectTriggers();
+  for (const trigger of existingTriggers) {
+    if (trigger.getHandlerFunction() === 'executeRecurringPurchasesDaily') {
+      ScriptApp.deleteTrigger(trigger);
+      Logger.log(`既存のトリガーを削除しました: ${trigger.getUniqueId()}`);
+    }
+  }
+
+  ScriptApp.newTrigger('executeRecurringPurchasesDaily')
+    .timeBased()
+    .everyDays(1)
+    .atHour(22)
+    .nearMinute(30)
+    .create();
+
+  Logger.log('積立自動発注トリガーを設定しました（毎日22:30実行）');
 }
 
 /**
@@ -175,4 +244,41 @@ function isNavFetchResult(value: unknown): value is NavFetchResult {
     typeof obj.failedCount === 'number' &&
     Array.isArray(obj.items)
   );
+}
+
+/**
+ * executeRecurringPurchasesの結果形式を検証する。
+ */
+function isExecuteRecurringResult(value: unknown): value is ExecuteRecurringResult {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const obj = value as Record<string, unknown>;
+  if (!Array.isArray(obj.executed) || !Array.isArray(obj.skipped)) {
+    return false;
+  }
+  return obj.skipped.every((item) => {
+    if (typeof item !== 'object' || item === null) {
+      return false;
+    }
+    const record = item as Record<string, unknown>;
+    return (
+      typeof record.recurringPurchaseId === 'string' &&
+      typeof record.reason === 'string' &&
+      record.recurringPurchaseId !== ''
+    );
+  });
+}
+
+/**
+ * スキップ理由の内訳を集計する。
+ */
+function summarizeSkippedReasons(
+  skipped: ExecuteRecurringResult['skipped']
+): Record<string, number> {
+  const summary: Record<string, number> = {};
+  for (const item of skipped) {
+    summary[item.reason] = (summary[item.reason] ?? 0) + 1;
+  }
+  return summary;
 }

@@ -25,6 +25,12 @@ export type Fund = {
    * 未設定の場合はnull。
    */
   rakutenFundId: string | null;
+  /**
+   * 約定までの営業日数。
+   * 積立の約定日計算に使用する。
+   * 未設定の場合はnull。
+   */
+  settlementBusinessDays: number | null;
   createdAt: string;
 };
 

@@ -10,6 +10,7 @@
   const fundForm = document.getElementById('fundForm');
   const fundNameInput = document.getElementById('fundName');
   const fundRakutenFundIdInput = document.getElementById('fundRakutenFundId');
+  const fundSettlementBusinessDaysInput = document.getElementById('fundSettlementBusinessDays');
   const fundList = document.getElementById('fundList');
   const transactionForm = document.getElementById('transactionForm');
   const transactionFundSelect = document.getElementById('transactionFundSelect');
@@ -26,9 +27,6 @@
   const recurringEndDateInput = document.getElementById('recurringEndDate');
   const recurringIsActiveInput = document.getElementById('recurringIsActive');
   const recurringList = document.getElementById('recurringList');
-  const recurringTargetDateInput = document.getElementById('recurringTargetDate');
-  const recurringExecuteButton = document.getElementById('recurringExecuteButton');
-  const recurringResultList = document.getElementById('recurringResultList');
   const holdingList = document.getElementById('holdingList');
   const portfolioInvestment = document.getElementById('portfolioInvestment');
   const portfolioValue = document.getElementById('portfolioValue');
@@ -180,7 +178,7 @@
     recurrings.forEach((recurring) => {
       const item = document.createElement('li');
       const title = document.createElement('strong');
-      title.textContent = `${recurring.monthlyAmount.toLocaleString()}円 / 毎月${recurring.executionDay}日`;
+      title.textContent = `${recurring.monthlyAmount.toLocaleString()}円 / 毎月${recurring.executionDay}日注文`;
       const detail = document.createElement('span');
       const period = recurring.endDate ? `${recurring.startDate}〜${recurring.endDate}` : recurring.startDate;
       const status = recurring.isActive ? 'アクティブ' : '停止中';
@@ -191,22 +189,6 @@
     });
   }
 
-  function renderRecurringResult(result) {
-    recurringResultList.innerHTML = '';
-    if (!result) {
-      return;
-    }
-
-    const executedItem = document.createElement('li');
-    executedItem.textContent = `実行件数: ${result.executed.length}件`;
-    recurringResultList.appendChild(executedItem);
-
-    result.skipped.forEach((item) => {
-      const line = document.createElement('li');
-      line.textContent = `スキップ: ${item.recurringPurchaseId} (${item.reason})`;
-      recurringResultList.appendChild(line);
-    });
-  }
 
   function renderHoldings(holdings) {
     holdingList.innerHTML = '';
@@ -308,16 +290,25 @@
     event.preventDefault();
     const name = fundNameInput.value;
     const rakutenFundId = fundRakutenFundIdInput.value.trim() || null;
+    const settlementBusinessDaysText = fundSettlementBusinessDaysInput.value.trim();
+    const settlementBusinessDays =
+      settlementBusinessDaysText === '' ? null : Number(settlementBusinessDaysText);
     setMessage('登録中...', null);
     setLoading(true);
     try {
-      const response = await callApi({ action: 'createFund', name, rakutenFundId });
+      const response = await callApi({
+        action: 'createFund',
+        name,
+        rakutenFundId,
+        settlementBusinessDays
+      });
       if (!response.success) {
         setMessage(response.error.message, 'error');
         return;
       }
       fundNameInput.value = '';
       fundRakutenFundIdInput.value = '';
+      fundSettlementBusinessDaysInput.value = '';
       setMessage('銘柄を登録しました。', 'success');
       await loadFunds();
     } catch (error) {
@@ -416,30 +407,6 @@
     }
   });
 
-  recurringExecuteButton.addEventListener('click', async () => {
-    const targetDate = recurringTargetDateInput.value;
-    setMessage('積立を実行中...', null);
-    setLoading(true);
-    try {
-      const response = await callApi({ action: 'executeRecurringPurchases', targetDate });
-      if (!response.success) {
-        setMessage(response.error.message, 'error');
-        return;
-      }
-      renderRecurringResult(response.value);
-      setMessage(
-        `積立実行が完了しました。実行: ${response.value.executed.length}件`,
-        'success'
-      );
-      await loadTransactions(state.selectedTransactionFundId);
-      await loadHoldings();
-      await loadPortfolioSummary();
-    } catch (error) {
-      setMessage(error.message, 'error');
-    } finally {
-      setLoading(false);
-    }
-  });
 
   refreshButton.addEventListener('click', async () => {
     setMessage('再読み込み中...', null);
@@ -459,7 +426,6 @@
     setMessage('読み込み中...', null);
     setLoading(true);
     try {
-      recurringTargetDateInput.value = new Date().toISOString().split('T')[0];
       await loadFunds();
       setMessage('準備ができました。', 'success');
     } catch (error) {
