@@ -267,23 +267,41 @@
       const item = document.createElement('li');
       const content = document.createElement('div');
       content.className = 'list-content';
+
+      // 日付と取引種別バッジを含むヘッダー行
+      const header = document.createElement('div');
+      header.style.display = 'flex';
+      header.style.alignItems = 'center';
+      header.style.gap = '8px';
+
       const date = document.createElement('strong');
       date.textContent = transaction.date;
-      const detail = document.createElement('span');
-      let typeLabel = '';
+
+      const badge = document.createElement('span');
+      badge.className = 'transaction-badge';
       if (transaction.type === 'SPOT_PURCHASE') {
-        typeLabel = '購入（スポット）';
+        badge.classList.add('spot-purchase');
+        badge.textContent = 'スポット購入';
       } else if (transaction.type === 'REDEMPTION') {
-        typeLabel = '売却';
+        badge.classList.add('redemption');
+        badge.textContent = '売却';
       } else {
-        typeLabel = '購入（積立）';
+        badge.classList.add('recurring-purchase');
+        badge.textContent = '積立購入';
       }
+
+      header.appendChild(date);
+      header.appendChild(badge);
+
+      // 取引詳細行
+      const detail = document.createElement('span');
       const unitsDisplay = transaction.type === 'REDEMPTION'
         ? `${Math.abs(transaction.units).toLocaleString()}口`
         : `${transaction.units.toLocaleString()}口`;
       const navDisplay = `${transaction.navValue.toLocaleString()}円`;
-      detail.textContent = `${transaction.amount.toLocaleString()}円 / ${unitsDisplay} / 基準価額: ${navDisplay} / ${typeLabel}`;
-      content.appendChild(date);
+      detail.textContent = `${transaction.amount.toLocaleString()}円 / ${unitsDisplay} / 基準価額: ${navDisplay}`;
+
+      content.appendChild(header);
       content.appendChild(detail);
       item.appendChild(content);
 
