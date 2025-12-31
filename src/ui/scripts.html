@@ -260,7 +260,10 @@
       return;
     }
 
-    transactions.forEach((transaction) => {
+    // 最新5件のみ表示
+    const recentTransactions = transactions.slice(0, 5);
+
+    recentTransactions.forEach((transaction) => {
       const item = document.createElement('li');
       const content = document.createElement('div');
       content.className = 'list-content';
