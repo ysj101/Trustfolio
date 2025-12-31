@@ -18,7 +18,6 @@
   const transactionFundSelect = document.getElementById('transactionFundSelect');
   const transactionDateInput = document.getElementById('transactionDate');
   const transactionAmountInput = document.getElementById('transactionAmount');
-  const transactionFeeInput = document.getElementById('transactionFee');
   const transactionNavValueInput = document.getElementById('transactionNavValue');
   const transactionList = document.getElementById('transactionList');
   const transactionSubmitButton = document.getElementById('transactionSubmitButton');
@@ -108,7 +107,7 @@
   function resetTransactionForm() {
     transactionDateInput.value = '';
     transactionAmountInput.value = '';
-    transactionFeeInput.value = '0';
+    // 手数料は入力欄を廃止したため常に0で扱う
     transactionNavValueInput.value = '';
   }
 
@@ -128,7 +127,6 @@
     state.selectedTransactionFundId = transaction.fundId;
     transactionDateInput.value = transaction.date;
     transactionAmountInput.value = String(transaction.amount);
-    transactionFeeInput.value = String(transaction.fee);
     transactionNavValueInput.value = String(transaction.navValue);
   }
 
@@ -484,7 +482,6 @@
     const fundId = transactionFundSelect.value;
     const date = transactionDateInput.value;
     const amount = Number(transactionAmountInput.value);
-    const fee = Number(transactionFeeInput.value || 0);
     const navValue = Number(transactionNavValueInput.value);
     const isEditing = Boolean(state.editingTransactionId);
     setMessage(isEditing ? 'スポット購入を更新中...' : '購入登録中...', null);
@@ -498,7 +495,6 @@
               fundId,
               date,
               amount,
-              fee,
               navValue
             }
           : {
@@ -506,7 +502,6 @@
               fundId,
               date,
               amount,
-              fee,
               navValue
             }
       );
