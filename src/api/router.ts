@@ -57,6 +57,21 @@ type ExecuteSpotPurchaseRequest = {
   navValue: number;
 };
 
+type UpdateSpotPurchaseRequest = {
+  action: 'updateSpotPurchase';
+  id: string;
+  fundId: string;
+  date: string;
+  amount: number;
+  fee: number;
+  navValue: number;
+};
+
+type DeleteSpotPurchaseRequest = {
+  action: 'deleteSpotPurchase';
+  id: string;
+};
+
 type ListRecurringPurchasesRequest = {
   action: 'listRecurringPurchases';
 };
@@ -69,6 +84,22 @@ type CreateRecurringPurchaseRequest = {
   startDate: string;
   endDate: string | null;
   isActive: boolean;
+};
+
+type UpdateRecurringPurchaseRequest = {
+  action: 'updateRecurringPurchase';
+  id: string;
+  fundId: string;
+  monthlyAmount: number;
+  executionDay: number;
+  startDate: string;
+  endDate: string | null;
+  isActive: boolean;
+};
+
+type DeleteRecurringPurchaseRequest = {
+  action: 'deleteRecurringPurchase';
+  id: string;
 };
 
 type ExecuteRecurringPurchasesRequest = {
@@ -101,8 +132,12 @@ export type ApiRequest =
   | GetNavHistoryRequest
   | GetTransactionHistoryRequest
   | ExecuteSpotPurchaseRequest
+  | UpdateSpotPurchaseRequest
+  | DeleteSpotPurchaseRequest
   | ListRecurringPurchasesRequest
   | CreateRecurringPurchaseRequest
+  | UpdateRecurringPurchaseRequest
+  | DeleteRecurringPurchaseRequest
   | ExecuteRecurringPurchasesRequest
   | ListHoldingsRequest
   | GetHoldingRequest
@@ -178,6 +213,17 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
         fee: request.fee,
         navValue: request.navValue,
       });
+    case 'updateSpotPurchase':
+      return transactionUseCase.updateSpotPurchase({
+        id: request.id,
+        fundId: request.fundId,
+        date: request.date,
+        amount: request.amount,
+        fee: request.fee,
+        navValue: request.navValue,
+      });
+    case 'deleteSpotPurchase':
+      return transactionUseCase.deleteSpotPurchase(request.id);
     case 'listRecurringPurchases':
       return recurringUseCase.listRecurringPurchases();
     case 'createRecurringPurchase':
@@ -189,6 +235,18 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
         endDate: request.endDate,
         isActive: request.isActive,
       });
+    case 'updateRecurringPurchase':
+      return recurringUseCase.updateRecurringPurchase({
+        id: request.id,
+        fundId: request.fundId,
+        monthlyAmount: request.monthlyAmount,
+        executionDay: request.executionDay,
+        startDate: request.startDate,
+        endDate: request.endDate,
+        isActive: request.isActive,
+      });
+    case 'deleteRecurringPurchase':
+      return recurringUseCase.deleteRecurringPurchase(request.id);
     case 'executeRecurringPurchases':
       return recurringUseCase.executeRecurringPurchases(request.targetDate);
     case 'listHoldings':

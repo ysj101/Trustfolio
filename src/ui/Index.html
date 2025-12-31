@@ -117,7 +117,12 @@
                 step="1"
                 required
               />
-              <button type="submit" class="primary">購入登録</button>
+              <div class="form-inline">
+                <button type="submit" class="primary" id="transactionSubmitButton">購入登録</button>
+                <button type="button" class="ghost hidden" id="transactionCancelEdit">
+                  編集をキャンセル
+                </button>
+              </div>
             </form>
             <div class="list-block">
               <h3>取引履歴</h3>
@@ -159,7 +164,12 @@
                 <input type="checkbox" id="recurringIsActive" name="recurringIsActive" checked />
                 アクティブ
               </label>
-              <button type="submit" class="primary">設定を追加</button>
+              <div class="form-inline">
+                <button type="submit" class="primary" id="recurringSubmitButton">設定を追加</button>
+                <button type="button" class="ghost hidden" id="recurringCancelEdit">
+                  編集をキャンセル
+                </button>
+              </div>
             </form>
             <div class="list-block">
               <h3>積立一覧</h3>

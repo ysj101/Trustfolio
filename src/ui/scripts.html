@@ -3,7 +3,9 @@
 
   const state = {
     funds: [],
-    selectedTransactionFundId: null
+    selectedTransactionFundId: null,
+    editingTransactionId: null,
+    editingRecurringId: null
   };
 
   const app = document.querySelector('.app');
@@ -19,6 +21,8 @@
   const transactionFeeInput = document.getElementById('transactionFee');
   const transactionNavValueInput = document.getElementById('transactionNavValue');
   const transactionList = document.getElementById('transactionList');
+  const transactionSubmitButton = document.getElementById('transactionSubmitButton');
+  const transactionCancelEditButton = document.getElementById('transactionCancelEdit');
   const recurringForm = document.getElementById('recurringForm');
   const recurringFundSelect = document.getElementById('recurringFundSelect');
   const recurringMonthlyAmountInput = document.getElementById('recurringMonthlyAmount');
@@ -27,6 +31,8 @@
   const recurringEndDateInput = document.getElementById('recurringEndDate');
   const recurringIsActiveInput = document.getElementById('recurringIsActive');
   const recurringList = document.getElementById('recurringList');
+  const recurringSubmitButton = document.getElementById('recurringSubmitButton');
+  const recurringCancelEditButton = document.getElementById('recurringCancelEdit');
   const holdingList = document.getElementById('holdingList');
   const portfolioInvestment = document.getElementById('portfolioInvestment');
   const portfolioValue = document.getElementById('portfolioValue');
@@ -65,6 +71,15 @@
     } else {
       message.removeAttribute('data-state');
     }
+
+    if (text === '準備ができました。') {
+      setTimeout(() => {
+        if (message.textContent === '準備ができました。') {
+          message.textContent = '';
+          message.removeAttribute('data-state');
+        }
+      }, 30000);
+    }
   }
 
   function formatCurrency(value) {
@@ -73,6 +88,70 @@
 
   function formatRate(value) {
     return `${(value * 100).toFixed(2)}%`;
+  }
+
+  function createActionButton(label, className, onClick) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = label;
+    button.className = className;
+    button.addEventListener('click', onClick);
+    return button;
+  }
+
+  function resetTransactionForm() {
+    transactionDateInput.value = '';
+    transactionAmountInput.value = '';
+    transactionFeeInput.value = '0';
+    transactionNavValueInput.value = '';
+  }
+
+  function setTransactionEditMode(transaction) {
+    if (!transaction) {
+      state.editingTransactionId = null;
+      transactionSubmitButton.textContent = '購入登録';
+      transactionCancelEditButton.classList.add('hidden');
+      resetTransactionForm();
+      return;
+    }
+
+    state.editingTransactionId = transaction.id;
+    transactionSubmitButton.textContent = '購入内容を更新';
+    transactionCancelEditButton.classList.remove('hidden');
+    transactionFundSelect.value = transaction.fundId;
+    state.selectedTransactionFundId = transaction.fundId;
+    transactionDateInput.value = transaction.date;
+    transactionAmountInput.value = String(transaction.amount);
+    transactionFeeInput.value = String(transaction.fee);
+    transactionNavValueInput.value = String(transaction.navValue);
+  }
+
+  function resetRecurringForm() {
+    recurringMonthlyAmountInput.value = '';
+    recurringExecutionDayInput.value = '';
+    recurringStartDateInput.value = '';
+    recurringEndDateInput.value = '';
+    recurringIsActiveInput.checked = true;
+  }
+
+  function setRecurringEditMode(recurring) {
+    if (!recurring) {
+      state.editingRecurringId = null;
+      recurringSubmitButton.textContent = '設定を追加';
+      recurringCancelEditButton.classList.add('hidden');
+      resetRecurringForm();
+      return;
+    }
+
+    state.editingRecurringId = recurring.id;
+    recurringSubmitButton.textContent = '設定内容を更新';
+    recurringCancelEditButton.classList.remove('hidden');
+    recurringFundSelect.value = recurring.fundId;
+    recurringMonthlyAmountInput.value = String(recurring.monthlyAmount);
+    recurringExecutionDayInput.value = String(recurring.executionDay);
+    recurringStartDateInput.value = recurring.startDate;
+    recurringEndDateInput.value = recurring.endDate ?? '';
+    recurringIsActiveInput.checked = recurring.isActive;
   }
 
   function renderFunds() {
@@ -156,12 +235,53 @@
 
     transactions.forEach((transaction) => {
       const item = document.createElement('li');
+      const content = document.createElement('div');
+      content.className = 'list-content';
       const date = document.createElement('strong');
       date.textContent = transaction.date;
       const detail = document.createElement('span');
-      detail.textContent = `${transaction.amount.toLocaleString()}円 / ${transaction.units.toLocaleString()}口`;
-      item.appendChild(date);
-      item.appendChild(detail);
+      const typeLabel = transaction.type === 'SPOT_PURCHASE' ? 'スポット' : '積立';
+      detail.textContent = `${transaction.amount.toLocaleString()}円 / ${transaction.units.toLocaleString()}口 / ${typeLabel}`;
+      content.appendChild(date);
+      content.appendChild(detail);
+      item.appendChild(content);
+
+      if (transaction.type === 'SPOT_PURCHASE') {
+        const actions = document.createElement('div');
+        actions.className = 'list-actions';
+        const editButton = createActionButton('編集', 'ghost', () => {
+          setTransactionEditMode(transaction);
+        });
+        const deleteButton = createActionButton('削除', 'ghost', async () => {
+          if (!confirm('スポット購入履歴を削除します。よろしいですか？')) {
+            return;
+          }
+          setMessage('スポット購入履歴を削除中...', null);
+          setLoading(true);
+          try {
+            const response = await callApi({ action: 'deleteSpotPurchase', id: transaction.id });
+            if (!response.success) {
+              setMessage(response.error.message, 'error');
+              return;
+            }
+            setMessage('スポット購入履歴を削除しました。', 'success');
+            if (state.editingTransactionId === transaction.id) {
+              setTransactionEditMode(null);
+            }
+            await loadTransactions(state.selectedTransactionFundId);
+            await loadHoldings();
+            await loadPortfolioSummary();
+          } catch (error) {
+            setMessage(error.message, 'error');
+          } finally {
+            setLoading(false);
+          }
+        });
+        actions.appendChild(editButton);
+        actions.appendChild(deleteButton);
+        item.appendChild(actions);
+      }
+
       transactionList.appendChild(item);
     });
   }
@@ -177,14 +297,49 @@
 
     recurrings.forEach((recurring) => {
       const item = document.createElement('li');
+      const content = document.createElement('div');
+      content.className = 'list-content';
       const title = document.createElement('strong');
       title.textContent = `${recurring.monthlyAmount.toLocaleString()}円 / 毎月${recurring.executionDay}日注文`;
       const detail = document.createElement('span');
       const period = recurring.endDate ? `${recurring.startDate}〜${recurring.endDate}` : recurring.startDate;
       const status = recurring.isActive ? 'アクティブ' : '停止中';
       detail.textContent = `${period} / ${status}`;
-      item.appendChild(title);
-      item.appendChild(detail);
+      content.appendChild(title);
+      content.appendChild(detail);
+      item.appendChild(content);
+
+      const actions = document.createElement('div');
+      actions.className = 'list-actions';
+      const editButton = createActionButton('編集', 'ghost', () => {
+        setRecurringEditMode(recurring);
+      });
+      const deleteButton = createActionButton('削除', 'ghost', async () => {
+        if (!confirm('積立設定を削除します。よろしいですか？')) {
+          return;
+        }
+        setMessage('積立設定を削除中...', null);
+        setLoading(true);
+        try {
+          const response = await callApi({ action: 'deleteRecurringPurchase', id: recurring.id });
+          if (!response.success) {
+            setMessage(response.error.message, 'error');
+            return;
+          }
+          setMessage('積立設定を削除しました。', 'success');
+          if (state.editingRecurringId === recurring.id) {
+            setRecurringEditMode(null);
+          }
+          await loadRecurringPurchases();
+        } catch (error) {
+          setMessage(error.message, 'error');
+        } finally {
+          setLoading(false);
+        }
+      });
+      actions.appendChild(editButton);
+      actions.appendChild(deleteButton);
+      item.appendChild(actions);
       recurringList.appendChild(item);
     });
   }
@@ -325,26 +480,39 @@
     const amount = Number(transactionAmountInput.value);
     const fee = Number(transactionFeeInput.value || 0);
     const navValue = Number(transactionNavValueInput.value);
-    setMessage('購入登録中...', null);
+    const isEditing = Boolean(state.editingTransactionId);
+    setMessage(isEditing ? 'スポット購入を更新中...' : '購入登録中...', null);
     setLoading(true);
     try {
-      const response = await callApi({
-        action: 'executeSpotPurchase',
-        fundId,
-        date,
-        amount,
-        fee,
-        navValue
-      });
+      const response = await callApi(
+        isEditing
+          ? {
+              action: 'updateSpotPurchase',
+              id: state.editingTransactionId,
+              fundId,
+              date,
+              amount,
+              fee,
+              navValue
+            }
+          : {
+              action: 'executeSpotPurchase',
+              fundId,
+              date,
+              amount,
+              fee,
+              navValue
+            }
+      );
       if (!response.success) {
         setMessage(response.error.message, 'error');
         return;
       }
-      transactionDateInput.value = '';
-      transactionAmountInput.value = '';
-      transactionFeeInput.value = '0';
-      transactionNavValueInput.value = '';
-      setMessage('スポット購入を登録しました。', 'success');
+      setMessage(
+        isEditing ? 'スポット購入の内容を更新しました。' : 'スポット購入を登録しました。',
+        'success'
+      );
+      setTransactionEditMode(null);
       await loadTransactions(fundId);
       await loadHoldings();
       await loadPortfolioSummary();
@@ -355,6 +523,10 @@
     }
   });
 
+  transactionCancelEditButton.addEventListener('click', () => {
+    setTransactionEditMode(null);
+  });
+
   recurringForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     const fundId = recurringFundSelect.value;
@@ -363,34 +535,48 @@
     const startDate = recurringStartDateInput.value;
     const endDate = recurringEndDateInput.value || null;
     const isActive = recurringIsActiveInput.checked;
-    setMessage('積立設定を登録中...', null);
+    const isEditing = Boolean(state.editingRecurringId);
+    setMessage(isEditing ? '積立設定を更新中...' : '積立設定を登録中...', null);
     setLoading(true);
     try {
-      const response = await callApi({
-        action: 'createRecurringPurchase',
-        fundId,
-        monthlyAmount,
-        executionDay,
-        startDate,
-        endDate,
-        isActive
-      });
+      const response = await callApi(
+        isEditing
+          ? {
+              action: 'updateRecurringPurchase',
+              id: state.editingRecurringId,
+              fundId,
+              monthlyAmount,
+              executionDay,
+              startDate,
+              endDate,
+              isActive
+            }
+          : {
+              action: 'createRecurringPurchase',
+              fundId,
+              monthlyAmount,
+              executionDay,
+              startDate,
+              endDate,
+              isActive
+            }
+      );
       if (!response.success) {
         setMessage(response.error.message, 'error');
         return;
       }
-      recurringMonthlyAmountInput.value = '';
-      recurringExecutionDayInput.value = '';
-      recurringStartDateInput.value = '';
-      recurringEndDateInput.value = '';
-      recurringIsActiveInput.checked = true;
-      setMessage('積立設定を追加しました。', 'success');
+      setMessage(isEditing ? '積立設定を更新しました。' : '積立設定を追加しました。', 'success');
+      setRecurringEditMode(null);
       await loadRecurringPurchases();
     } catch (error) {
       setMessage(error.message, 'error');
     } finally {
       setLoading(false);
     }
+  });
+
+  recurringCancelEditButton.addEventListener('click', () => {
+    setRecurringEditMode(null);
   });
 
   transactionFundSelect.addEventListener('change', async (event) => {

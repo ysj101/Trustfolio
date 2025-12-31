@@ -6,6 +6,9 @@ export type TransactionRepository = {
   listByFundId: (fundId: string) => Result<Transaction[]>;
   createTransaction: (transaction: Transaction) => Result<void>;
   findByIdempotencyKey: (idempotencyKey: string) => Result<Transaction | null>;
+  findById: (transactionId: string) => Result<Transaction | null>;
+  updateTransaction: (transaction: Transaction) => Result<void>;
+  deleteTransaction: (transactionId: string) => Result<void>;
 };
 
 /**
@@ -84,9 +87,82 @@ export function createTransactionRepository(
 
       return { success: true, value: null };
     },
+    findById: (transactionId: string): Result<Transaction | null> => {
+      const findResult = findTransactionRow(sheetRepository, transactionId);
+      if (!findResult.success) {
+        return findResult;
+      }
+      return { success: true, value: findResult.value?.transaction ?? null };
+    },
+    updateTransaction: (transaction: Transaction): Result<void> => {
+      const findResult = findTransactionRow(sheetRepository, transaction.id);
+      if (!findResult.success) {
+        return findResult;
+      }
+      if (findResult.value === null) {
+        return fail('not_found', `対象の取引履歴が見つかりません: id=${transaction.id}`);
+      }
+
+      return sheetRepository.updateRow(SHEET_NAMES.TRANSACTIONS, findResult.value.rowIndex, [
+        transaction.id,
+        transaction.fundId,
+        transaction.type,
+        transaction.date,
+        transaction.amount,
+        transaction.fee,
+        transaction.navValue,
+        transaction.units,
+        transaction.recurringPurchaseId ?? '',
+        transaction.idempotencyKey ?? '',
+        transaction.createdAt,
+      ]);
+    },
+    deleteTransaction: (transactionId: string): Result<void> => {
+      const findResult = findTransactionRow(sheetRepository, transactionId);
+      if (!findResult.success) {
+        return findResult;
+      }
+      if (findResult.value === null) {
+        return fail('not_found', `対象の取引履歴が見つかりません: id=${transactionId}`);
+      }
+
+      return sheetRepository.deleteRow(SHEET_NAMES.TRANSACTIONS, findResult.value.rowIndex);
+    },
   };
 
   return repository;
+}
+
+/**
+ * 取引IDから該当行を検索する。
+ */
+function findTransactionRow(
+  sheetRepository: SheetRepository,
+  transactionId: string
+): Result<{ rowIndex: number; transaction: Transaction } | null> {
+  const rowsResult = sheetRepository.readAllRows(SHEET_NAMES.TRANSACTIONS);
+  if (!rowsResult.success) {
+    return rowsResult;
+  }
+
+  for (let index = 0; index < rowsResult.value.length; index += 1) {
+    const row = rowsResult.value[index];
+    // 空行はスキップ
+    const isEmpty = row.every((cell) => cell === '' || cell === null || cell === undefined);
+    if (isEmpty) {
+      continue;
+    }
+
+    const parsed = parseRow(row, index);
+    if (!parsed.success) {
+      return parsed;
+    }
+    if (parsed.value.id === transactionId) {
+      return { success: true, value: { rowIndex: index, transaction: parsed.value } };
+    }
+  }
+
+  return { success: true, value: null };
 }
 
 function parseRow(row: unknown[], index: number): Result<Transaction> {
