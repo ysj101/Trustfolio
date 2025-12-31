@@ -73,6 +73,15 @@ type UpdateSpotPurchaseRequest = {
   navValue: number;
 };
 
+type UpdateSaleTransactionRequest = {
+  action: 'updateSaleTransaction';
+  id: string;
+  fundId: string;
+  date: string;
+  units: number;
+  navValue: number;
+};
+
 type DeleteSpotPurchaseRequest = {
   action: 'deleteSpotPurchase';
   id: string;
@@ -140,6 +149,7 @@ export type ApiRequest =
   | ExecuteSpotPurchaseRequest
   | ExecuteSaleRequest
   | UpdateSpotPurchaseRequest
+  | UpdateSaleTransactionRequest
   | DeleteSpotPurchaseRequest
   | ListRecurringPurchasesRequest
   | CreateRecurringPurchaseRequest
@@ -232,6 +242,14 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
         fundId: request.fundId,
         date: request.date,
         amount: request.amount,
+        navValue: request.navValue,
+      });
+    case 'updateSaleTransaction':
+      return transactionUseCase.updateSaleTransaction({
+        id: request.id,
+        fundId: request.fundId,
+        date: request.date,
+        units: request.units,
         navValue: request.navValue,
       });
     case 'deleteSpotPurchase':

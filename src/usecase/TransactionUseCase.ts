@@ -34,7 +34,19 @@ export type TransactionUseCase = {
     navValue: number;
   }) => Result<Transaction>;
   /**
-   * 既存のスポット購入履歴を削除する。
+   * 既存の売却取引を更新する。
+   * 全項目を指定して更新する（作成日時は保持する）。
+   */
+  updateSaleTransaction: (input: {
+    id: string;
+    fundId: string;
+    date: string;
+    units: number;
+    navValue: number;
+  }) => Result<Transaction>;
+  /**
+   * 既存のスポット購入または売却取引を削除する。
+   * 積立購入の取引は削除できない。
    */
   deleteSpotPurchase: (transactionId: string) => Result<Transaction>;
 };
@@ -148,9 +160,10 @@ export function createTransactionUseCase(
         return transactionsResult as Result<Transaction>;
       }
 
-      // 売却日以前の取引から保有口数を計算
+      // 売却日より前の取引から保有口数を計算
+      // 注意: 同日の売却を複数登録できないよう、売却日当日の取引は除外する
       const holdingUnits = transactionsResult.value
-        .filter((t) => t.date <= date)
+        .filter((t) => t.date < date)
         .reduce((sum, t) => sum + t.units, 0);
 
       if (holdingUnits < units) {
@@ -158,7 +171,7 @@ export function createTransactionUseCase(
           success: false,
           error: {
             type: 'validation',
-            message: `売却口数が保有口数を超えています。売却日時点の保有口数: ${holdingUnits.toFixed(0)}口`,
+            message: `売却口数が保有口数を超えています。売却日前日時点の保有口数: ${holdingUnits.toFixed(0)}口`,
             field: 'units',
           },
         };
@@ -259,6 +272,104 @@ export function createTransactionUseCase(
 
       return { success: true, value: transaction };
     },
+    updateSaleTransaction: (input: {
+      id: string;
+      fundId: string;
+      date: string;
+      units: number;
+      navValue: number;
+    }): Result<Transaction> => {
+      if (typeof input.id !== 'string' || input.id.trim() === '') {
+        return {
+          success: false,
+          error: { type: 'validation', message: '取引IDが不正です。', field: 'id' },
+        };
+      }
+
+      const validateResult = validateSaleTransactionInput(input);
+      if (!validateResult.success) {
+        return validateResult as Result<Transaction>;
+      }
+
+      const { fundId, date, units, navValue } = validateResult.value;
+
+      const existingResult = transactionRepository.findById(input.id);
+      if (!existingResult.success) {
+        return existingResult as Result<Transaction>;
+      }
+      if (!existingResult.value) {
+        return {
+          success: false,
+          error: { type: 'not_found', message: '対象の取引履歴が存在しません。', field: 'id' },
+        };
+      }
+      if (existingResult.value.type !== 'REDEMPTION') {
+        return {
+          success: false,
+          error: {
+            type: 'validation',
+            message: '売却取引以外の取引履歴は編集できません。',
+            field: 'id',
+          },
+        };
+      }
+
+      const fundResult = fundRepository.findById(fundId);
+      if (!fundResult.success) {
+        return fundResult as Result<Transaction>;
+      }
+      if (!fundResult.value) {
+        return {
+          success: false,
+          error: { type: 'not_found', message: '対象の銘柄が存在しません。', field: 'fundId' },
+        };
+      }
+
+      // 売却日時点での保有口数をチェック（更新対象の売却取引を除く）
+      const transactionsResult = transactionRepository.listByFundId(fundId);
+      if (!transactionsResult.success) {
+        return transactionsResult as Result<Transaction>;
+      }
+
+      // 売却日より前の取引から保有口数を計算（更新対象の取引は除外）
+      const holdingUnits = transactionsResult.value
+        .filter((t) => t.date < date && t.id !== input.id)
+        .reduce((sum, t) => sum + t.units, 0);
+
+      if (holdingUnits < units) {
+        return {
+          success: false,
+          error: {
+            type: 'validation',
+            message: `売却口数が保有口数を超えています。売却日前日時点の保有口数: ${holdingUnits.toFixed(0)}口`,
+            field: 'units',
+          },
+        };
+      }
+
+      // 売却金額の計算
+      const amount = Math.round((units / 10000) * navValue);
+
+      const transaction: Transaction = {
+        id: existingResult.value.id,
+        fundId,
+        type: 'REDEMPTION',
+        date,
+        amount,
+        navValue,
+        units: -units,
+        recurringPurchaseId: null,
+        idempotencyKey: null,
+        createdAt: existingResult.value.createdAt,
+      };
+
+      const updateResult = transactionRepository.updateTransaction(transaction);
+      if (!updateResult.success) {
+        return updateResult as Result<Transaction>;
+      }
+
+      return { success: true, value: transaction };
+    },
     deleteSpotPurchase: (transactionId: string): Result<Transaction> => {
       if (typeof transactionId !== 'string' || transactionId.trim() === '') {
         return {
@@ -277,7 +388,8 @@ export function createTransactionUseCase(
           error: { type: 'not_found', message: '対象の取引履歴が存在しません。', field: 'id' },
         };
       }
-      if (existingResult.value.type !== 'SPOT_PURCHASE') {
+      // 積立購入の取引履歴は削除できない（スポット購入と売却は削除可能）
+      if (existingResult.value.type === 'RECURRING_PURCHASE') {
         return {
           success: false,
           error: {

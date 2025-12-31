@@ -4,12 +4,17 @@ const UNITS_BASE = 10000;
 
 /**
  * 保有情報を計算する。
- * 取引が存在しない場合はnullを返す。
+ * 取引が存在しない場合、または全口数売却済みの場合はnullを返す。
  *
  * 注意事項:
  * - 購入取引（SPOT_PURCHASE, RECURRING_PURCHASE）のみtotalInvestmentに加算
  * - 売却取引（REDEMPTION）はtotalInvestmentに影響しない（平均取得単価を維持）
  * - unitsは購入時は正、売却時は負の値
+ *
+ * 全売却後の動作:
+ * - totalUnits <= 0 の場合、nullを返す
+ * - これにより、全口数売却済みの銘柄は保有一覧に表示されなくなる
+ * - 取引履歴は保持されるため、過去の売買履歴は参照可能
  */
 export function calculateHolding(
   fund: Fund,
@@ -31,6 +36,7 @@ export function calculateHolding(
     }
   });
 
+  // 全口数売却済みの場合、保有一覧に表示しない
   if (totalUnits <= 0) {
     return null;
   }

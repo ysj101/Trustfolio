@@ -5,6 +5,7 @@
     funds: [],
     selectedTransactionFundId: null,
     editingTransactionId: null,
+    editingTransactionType: null, // 'SPOT_PURCHASE' | 'REDEMPTION'
     editingRecurringId: null
   };
 
@@ -120,20 +121,36 @@
   function setTransactionEditMode(transaction) {
     if (!transaction) {
       state.editingTransactionId = null;
-      transactionSubmitButton.textContent = '購入登録';
+      state.editingTransactionType = null;
+      const transactionType = document.querySelector('input[name="transactionType"]:checked').value;
+      transactionSubmitButton.textContent = transactionType === 'sale' ? '売却登録' : '購入登録';
       transactionCancelEditButton.classList.add('hidden');
       resetTransactionForm();
       return;
     }
 
     state.editingTransactionId = transaction.id;
-    transactionSubmitButton.textContent = '購入内容を更新';
+    state.editingTransactionType = transaction.type;
     transactionCancelEditButton.classList.remove('hidden');
     transactionFundSelect.value = transaction.fundId;
     state.selectedTransactionFundId = transaction.fundId;
     transactionDateInput.value = transaction.date;
-    transactionAmountInput.value = String(transaction.amount);
     transactionNavValueInput.value = String(transaction.navValue);
+
+    if (transaction.type === 'REDEMPTION') {
+      // 売却取引の編集
+      document.querySelector('input[name="transactionType"][value="sale"]').checked = true;
+      // ラジオボタンのchangeイベントをトリガーしてUIを更新
+      document.querySelector('input[name="transactionType"][value="sale"]').dispatchEvent(new Event('change'));
+      transactionUnitsInput.value = String(Math.abs(transaction.units));
+      transactionSubmitButton.textContent = '売却内容を更新';
+    } else {
+      // スポット購入の編集
+      document.querySelector('input[name="transactionType"][value="purchase"]').checked = true;
+      document.querySelector('input[name="transactionType"][value="purchase"]').dispatchEvent(new Event('change'));
+      transactionAmountInput.value = String(transaction.amount);
+      transactionSubmitButton.textContent = '購入内容を更新';
+    }
   }
 
   function resetRecurringForm() {
@@ -266,17 +283,19 @@
       content.appendChild(detail);
       item.appendChild(content);
 
-      if (transaction.type === 'SPOT_PURCHASE') {
+      // スポット購入と売却のみ編集・削除可能（積立購入は不可）
+      if (transaction.type === 'SPOT_PURCHASE' || transaction.type === 'REDEMPTION') {
         const actions = document.createElement('div');
         actions.className = 'list-actions';
         const editButton = createActionButton('編集', 'ghost', () => {
           setTransactionEditMode(transaction);
         });
+        const deleteLabel = transaction.type === 'REDEMPTION' ? '売却履歴' : 'スポット購入履歴';
         const deleteButton = createActionButton('削除', 'ghost', async () => {
-          if (!confirm('スポット購入履歴を削除します。よろしいですか？')) {
+          if (!confirm(`${deleteLabel}を削除します。よろしいですか？`)) {
             return;
           }
-          setMessage('スポット購入履歴を削除中...', null);
+          setMessage(`${deleteLabel}を削除中...`, null);
           setLoading(true);
           try {
             const response = await callApi({ action: 'deleteSpotPurchase', id: transaction.id });
@@ -284,7 +303,7 @@
               setMessage(response.error.message, 'error');
               return;
             }
-            setMessage('スポット購入履歴を削除しました。', 'success');
+            setMessage(`${deleteLabel}を削除しました。`, 'success');
             if (state.editingTransactionId === transaction.id) {
               setTransactionEditMode(null);
             }
@@ -507,6 +526,9 @@
         transactionSubmitButton.textContent = '購入登録';
         transactionAmountInput.required = true;
         transactionUnitsInput.required = false;
+        // 売却用フィールドをクリア
+        transactionUnitsInput.value = '';
+        calculatedSaleAmount.textContent = '-';
       } else {
         // 売却モード
         purchaseFields.classList.add('hidden');
@@ -516,6 +538,8 @@
         transactionSubmitButton.textContent = '売却登録';
         transactionAmountInput.required = false;
         transactionUnitsInput.required = true;
+        // 購入用フィールドをクリア
+        transactionAmountInput.value = '';
         updateCalculatedSaleAmount();
       }
     });
@@ -593,25 +617,40 @@
     } else {
       // 売却処理
       const units = Number(transactionUnitsInput.value);
-      setMessage('売却登録中...', null);
+      setMessage(isEditing ? '売却を更新中...' : '売却登録中...', null);
       setLoading(true);
       try {
-        const response = await callApi({
-          action: 'executeSale',
-          fundId,
-          date,
-          units,
-          navValue
-        });
+        const response = await callApi(
+          isEditing
+            ? {
+                action: 'updateSaleTransaction',
+                id: state.editingTransactionId,
+                fundId,
+                date,
+                units,
+                navValue
+              }
+            : {
+                action: 'executeSale',
+                fundId,
+                date,
+                units,
+                navValue
+              }
+        );
         if (!response.success) {
           setMessage(response.error.message, 'error');
           return;
         }
-        setMessage('売却を登録しました。', 'success');
-        transactionForm.reset();
-        // 購入モードに戻す
-        document.querySelector('input[name="transactionType"][value="purchase"]').checked = true;
-        transactionTypeRadios[0].dispatchEvent(new Event('change'));
+        setMessage(isEditing ? '売却の内容を更新しました。' : '売却を登録しました。', 'success');
+        if (isEditing) {
+          setTransactionEditMode(null);
+        } else {
+          transactionForm.reset();
+          // 購入モードに戻す
+          document.querySelector('input[name="transactionType"][value="purchase"]').checked = true;
+          transactionTypeRadios[0].dispatchEvent(new Event('change'));
+        }
         await loadTransactions(fundId);
         await loadHoldings();
         await loadPortfolioSummary();
