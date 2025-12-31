@@ -14,6 +14,17 @@ export type TransactionUseCase = {
     navValue: number;
   }) => Result<Transaction>;
   /**
+   * 売却取引を登録する。
+   * 入力されたunitsは正の値で受け取り、内部で負の値に変換して保存する。
+   */
+  executeSaleTransaction: (input: {
+    fundId: string;
+    date: string;
+    units: number;
+    navValue: number;
+    fee: number;
+  }) => Result<Transaction>;
+  /**
    * 既存のスポット購入履歴を更新する。
    * 全項目を指定して更新する（作成日時は保持する）。
    */
@@ -99,6 +110,78 @@ export function createTransactionUseCase(
         fee,
         navValue,
         units: unitsResult.value,
+        recurringPurchaseId: null,
+        idempotencyKey: null,
+        createdAt: new Date().toISOString(),
+      };
+
+      const createResult = transactionRepository.createTransaction(transaction);
+      if (!createResult.success) {
+        return createResult as Result<Transaction>;
+      }
+
+      return { success: true, value: transaction };
+    },
+    executeSaleTransaction: (input: {
+      fundId: string;
+      date: string;
+      units: number;
+      navValue: number;
+      fee: number;
+    }): Result<Transaction> => {
+      const validateResult = validateSaleTransactionInput(input);
+      if (!validateResult.success) {
+        return validateResult as Result<Transaction>;
+      }
+
+      const { fundId, date, units, navValue, fee } = validateResult.value;
+
+      // 銘柄の存在確認
+      const fundResult = fundRepository.findById(fundId);
+      if (!fundResult.success) {
+        return fundResult as Result<Transaction>;
+      }
+      if (!fundResult.value) {
+        return {
+          success: false,
+          error: { type: 'not_found', message: '対象の銘柄が存在しません。', field: 'fundId' },
+        };
+      }
+
+      // 売却日時点での保有口数をチェック
+      const transactionsResult = transactionRepository.listByFundId(fundId);
+      if (!transactionsResult.success) {
+        return transactionsResult as Result<Transaction>;
+      }
+
+      // 売却日以前の取引から保有口数を計算
+      const holdingUnits = transactionsResult.value
+        .filter((t) => t.date <= date)
+        .reduce((sum, t) => sum + t.units, 0);
+
+      if (holdingUnits < units) {
+        return {
+          success: false,
+          error: {
+            type: 'validation',
+            message: `売却口数が保有口数を超えています。売却日時点の保有口数: ${holdingUnits.toFixed(0)}口`,
+            field: 'units',
+          },
+        };
+      }
+
+      // 売却金額の計算: amount = units * navValue / 10000
+      const amount = Math.round((units / 10000) * navValue);
+
+      const transaction: Transaction = {
+        id: generateUlid(),
+        fundId,
+        type: 'REDEMPTION',
+        date,
+        amount,
+        fee,
+        navValue,
+        units: -units, // 売却口数は負の値で保存
         recurringPurchaseId: null,
         idempotencyKey: null,
         createdAt: new Date().toISOString(),
@@ -285,6 +368,70 @@ function validateSpotPurchaseInput(input: {
   }
 
   return { success: true, value: { fundId, date, amount, fee, navValue } };
+}
+
+/**
+ * 売却取引の入力値を検証し、正規化済みの値を返す。
+ */
+function validateSaleTransactionInput(input: {
+  fundId: string;
+  date: string;
+  units: number;
+  navValue: number;
+  fee: number;
+}): Result<{
+  fundId: string;
+  date: string;
+  units: number;
+  navValue: number;
+  fee: number;
+}> {
+  const { fundId, date, units, navValue, fee } = input;
+
+  if (typeof fundId !== 'string' || fundId.trim() === '') {
+    return {
+      success: false,
+      error: { type: 'validation', message: '銘柄を選択してください。', field: 'fundId' },
+    };
+  }
+  if (!isValidIsoDate(date)) {
+    return {
+      success: false,
+      error: {
+        type: 'validation',
+        message: '日付はYYYY-MM-DD形式で入力してください。',
+        field: 'date',
+      },
+    };
+  }
+  if (typeof units !== 'number' || Number.isNaN(units) || units <= 0) {
+    return {
+      success: false,
+      error: {
+        type: 'validation',
+        message: '売却口数は0より大きい数値で入力してください。',
+        field: 'units',
+      },
+    };
+  }
+  if (typeof navValue !== 'number' || Number.isNaN(navValue) || navValue <= 0) {
+    return {
+      success: false,
+      error: {
+        type: 'validation',
+        message: '基準価額は0より大きい数値で入力してください。',
+        field: 'navValue',
+      },
+    };
+  }
+  if (typeof fee !== 'number' || Number.isNaN(fee) || fee < 0) {
+    return {
+      success: false,
+      error: { type: 'validation', message: '手数料は0以上で入力してください。', field: 'fee' },
+    };
+  }
+
+  return { success: true, value: { fundId, date, units, navValue, fee } };
 }
 
 function isValidIsoDate(value: string): boolean {

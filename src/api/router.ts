@@ -57,6 +57,15 @@ type ExecuteSpotPurchaseRequest = {
   navValue: number;
 };
 
+type ExecuteSaleRequest = {
+  action: 'executeSale';
+  fundId: string;
+  date: string;
+  units: number;
+  navValue: number;
+  fee: number;
+};
+
 type UpdateSpotPurchaseRequest = {
   action: 'updateSpotPurchase';
   id: string;
@@ -132,6 +141,7 @@ export type ApiRequest =
   | GetNavHistoryRequest
   | GetTransactionHistoryRequest
   | ExecuteSpotPurchaseRequest
+  | ExecuteSaleRequest
   | UpdateSpotPurchaseRequest
   | DeleteSpotPurchaseRequest
   | ListRecurringPurchasesRequest
@@ -212,6 +222,14 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
         amount: request.amount,
         fee: request.fee,
         navValue: request.navValue,
+      });
+    case 'executeSale':
+      return transactionUseCase.executeSaleTransaction({
+        fundId: request.fundId,
+        date: request.date,
+        units: request.units,
+        navValue: request.navValue,
+        fee: request.fee,
       });
     case 'updateSpotPurchase':
       return transactionUseCase.updateSpotPurchase({

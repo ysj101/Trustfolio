@@ -47,11 +47,23 @@ export type Nav = {
 
 /**
  * 取引履歴。
+ *
+ * 購入時:
+ * - amount: 購入金額（円）
+ * - fee: 手数料（円）
+ * - navValue: 適用基準価額（円/1万口）
+ * - units: 取得口数（正の値）
+ *
+ * 売却時:
+ * - amount: 売却金額（円）※売却口数×基準価額で計算された金額
+ * - fee: 手数料（円）
+ * - navValue: 適用基準価額（円/1万口）
+ * - units: 売却口数（負の値）
  */
 export type Transaction = {
   id: string;
   fundId: string;
-  type: 'SPOT_PURCHASE' | 'RECURRING_PURCHASE';
+  type: 'SPOT_PURCHASE' | 'RECURRING_PURCHASE' | 'REDEMPTION';
   date: string;
   amount: number;
   fee: number;

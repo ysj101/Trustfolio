@@ -17,12 +17,18 @@
   const transactionForm = document.getElementById('transactionForm');
   const transactionFundSelect = document.getElementById('transactionFundSelect');
   const transactionDateInput = document.getElementById('transactionDate');
+  const transactionDateLabel = document.getElementById('transactionDateLabel');
   const transactionAmountInput = document.getElementById('transactionAmount');
+  const transactionUnitsInput = document.getElementById('transactionUnits');
   const transactionFeeInput = document.getElementById('transactionFee');
   const transactionNavValueInput = document.getElementById('transactionNavValue');
   const transactionList = document.getElementById('transactionList');
   const transactionSubmitButton = document.getElementById('transactionSubmitButton');
   const transactionCancelEditButton = document.getElementById('transactionCancelEdit');
+  const purchaseFields = document.getElementById('purchaseFields');
+  const saleFields = document.getElementById('saleFields');
+  const saleAmountDisplay = document.getElementById('saleAmountDisplay');
+  const calculatedSaleAmount = document.getElementById('calculatedSaleAmount');
   const recurringForm = document.getElementById('recurringForm');
   const recurringFundSelect = document.getElementById('recurringFundSelect');
   const recurringMonthlyAmountInput = document.getElementById('recurringMonthlyAmount');
@@ -246,8 +252,18 @@
       const date = document.createElement('strong');
       date.textContent = transaction.date;
       const detail = document.createElement('span');
-      const typeLabel = transaction.type === 'SPOT_PURCHASE' ? 'スポット' : '積立';
-      detail.textContent = `${transaction.amount.toLocaleString()}円 / ${transaction.units.toLocaleString()}口 / ${typeLabel}`;
+      let typeLabel = '';
+      if (transaction.type === 'SPOT_PURCHASE') {
+        typeLabel = '購入（スポット）';
+      } else if (transaction.type === 'REDEMPTION') {
+        typeLabel = '売却';
+      } else {
+        typeLabel = '購入（積立）';
+      }
+      const unitsDisplay = transaction.type === 'REDEMPTION'
+        ? `${Math.abs(transaction.units).toLocaleString()}口`
+        : `${transaction.units.toLocaleString()}口`;
+      detail.textContent = `${transaction.amount.toLocaleString()}円 / ${unitsDisplay} / ${typeLabel}`;
       content.appendChild(date);
       content.appendChild(detail);
       item.appendChild(content);
@@ -479,53 +495,137 @@
     }
   });
 
+  // 取引種別ラジオボタンの切り替え処理
+  const transactionTypeRadios = document.querySelectorAll('input[name="transactionType"]');
+  transactionTypeRadios.forEach((radio) => {
+    radio.addEventListener('change', (event) => {
+      const transactionType = event.target.value;
+      if (transactionType === 'purchase') {
+        // 購入モード
+        purchaseFields.classList.remove('hidden');
+        saleFields.classList.add('hidden');
+        saleAmountDisplay.classList.add('hidden');
+        transactionDateLabel.textContent = '購入日';
+        transactionSubmitButton.textContent = '購入登録';
+        transactionAmountInput.required = true;
+        transactionUnitsInput.required = false;
+      } else {
+        // 売却モード
+        purchaseFields.classList.add('hidden');
+        saleFields.classList.remove('hidden');
+        saleAmountDisplay.classList.remove('hidden');
+        transactionDateLabel.textContent = '売却日';
+        transactionSubmitButton.textContent = '売却登録';
+        transactionAmountInput.required = false;
+        transactionUnitsInput.required = true;
+        updateCalculatedSaleAmount();
+      }
+    });
+  });
+
+  // 売却金額の自動計算（口数または基準価額が変更された時）
+  function updateCalculatedSaleAmount() {
+    const units = Number(transactionUnitsInput.value || 0);
+    const navValue = Number(transactionNavValueInput.value || 0);
+    if (units > 0 && navValue > 0) {
+      const amount = Math.round((units / 10000) * navValue);
+      calculatedSaleAmount.textContent = `${amount.toLocaleString()}円`;
+    } else {
+      calculatedSaleAmount.textContent = '-';
+    }
+  }
+
+  transactionUnitsInput.addEventListener('input', updateCalculatedSaleAmount);
+  transactionNavValueInput.addEventListener('input', () => {
+    const selectedType = document.querySelector('input[name="transactionType"]:checked').value;
+    if (selectedType === 'sale') {
+      updateCalculatedSaleAmount();
+    }
+  });
+
   transactionForm.addEventListener('submit', async (event) => {
     event.preventDefault();
+    const transactionType = document.querySelector('input[name="transactionType"]:checked').value;
     const fundId = transactionFundSelect.value;
     const date = transactionDateInput.value;
-    const amount = Number(transactionAmountInput.value);
     const fee = Number(transactionFeeInput.value || 0);
     const navValue = Number(transactionNavValueInput.value);
     const isEditing = Boolean(state.editingTransactionId);
-    setMessage(isEditing ? 'スポット購入を更新中...' : '購入登録中...', null);
-    setLoading(true);
-    try {
-      const response = await callApi(
-        isEditing
-          ? {
-              action: 'updateSpotPurchase',
-              id: state.editingTransactionId,
-              fundId,
-              date,
-              amount,
-              fee,
-              navValue
-            }
-          : {
-              action: 'executeSpotPurchase',
-              fundId,
-              date,
-              amount,
-              fee,
-              navValue
-            }
-      );
-      if (!response.success) {
-        setMessage(response.error.message, 'error');
-        return;
+
+    if (transactionType === 'purchase') {
+      // 購入処理
+      const amount = Number(transactionAmountInput.value);
+      setMessage(isEditing ? 'スポット購入を更新中...' : '購入登録中...', null);
+      setLoading(true);
+      try {
+        const response = await callApi(
+          isEditing
+            ? {
+                action: 'updateSpotPurchase',
+                id: state.editingTransactionId,
+                fundId,
+                date,
+                amount,
+                fee,
+                navValue
+              }
+            : {
+                action: 'executeSpotPurchase',
+                fundId,
+                date,
+                amount,
+                fee,
+                navValue
+              }
+        );
+        if (!response.success) {
+          setMessage(response.error.message, 'error');
+          return;
+        }
+        setMessage(
+          isEditing ? 'スポット購入の内容を更新しました。' : 'スポット購入を登録しました。',
+          'success'
+        );
+        setTransactionEditMode(null);
+        await loadTransactions(fundId);
+        await loadHoldings();
+        await loadPortfolioSummary();
+      } catch (error) {
+        setMessage(error.message, 'error');
+      } finally {
+        setLoading(false);
       }
-      setMessage(
-        isEditing ? 'スポット購入の内容を更新しました。' : 'スポット購入を登録しました。',
-        'success'
-      );
-      setTransactionEditMode(null);
-      await loadTransactions(fundId);
-      await loadHoldings();
-      await loadPortfolioSummary();
-    } catch (error) {
-      setMessage(error.message, 'error');
-    } finally {
-      setLoading(false);
+    } else {
+      // 売却処理
+      const units = Number(transactionUnitsInput.value);
+      setMessage('売却登録中...', null);
+      setLoading(true);
+      try {
+        const response = await callApi({
+          action: 'executeSale',
+          fundId,
+          date,
+          units,
+          navValue,
+          fee
+        });
+        if (!response.success) {
+          setMessage(response.error.message, 'error');
+          return;
+        }
+        setMessage('売却を登録しました。', 'success');
+        transactionForm.reset();
+        // 購入モードに戻す
+        document.querySelector('input[name="transactionType"][value="purchase"]').checked = true;
+        transactionTypeRadios[0].dispatchEvent(new Event('change'));
+        await loadTransactions(fundId);
+        await loadHoldings();
+        await loadPortfolioSummary();
+      } catch (error) {
+        setMessage(error.message, 'error');
+      } finally {
+        setLoading(false);
+      }
     }
   });
 

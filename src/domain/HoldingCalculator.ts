@@ -5,6 +5,11 @@ const UNITS_BASE = 10000;
 /**
  * 保有情報を計算する。
  * 取引が存在しない場合はnullを返す。
+ *
+ * 注意事項:
+ * - 購入取引（SPOT_PURCHASE, RECURRING_PURCHASE）のみtotalInvestmentに加算
+ * - 売却取引（REDEMPTION）はtotalInvestmentに影響しない（平均取得単価を維持）
+ * - unitsは購入時は正、売却時は負の値
  */
 export function calculateHolding(
   fund: Fund,
@@ -20,7 +25,10 @@ export function calculateHolding(
 
   transactions.forEach((transaction) => {
     totalUnits += transaction.units;
-    totalInvestment += transaction.amount;
+    // 購入取引のみ投資額に加算（売却時は平均取得単価を維持するため加算しない）
+    if (transaction.type === 'SPOT_PURCHASE' || transaction.type === 'RECURRING_PURCHASE') {
+      totalInvestment += transaction.amount;
+    }
   });
 
   if (totalUnits <= 0) {
