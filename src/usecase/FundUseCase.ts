@@ -4,8 +4,17 @@ import { generateUlid } from '../utils/ulid';
 
 export type FundUseCase = {
   listFunds: () => Result<Fund[]>;
-  createFund: (input: { name: string; rakutenFundId: string | null }) => Result<Fund>;
-  updateFund: (input: { id: string; name: string; rakutenFundId: string | null }) => Result<Fund>;
+  createFund: (input: {
+    name: string;
+    rakutenFundId: string | null;
+    settlementBusinessDays: number | null;
+  }) => Result<Fund>;
+  updateFund: (input: {
+    id: string;
+    name: string;
+    rakutenFundId: string | null;
+    settlementBusinessDays: number | null;
+  }) => Result<Fund>;
 };
 
 /**
@@ -16,8 +25,12 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
     listFunds: (): Result<Fund[]> => {
       return fundRepository.listFunds();
     },
-    createFund: (input: { name: string; rakutenFundId: string | null }): Result<Fund> => {
-      const { name, rakutenFundId } = input;
+    createFund: (input: {
+      name: string;
+      rakutenFundId: string | null;
+      settlementBusinessDays: number | null;
+    }): Result<Fund> => {
+      const { name, rakutenFundId, settlementBusinessDays } = input;
 
       if (typeof name !== 'string' || name.trim() === '') {
         return {
@@ -31,6 +44,12 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
         const codeValidation = validateRakutenFundId(rakutenFundId);
         if (!codeValidation.success) {
           return codeValidation;
+        }
+      }
+      if (settlementBusinessDays !== null) {
+        const settlementValidation = validateSettlementBusinessDays(settlementBusinessDays);
+        if (!settlementValidation.success) {
+          return settlementValidation;
         }
       }
 
@@ -51,6 +70,7 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
         name: trimmedName,
         rakutenFundId:
           rakutenFundId !== null && rakutenFundId.trim() !== '' ? rakutenFundId.trim() : null,
+        settlementBusinessDays,
         createdAt: new Date().toISOString(),
       };
 
@@ -65,8 +85,9 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
       id: string;
       name: string;
       rakutenFundId: string | null;
+      settlementBusinessDays: number | null;
     }): Result<Fund> => {
-      const { id, name, rakutenFundId } = input;
+      const { id, name, rakutenFundId, settlementBusinessDays } = input;
 
       if (typeof id !== 'string' || id.trim() === '') {
         return {
@@ -87,6 +108,12 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
         const codeValidation = validateRakutenFundId(rakutenFundId);
         if (!codeValidation.success) {
           return codeValidation;
+        }
+      }
+      if (settlementBusinessDays !== null) {
+        const settlementValidation = validateSettlementBusinessDays(settlementBusinessDays);
+        if (!settlementValidation.success) {
+          return settlementValidation;
         }
       }
 
@@ -119,6 +146,7 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
         name: trimmedName,
         rakutenFundId:
           rakutenFundId !== null && rakutenFundId.trim() !== '' ? rakutenFundId.trim() : null,
+        settlementBusinessDays,
         createdAt: existingResult.value.createdAt,
       };
 
@@ -148,6 +176,24 @@ function validateRakutenFundId(code: string): Result<void> {
         type: 'validation',
         message: '楽天ファンドIDは12桁の英数字で入力してください。',
         field: 'rakutenFundId',
+      },
+    };
+  }
+  return { success: true, value: undefined };
+}
+
+/**
+ * 約定までの営業日数のバリデーション。
+ * 0以上の整数であることを確認する。
+ */
+function validateSettlementBusinessDays(value: number): Result<void> {
+  if (!Number.isInteger(value) || value < 0) {
+    return {
+      success: false,
+      error: {
+        type: 'validation',
+        message: '約定までの営業日数は0以上の整数で入力してください。',
+        field: 'settlementBusinessDays',
       },
     };
   }
