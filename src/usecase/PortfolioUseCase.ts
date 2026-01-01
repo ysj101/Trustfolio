@@ -25,8 +25,11 @@ export function createPortfolioUseCase(
 
       const holdings = [] as Portfolio['holdings'];
 
+      // 全ファンドのIDリストを取得
+      const fundIds = fundResult.value.map((f) => f.id);
+
       // 全取引履歴を収集（実現損益計算用）
-      const allTransactionsResult = transactionRepository.listAll();
+      const allTransactionsResult = transactionRepository.listAll(fundIds);
       if (!allTransactionsResult.success) {
         return allTransactionsResult as Result<Portfolio>;
       }

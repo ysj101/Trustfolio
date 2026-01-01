@@ -1,15 +1,20 @@
-import { SHEET_NAMES } from '../Config';
+import {
+  SHEET_HEADERS,
+  SHEET_NAMES,
+  getTransactionSheetName,
+  type SheetDefinition,
+} from '../Config';
 import type { AppError, Result, Transaction } from '../domain/types';
 import type { SheetRepository } from './SheetRepository';
 
 export type TransactionRepository = {
   listByFundId: (fundId: string) => Result<Transaction[]>;
-  listAll: () => Result<Transaction[]>;
+  listAll: (fundIds: string[]) => Result<Transaction[]>;
   createTransaction: (transaction: Transaction) => Result<void>;
-  findByIdempotencyKey: (idempotencyKey: string) => Result<Transaction | null>;
-  findById: (transactionId: string) => Result<Transaction | null>;
+  findByIdempotencyKey: (idempotencyKey: string, fundIds: string[]) => Result<Transaction | null>;
+  findById: (transactionId: string, fundId: string) => Result<Transaction | null>;
   updateTransaction: (transaction: Transaction) => Result<void>;
-  deleteTransaction: (transactionId: string) => Result<void>;
+  deleteTransaction: (transactionId: string, fundId: string) => Result<void>;
 };
 
 /**
@@ -20,34 +25,8 @@ export function createTransactionRepository(
 ): TransactionRepository {
   const repository: TransactionRepository = {
     listByFundId: (fundId: string): Result<Transaction[]> => {
-      const rowsResult = sheetRepository.readAllRows(SHEET_NAMES.TRANSACTIONS);
-      if (!rowsResult.success) {
-        return rowsResult;
-      }
-
-      const transactions: Transaction[] = [];
-      for (const [index, row] of rowsResult.value.entries()) {
-        // 空行はスキップ
-        const isEmpty = row.every((cell) => cell === '' || cell === null || cell === undefined);
-        if (isEmpty) {
-          continue;
-        }
-
-        const parsed = parseRow(row, index);
-        if (!parsed.success) {
-          return parsed;
-        }
-        if (parsed.value.fundId === fundId) {
-          transactions.push(parsed.value);
-        }
-      }
-
-      transactions.sort((a, b) => (a.date < b.date ? 1 : -1));
-
-      return { success: true, value: transactions };
-    },
-    listAll: (): Result<Transaction[]> => {
-      const rowsResult = sheetRepository.readAllRows(SHEET_NAMES.TRANSACTIONS);
+      const sheetName = getTransactionSheetName(fundId);
+      const rowsResult = sheetRepository.readAllRows(sheetName as never);
       if (!rowsResult.success) {
         return rowsResult;
       }
@@ -71,8 +50,44 @@ export function createTransactionRepository(
 
       return { success: true, value: transactions };
     },
+    listAll: (fundIds: string[]): Result<Transaction[]> => {
+      const allTransactions: Transaction[] = [];
+
+      for (const fundId of fundIds) {
+        const sheetName = getTransactionSheetName(fundId);
+        const rowsResult = sheetRepository.readAllRows(sheetName as never);
+
+        // シートが存在しない場合はスキップ(エラーにしない)
+        if (!rowsResult.success) {
+          continue;
+        }
+
+        for (const [index, row] of rowsResult.value.entries()) {
+          // 空行はスキップ
+          const isEmpty = row.every((cell) => cell === '' || cell === null || cell === undefined);
+          if (isEmpty) {
+            continue;
+          }
+
+          const parsed = parseRow(row, index);
+          if (!parsed.success) {
+            return parsed;
+          }
+          allTransactions.push(parsed.value);
+        }
+      }
+
+      allTransactions.sort((a, b) => (a.date < b.date ? 1 : -1));
+
+      return { success: true, value: allTransactions };
+    },
     createTransaction: (transaction: Transaction): Result<void> => {
-      return sheetRepository.appendRows(SHEET_NAMES.TRANSACTIONS, [
+      const sheetNameResult = ensureTransactionSheet(sheetRepository, transaction.fundId);
+      if (!sheetNameResult.success) {
+        return sheetNameResult;
+      }
+
+      return sheetRepository.appendRows(sheetNameResult.value as never, [
         [
           transaction.id,
           transaction.fundId,
@@ -87,40 +102,49 @@ export function createTransactionRepository(
         ],
       ]);
     },
-    findByIdempotencyKey: (idempotencyKey: string): Result<Transaction | null> => {
-      const rowsResult = sheetRepository.readAllRows(SHEET_NAMES.TRANSACTIONS);
-      if (!rowsResult.success) {
-        return rowsResult;
-      }
+    findByIdempotencyKey: (
+      idempotencyKey: string,
+      fundIds: string[]
+    ): Result<Transaction | null> => {
+      for (const fundId of fundIds) {
+        const sheetName = getTransactionSheetName(fundId);
+        const rowsResult = sheetRepository.readAllRows(sheetName as never);
 
-      for (let index = 0; index < rowsResult.value.length; index += 1) {
-        const row = rowsResult.value[index];
-        // 空行はスキップ
-        const isEmpty = row.every((cell) => cell === '' || cell === null || cell === undefined);
-        if (isEmpty) {
+        // シートが存在しない場合はスキップ
+        if (!rowsResult.success) {
           continue;
         }
 
-        const parsed = parseRow(row, index);
-        if (!parsed.success) {
-          return parsed;
-        }
-        if (parsed.value.idempotencyKey === idempotencyKey) {
-          return { success: true, value: parsed.value };
+        for (let index = 0; index < rowsResult.value.length; index += 1) {
+          const row = rowsResult.value[index];
+          // 空行はスキップ
+          const isEmpty = row.every((cell) => cell === '' || cell === null || cell === undefined);
+          if (isEmpty) {
+            continue;
+          }
+
+          const parsed = parseRow(row, index);
+          if (!parsed.success) {
+            return parsed;
+          }
+          if (parsed.value.idempotencyKey === idempotencyKey) {
+            return { success: true, value: parsed.value };
+          }
         }
       }
 
       return { success: true, value: null };
     },
-    findById: (transactionId: string): Result<Transaction | null> => {
-      const findResult = findTransactionRow(sheetRepository, transactionId);
+    findById: (transactionId: string, fundId: string): Result<Transaction | null> => {
+      const findResult = findTransactionRow(sheetRepository, transactionId, fundId);
       if (!findResult.success) {
         return findResult;
       }
       return { success: true, value: findResult.value?.transaction ?? null };
     },
     updateTransaction: (transaction: Transaction): Result<void> => {
-      const findResult = findTransactionRow(sheetRepository, transaction.id);
+      const sheetName = getTransactionSheetName(transaction.fundId);
+      const findResult = findTransactionRow(sheetRepository, transaction.id, transaction.fundId);
       if (!findResult.success) {
         return findResult;
       }
@@ -128,7 +152,7 @@ export function createTransactionRepository(
         return fail('not_found', `対象の取引履歴が見つかりません: id=${transaction.id}`);
       }
 
-      return sheetRepository.updateRow(SHEET_NAMES.TRANSACTIONS, findResult.value.rowIndex, [
+      return sheetRepository.updateRow(sheetName as never, findResult.value.rowIndex, [
         transaction.id,
         transaction.fundId,
         transaction.type,
@@ -141,8 +165,9 @@ export function createTransactionRepository(
         transaction.createdAt,
       ]);
     },
-    deleteTransaction: (transactionId: string): Result<void> => {
-      const findResult = findTransactionRow(sheetRepository, transactionId);
+    deleteTransaction: (transactionId: string, fundId: string): Result<void> => {
+      const sheetName = getTransactionSheetName(fundId);
+      const findResult = findTransactionRow(sheetRepository, transactionId, fundId);
       if (!findResult.success) {
         return findResult;
       }
@@ -150,7 +175,7 @@ export function createTransactionRepository(
         return fail('not_found', `対象の取引履歴が見つかりません: id=${transactionId}`);
       }
 
-      return sheetRepository.deleteRow(SHEET_NAMES.TRANSACTIONS, findResult.value.rowIndex);
+      return sheetRepository.deleteRow(sheetName as never, findResult.value.rowIndex);
     },
   };
 
@@ -158,13 +183,40 @@ export function createTransactionRepository(
 }
 
 /**
- * 取引IDから該当行を検索する。
+ * ファンドIDから取引シート名を取得し、シートを確保する
+ * @param sheetRepository シートリポジトリ
+ * @param fundId ファンドID
+ * @returns シート名またはエラー
+ */
+function ensureTransactionSheet(sheetRepository: SheetRepository, fundId: string): Result<string> {
+  const sheetName = getTransactionSheetName(fundId);
+  const definition: SheetDefinition = {
+    name: sheetName as never, // SheetNameは静的な型なので動的シート名をキャスト
+    headers: SHEET_HEADERS[SHEET_NAMES.TRANSACTIONS],
+  };
+
+  const ensureResult = sheetRepository.ensureSheet(definition);
+  if (!ensureResult.success) {
+    return ensureResult;
+  }
+
+  return { success: true, value: sheetName };
+}
+
+/**
+ * 取引IDから該当行を検索する(ファンド別シート対応)
+ * @param sheetRepository シートリポジトリ
+ * @param transactionId 取引ID
+ * @param fundId ファンドID
+ * @returns 行インデックスと取引データ、またはnull
  */
 function findTransactionRow(
   sheetRepository: SheetRepository,
-  transactionId: string
+  transactionId: string,
+  fundId: string
 ): Result<{ rowIndex: number; transaction: Transaction } | null> {
-  const rowsResult = sheetRepository.readAllRows(SHEET_NAMES.TRANSACTIONS);
+  const sheetName = getTransactionSheetName(fundId);
+  const rowsResult = sheetRepository.readAllRows(sheetName as never);
   if (!rowsResult.success) {
     return rowsResult;
   }

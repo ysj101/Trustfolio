@@ -1,4 +1,10 @@
-import { SHEET_DEFINITIONS, SHEET_NAMES } from '../Config';
+import {
+  SHEET_DEFINITIONS,
+  SHEET_HEADERS,
+  SHEET_NAMES,
+  getTransactionSheetName,
+  type SheetDefinition,
+} from '../Config';
 import type { Result } from '../domain/types';
 import { createFundRepository } from '../repository/FundRepository';
 import { createNavRepository } from '../repository/NavRepository';
@@ -91,6 +97,7 @@ type UpdateSaleTransactionRequest = {
 type DeleteSpotPurchaseRequest = {
   action: 'deleteSpotPurchase';
   id: string;
+  fundId: string;
 };
 
 type ListRecurringPurchasesRequest = {
@@ -202,12 +209,30 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
 
   switch (request.action) {
     case 'initializeSheets': {
+      // 基本シートの初期化
       for (const definition of SHEET_DEFINITIONS) {
         const result = sheetRepository.ensureSheet(definition);
         if (!result.success) {
           return result;
         }
       }
+
+      // 全ファンドの取引シートを作成
+      const fundsResult = fundRepository.listFunds();
+      if (fundsResult.success) {
+        for (const fund of fundsResult.value) {
+          const transactionSheetName = getTransactionSheetName(fund.id);
+          const transactionDefinition: SheetDefinition = {
+            name: transactionSheetName as never,
+            headers: SHEET_HEADERS[SHEET_NAMES.TRANSACTIONS],
+          };
+          const result = sheetRepository.ensureSheet(transactionDefinition);
+          if (!result.success) {
+            return result;
+          }
+        }
+      }
+
       return { success: true, value: { message: 'シート初期化が完了しました。' } };
     }
     case 'listFunds':
@@ -264,7 +289,7 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
         navValue: request.navValue,
       });
     case 'deleteSpotPurchase':
-      return transactionUseCase.deleteSpotPurchase(request.id);
+      return transactionUseCase.deleteSpotPurchase(request.id, request.fundId);
     case 'listRecurringPurchases':
       return recurringUseCase.listRecurringPurchases();
     case 'createRecurringPurchase':
