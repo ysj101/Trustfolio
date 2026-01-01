@@ -200,8 +200,8 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
   const holdingUseCase = createHoldingUseCase(fundRepository, navRepository, transactionRepository);
   const portfolioUseCase = createPortfolioUseCase(
     fundRepository,
-    navRepository,
-    transactionRepository
+    transactionRepository,
+    holdingUseCase
   );
   const recurringUseCase = createRecurringUseCase(
     fundRepository,
