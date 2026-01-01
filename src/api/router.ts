@@ -320,7 +320,8 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
  */
 function ensureRequiredSheetsForNavFetch(sheetRepository: SheetRepository): Result<void> {
   const requiredDefinitions = SHEET_DEFINITIONS.filter(
-    (definition) => definition.name === SHEET_NAMES.FUNDS || definition.name === SHEET_NAMES.NAVS
+    (definition) =>
+      definition.name === SHEET_NAMES.FUNDS || definition.name === SHEET_NAMES.NAV_RECORDS
   );
 
   for (const definition of requiredDefinitions) {

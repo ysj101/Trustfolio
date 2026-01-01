@@ -4,7 +4,7 @@
  */
 export const SHEET_NAMES = {
   FUNDS: '_funds',
-  NAVS: '_navs',
+  NAV_RECORDS: '_nav_records',
   TRANSACTIONS: '_transactions',
   RECURRING: '_recurring',
 } as const;
@@ -15,7 +15,7 @@ export const SHEET_NAMES = {
  */
 export const SHEET_HEADERS = {
   [SHEET_NAMES.FUNDS]: ['id', 'name', 'rakutenFundId', 'settlementBusinessDays', 'createdAt'],
-  [SHEET_NAMES.NAVS]: ['id', 'fundId', 'date', 'value', 'createdAt'],
+  [SHEET_NAMES.NAV_RECORDS]: ['id', 'fundId', 'date', 'value', 'createdAt'],
   [SHEET_NAMES.TRANSACTIONS]: [
     'id',
     'fundId',
@@ -52,7 +52,7 @@ export type SheetDefinition = {
  */
 export const SHEET_DEFINITIONS: readonly SheetDefinition[] = [
   { name: SHEET_NAMES.FUNDS, headers: SHEET_HEADERS[SHEET_NAMES.FUNDS] },
-  { name: SHEET_NAMES.NAVS, headers: SHEET_HEADERS[SHEET_NAMES.NAVS] },
+  { name: SHEET_NAMES.NAV_RECORDS, headers: SHEET_HEADERS[SHEET_NAMES.NAV_RECORDS] },
   { name: SHEET_NAMES.TRANSACTIONS, headers: SHEET_HEADERS[SHEET_NAMES.TRANSACTIONS] },
   { name: SHEET_NAMES.RECURRING, headers: SHEET_HEADERS[SHEET_NAMES.RECURRING] },
 ];

@@ -15,7 +15,7 @@ export type NavRepository = {
 export function createNavRepository(sheetRepository: SheetRepository): NavRepository {
   const repository: NavRepository = {
     listByFundId: (fundId: string): Result<Nav[]> => {
-      const rowsResult = sheetRepository.readAllRows(SHEET_NAMES.NAVS);
+      const rowsResult = sheetRepository.readAllRows(SHEET_NAMES.NAV_RECORDS);
       if (!rowsResult.success) {
         return rowsResult;
       }
@@ -42,7 +42,7 @@ export function createNavRepository(sheetRepository: SheetRepository): NavReposi
       return { success: true, value: navs };
     },
     findByFundAndDate: (fundId: string, date: string): Result<Nav | null> => {
-      const rowsResult = sheetRepository.readAllRows(SHEET_NAMES.NAVS);
+      const rowsResult = sheetRepository.readAllRows(SHEET_NAMES.NAV_RECORDS);
       if (!rowsResult.success) {
         return rowsResult;
       }
@@ -75,7 +75,7 @@ export function createNavRepository(sheetRepository: SheetRepository): NavReposi
       return { success: true, value: latest };
     },
     createNav: (nav: Nav): Result<void> => {
-      return sheetRepository.appendRows(SHEET_NAMES.NAVS, [
+      return sheetRepository.appendRows(SHEET_NAMES.NAV_RECORDS, [
         [nav.id, nav.fundId, nav.date, nav.value, nav.createdAt],
       ]);
     },
