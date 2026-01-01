@@ -1,5 +1,5 @@
 import { calculateHolding, calculatePortfolio } from '../domain/HoldingCalculator';
-import type { Fund, Nav, Performance, Result } from '../domain/types';
+import type { Fund, Nav, PerformanceRecord, Result } from '../domain/types';
 import type { FundRepository } from '../repository/FundRepository';
 import type { NavRepository } from '../repository/NavRepository';
 import type { PerformanceRepository } from '../repository/PerformanceRepository';
@@ -269,7 +269,7 @@ function recordFundPerformance(
     portfolio.remainingInvestment !== 0 ? totalGain / portfolio.remainingInvestment : 0;
 
   // 6. 実績データ作成
-  const performance: Performance = {
+  const performance: PerformanceRecord = {
     fundId: fund.id,
     date: nav.date,
     totalUnits: holding.totalUnits,
@@ -343,7 +343,7 @@ function recordGlobalPerformance(
   const totalUnits = holdings.reduce((sum, holding) => sum + holding.totalUnits, 0);
 
   // 5. 全体実績データ作成
-  const performance: Performance = {
+  const performance: PerformanceRecord = {
     fundId: '', // 全体実績はfundIdなし
     date,
     totalUnits,
