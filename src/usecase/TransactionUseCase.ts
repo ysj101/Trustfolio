@@ -16,11 +16,13 @@ export type TransactionUseCase = {
   /**
    * 売却取引を登録する。
    * 入力されたunitsは正の値で受け取り、内部で負の値に変換して保存する。
+   * amountは手動入力された売却金額を使用する。
    */
   executeSaleTransaction: (input: {
     fundId: string;
     date: string;
     units: number;
+    amount: number;
     navValue: number;
   }) => Result<Transaction>;
   /**
@@ -37,12 +39,14 @@ export type TransactionUseCase = {
   /**
    * 既存の売却取引を更新する。
    * 全項目を指定して更新する（作成日時は保持する）。
+   * amountは手動入力された売却金額を使用する。
    */
   updateSaleTransaction: (input: {
     id: string;
     fundId: string;
     date: string;
     units: number;
+    amount: number;
     navValue: number;
   }) => Result<Transaction>;
   /**
@@ -137,6 +141,7 @@ export function createTransactionUseCase(
       fundId: string;
       date: string;
       units: number;
+      amount: number;
       navValue: number;
     }): Result<Transaction> => {
       const validateResult = validateSaleTransactionInput(input);
@@ -144,7 +149,7 @@ export function createTransactionUseCase(
         return validateResult as Result<Transaction>;
       }
 
-      const { fundId, date, units, navValue } = validateResult.value;
+      const { fundId, date, units, amount, navValue } = validateResult.value;
 
       // 銘柄の存在確認
       const fundResult = fundRepository.findById(fundId);
@@ -187,9 +192,7 @@ export function createTransactionUseCase(
         return validationResult as Result<Transaction>;
       }
 
-      // 売却金額の計算: amount = units * navValue / 10000
-      const amount = Math.round((units / 10000) * navValue);
-
+      // 売却金額は手動入力された値を使用
       const transaction: Transaction = {
         id: generateUlid(),
         fundId,
@@ -287,6 +290,7 @@ export function createTransactionUseCase(
       fundId: string;
       date: string;
       units: number;
+      amount: number;
       navValue: number;
     }): Result<Transaction> => {
       if (typeof input.id !== 'string' || input.id.trim() === '') {
@@ -301,7 +305,7 @@ export function createTransactionUseCase(
         return validateResult as Result<Transaction>;
       }
 
-      const { fundId, date, units, navValue } = validateResult.value;
+      const { fundId, date, units, amount, navValue } = validateResult.value;
 
       const existingResult = transactionRepository.findById(input.id);
       if (!existingResult.success) {
@@ -335,9 +339,7 @@ export function createTransactionUseCase(
         };
       }
 
-      // 売却金額の計算
-      const amount = Math.round((units / 10000) * navValue);
-
+      // 売却金額は手動入力された値を使用
       // 更新後の売却取引
       const transaction: Transaction = {
         id: existingResult.value.id,
@@ -478,14 +480,16 @@ function validateSaleTransactionInput(input: {
   fundId: string;
   date: string;
   units: number;
+  amount: number;
   navValue: number;
 }): Result<{
   fundId: string;
   date: string;
   units: number;
+  amount: number;
   navValue: number;
 }> {
-  const { fundId, date, units, navValue } = input;
+  const { fundId, date, units, amount, navValue } = input;
 
   if (typeof fundId !== 'string' || fundId.trim() === '') {
     return {
@@ -513,6 +517,16 @@ function validateSaleTransactionInput(input: {
       },
     };
   }
+  if (typeof amount !== 'number' || Number.isNaN(amount) || amount <= 0) {
+    return {
+      success: false,
+      error: {
+        type: 'validation',
+        message: '売却金額は0より大きい数値で入力してください。',
+        field: 'amount',
+      },
+    };
+  }
   if (typeof navValue !== 'number' || Number.isNaN(navValue) || navValue <= 0) {
     return {
       success: false,
@@ -524,7 +538,7 @@ function validateSaleTransactionInput(input: {
     };
   }
 
-  return { success: true, value: { fundId, date, units, navValue } };
+  return { success: true, value: { fundId, date, units, amount, navValue } };
 }
 
 /**

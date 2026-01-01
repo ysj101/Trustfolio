@@ -65,6 +65,7 @@ type ExecuteSaleRequest = {
   fundId: string;
   date: string;
   units: number;
+  amount: number;
   navValue: number;
 };
 
@@ -83,6 +84,7 @@ type UpdateSaleTransactionRequest = {
   fundId: string;
   date: string;
   units: number;
+  amount: number;
   navValue: number;
 };
 
@@ -241,6 +243,7 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
         fundId: request.fundId,
         date: request.date,
         units: request.units,
+        amount: request.amount,
         navValue: request.navValue,
       });
     case 'updateSpotPurchase':
@@ -257,6 +260,7 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
         fundId: request.fundId,
         date: request.date,
         units: request.units,
+        amount: request.amount,
         navValue: request.navValue,
       });
     case 'deleteSpotPurchase':
