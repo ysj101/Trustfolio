@@ -4,7 +4,7 @@ import {
   getPerformanceSheetName,
   type SheetDefinition,
 } from '../Config';
-import type { AppError, Performance, Result } from '../domain/types';
+import type { AppError, PerformanceRecord, Result } from '../domain/types';
 import type { SheetRepository } from './SheetRepository';
 
 export type PerformanceRepository = {
@@ -13,14 +13,14 @@ export type PerformanceRepository = {
    * @param performance 実績データ
    * @returns 成功または失敗
    */
-  createPerformance: (performance: Performance) => Result<void>;
+  createPerformance: (performance: PerformanceRecord) => Result<void>;
 
   /**
    * 実績を記録する（全体シート）
    * @param performance 実績データ
    * @returns 成功または失敗
    */
-  createGlobalPerformance: (performance: Performance) => Result<void>;
+  createGlobalPerformance: (performance: PerformanceRecord) => Result<void>;
 
   /**
    * 特定日の実績が既に存在するか確認（ファンド別）
@@ -28,14 +28,14 @@ export type PerformanceRepository = {
    * @param date 日付（YYYY-MM-DD形式）
    * @returns 実績データまたはnull
    */
-  findByFundAndDate: (fundId: string, date: string) => Result<Performance | null>;
+  findByFundAndDate: (fundId: string, date: string) => Result<PerformanceRecord | null>;
 
   /**
    * 特定日の実績が既に存在するか確認（全体）
    * @param date 日付（YYYY-MM-DD形式）
    * @returns 実績データまたはnull
    */
-  findGlobalByDate: (date: string) => Result<Performance | null>;
+  findGlobalByDate: (date: string) => Result<PerformanceRecord | null>;
 };
 
 /**
@@ -45,7 +45,7 @@ export function createPerformanceRepository(
   sheetRepository: SheetRepository
 ): PerformanceRepository {
   const repository: PerformanceRepository = {
-    createPerformance: (performance: Performance): Result<void> => {
+    createPerformance: (performance: PerformanceRecord): Result<void> => {
       const sheetNameResult = ensurePerformanceSheet(sheetRepository, performance.fundId);
       if (!sheetNameResult.success) {
         return sheetNameResult;
@@ -64,7 +64,7 @@ export function createPerformanceRepository(
         ],
       ]);
     },
-    createGlobalPerformance: (performance: Performance): Result<void> => {
+    createGlobalPerformance: (performance: PerformanceRecord): Result<void> => {
       const sheetNameResult = ensureGlobalPerformanceSheet(sheetRepository);
       if (!sheetNameResult.success) {
         return sheetNameResult;
@@ -83,7 +83,7 @@ export function createPerformanceRepository(
         ],
       ]);
     },
-    findByFundAndDate: (fundId: string, date: string): Result<Performance | null> => {
+    findByFundAndDate: (fundId: string, date: string): Result<PerformanceRecord | null> => {
       const sheetName = getPerformanceSheetName(fundId);
       const rowsResult = sheetRepository.readAllRows(sheetName as never);
 
@@ -111,7 +111,7 @@ export function createPerformanceRepository(
 
       return { success: true, value: null };
     },
-    findGlobalByDate: (date: string): Result<Performance | null> => {
+    findGlobalByDate: (date: string): Result<PerformanceRecord | null> => {
       const rowsResult = sheetRepository.readAllRows(PERFORMANCE_SHEET_NAME as never);
 
       // シートが存在しない場合はnullを返す（エラーにしない）
@@ -183,7 +183,7 @@ function ensureGlobalPerformanceSheet(sheetRepository: SheetRepository): Result<
   return { success: true, value: PERFORMANCE_SHEET_NAME };
 }
 
-function parseRow(row: unknown[], index: number): Result<Performance> {
+function parseRow(row: unknown[], index: number): Result<PerformanceRecord> {
   const [
     fundId,
     date,

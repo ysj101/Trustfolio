@@ -129,7 +129,7 @@ export type Portfolio = {
  * 実績記録。
  * ファンドごとまたは全体の日次実績を記録する。
  */
-export type Performance = {
+export type PerformanceRecord = {
   /** ファンドID（全体実績の場合は空文字列） */
   fundId: string;
   /** 記録日付（YYYY-MM-DD形式） */
