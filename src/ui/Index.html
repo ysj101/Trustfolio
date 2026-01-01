@@ -96,7 +96,7 @@
 
               <label for="transactionFundSelect">対象銘柄</label>
               <select id="transactionFundSelect" name="transactionFundSelect"></select>
-              <label for="transactionDate" id="transactionDateLabel">購入日</label>
+              <label for="transactionDate" id="transactionDateLabel">約定日</label>
               <input type="date" id="transactionDate" name="transactionDate" required />
 
               <!-- 購入用フィールド -->
@@ -108,6 +108,7 @@
                   name="transactionAmount"
                   min="1"
                   step="1"
+                  required
                 />
               </div>
 
@@ -121,22 +122,26 @@
                   min="1"
                   step="1"
                 />
+                <label for="transactionSaleAmount">売却金額 (円)</label>
+                <input
+                  type="number"
+                  id="transactionSaleAmount"
+                  name="transactionSaleAmount"
+                  min="1"
+                  step="1"
+                />
               </div>
 
-              <label for="transactionNavValue">適用基準価額 (円/1万口)</label>
-              <input
-                type="number"
-                id="transactionNavValue"
-                name="transactionNavValue"
-                min="1"
-                step="1"
-                required
-              />
+              <!-- 基準価額表示（自動取得） -->
+              <div>
+                <label>基準価額（自動取得）</label>
+                <p id="transactionNavValue" class="calculated-value">-</p>
+              </div>
 
-              <!-- 売却金額表示（売却時のみ） -->
-              <div id="saleAmountDisplay" class="hidden">
-                <label>売却金額（自動計算）</label>
-                <p id="calculatedSaleAmount" class="calculated-value">-</p>
+              <!-- 口数表示（購入時）または金額表示（売却時） -->
+              <div>
+                <label id="transactionCalculatedLabel">取得口数（自動計算）</label>
+                <p id="transactionCalculatedValue" class="calculated-value">-</p>
               </div>
 
               <div class="form-inline">

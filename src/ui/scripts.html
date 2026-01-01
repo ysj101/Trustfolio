@@ -21,14 +21,15 @@
   const transactionDateLabel = document.getElementById('transactionDateLabel');
   const transactionAmountInput = document.getElementById('transactionAmount');
   const transactionUnitsInput = document.getElementById('transactionUnits');
-  const transactionNavValueInput = document.getElementById('transactionNavValue');
+  const transactionSaleAmountInput = document.getElementById('transactionSaleAmount');
+  const transactionNavValue = document.getElementById('transactionNavValue');
+  const transactionCalculatedLabel = document.getElementById('transactionCalculatedLabel');
+  const transactionCalculatedValue = document.getElementById('transactionCalculatedValue');
   const transactionList = document.getElementById('transactionList');
   const transactionSubmitButton = document.getElementById('transactionSubmitButton');
   const transactionCancelEditButton = document.getElementById('transactionCancelEdit');
   const purchaseFields = document.getElementById('purchaseFields');
   const saleFields = document.getElementById('saleFields');
-  const saleAmountDisplay = document.getElementById('saleAmountDisplay');
-  const calculatedSaleAmount = document.getElementById('calculatedSaleAmount');
   const recurringForm = document.getElementById('recurringForm');
   const recurringFundSelect = document.getElementById('recurringFundSelect');
   const recurringMonthlyAmountInput = document.getElementById('recurringMonthlyAmount');
@@ -121,8 +122,12 @@
   function resetTransactionForm() {
     transactionDateInput.value = '';
     transactionAmountInput.value = '';
-    // 手数料は入力欄を廃止したため常に0で扱う
-    transactionNavValueInput.value = '';
+    transactionUnitsInput.value = '';
+    transactionNavValue.textContent = '-';
+    transactionNavValue.style.color = '';
+    delete transactionNavValue.dataset.value;
+    transactionCalculatedValue.textContent = '-';
+    transactionCalculatedValue.style.color = '';
   }
 
   function setTransactionEditMode(transaction) {
@@ -142,14 +147,18 @@
     transactionFundSelect.value = transaction.fundId;
     state.selectedTransactionFundId = transaction.fundId;
     transactionDateInput.value = transaction.date;
-    transactionNavValueInput.value = String(transaction.navValue);
+
+    // 基準価額を設定
+    transactionNavValue.textContent = `${transaction.navValue.toLocaleString()}円`;
+    transactionNavValue.style.color = 'var(--accent)';
+    transactionNavValue.dataset.value = String(transaction.navValue);
 
     if (transaction.type === 'REDEMPTION') {
       // 売却取引の編集
       document.querySelector('input[name="transactionType"][value="sale"]').checked = true;
-      // ラジオボタンのchangeイベントをトリガーしてUIを更新
       document.querySelector('input[name="transactionType"][value="sale"]').dispatchEvent(new Event('change'));
       transactionUnitsInput.value = String(Math.abs(transaction.units));
+      transactionSaleAmountInput.value = String(transaction.amount);
       transactionSubmitButton.textContent = '売却内容を更新';
     } else {
       // スポット購入の編集
@@ -158,6 +167,9 @@
       transactionAmountInput.value = String(transaction.amount);
       transactionSubmitButton.textContent = '購入内容を更新';
     }
+
+    // 計算値を更新
+    updateCalculatedValue();
   }
 
   function resetRecurringForm() {
@@ -657,61 +669,136 @@
         // 購入モード
         purchaseFields.classList.remove('hidden');
         saleFields.classList.add('hidden');
-        saleAmountDisplay.classList.add('hidden');
-        transactionDateLabel.textContent = '購入日';
+        transactionCalculatedLabel.textContent = '取得口数（自動計算）';
+        transactionCalculatedLabel.parentElement.classList.remove('hidden');
         transactionSubmitButton.textContent = '購入登録';
         transactionAmountInput.required = true;
         transactionUnitsInput.required = false;
-        // 売却用フィールドをクリア
+        transactionSaleAmountInput.required = false;
         transactionUnitsInput.value = '';
-        calculatedSaleAmount.textContent = '-';
+        transactionSaleAmountInput.value = '';
       } else {
         // 売却モード
         purchaseFields.classList.add('hidden');
         saleFields.classList.remove('hidden');
-        saleAmountDisplay.classList.remove('hidden');
-        transactionDateLabel.textContent = '売却日';
+        // 売却モードでは自動計算表示を非表示
+        transactionCalculatedLabel.parentElement.classList.add('hidden');
         transactionSubmitButton.textContent = '売却登録';
         transactionAmountInput.required = false;
         transactionUnitsInput.required = true;
-        // 購入用フィールドをクリア
+        transactionSaleAmountInput.required = true;
         transactionAmountInput.value = '';
-        updateCalculatedSaleAmount();
       }
+      updateCalculatedValue();
     });
   });
 
-  // 売却金額の自動計算（口数または基準価額が変更された時）
-  function updateCalculatedSaleAmount() {
-    const units = Number(transactionUnitsInput.value || 0);
-    const navValue = Number(transactionNavValueInput.value || 0);
-    if (units > 0 && navValue > 0) {
-      const amount = Math.round((units / 10000) * navValue);
-      calculatedSaleAmount.textContent = `${amount.toLocaleString()}円`;
-    } else {
-      calculatedSaleAmount.textContent = '-';
+  // 基準価額を自動取得する
+  async function fetchNavForDate() {
+    const fundId = transactionFundSelect.value;
+    const date = transactionDateInput.value;
+
+    if (!fundId || !date) {
+      transactionNavValue.textContent = '-';
+      updateCalculatedValue();
+      return;
+    }
+
+    try {
+      const response = await callApi({
+        action: 'getNavHistory',
+        fundId,
+      });
+
+      if (!response.success) {
+        transactionNavValue.textContent = 'エラー';
+        transactionNavValue.style.color = 'var(--error)';
+        updateCalculatedValue();
+        return;
+      }
+
+      // 指定日付の基準価額を探す
+      const nav = response.value.find((n) => n.date === date);
+      if (nav) {
+        transactionNavValue.textContent = `${nav.value.toLocaleString()}円`;
+        transactionNavValue.style.color = 'var(--accent)';
+        transactionNavValue.dataset.value = String(nav.value);
+      } else {
+        transactionNavValue.textContent = '未記録';
+        transactionNavValue.style.color = 'var(--error)';
+        delete transactionNavValue.dataset.value;
+      }
+      updateCalculatedValue();
+    } catch (error) {
+      transactionNavValue.textContent = 'エラー';
+      transactionNavValue.style.color = 'var(--error)';
+      delete transactionNavValue.dataset.value;
+      updateCalculatedValue();
     }
   }
 
-  transactionUnitsInput.addEventListener('input', updateCalculatedSaleAmount);
-  transactionNavValueInput.addEventListener('input', () => {
-    const selectedType = document.querySelector('input[name="transactionType"]:checked').value;
-    if (selectedType === 'sale') {
-      updateCalculatedSaleAmount();
+  // 購入時は口数を計算、売却時は金額を計算
+  function updateCalculatedValue() {
+    const transactionType = document.querySelector('input[name="transactionType"]:checked').value;
+    const navValue = Number(transactionNavValue.dataset.value || 0);
+
+    if (!navValue || navValue <= 0) {
+      transactionCalculatedValue.textContent = '-';
+      transactionCalculatedValue.style.color = '';
+      return;
     }
-  });
+
+    if (transactionType === 'purchase') {
+      // 購入金額から口数を計算
+      const amount = Number(transactionAmountInput.value || 0);
+      if (amount > 0) {
+        const units = Math.round((amount / navValue) * 10000);
+        transactionCalculatedValue.textContent = `${units.toLocaleString()}口`;
+        transactionCalculatedValue.style.color = 'var(--accent)';
+      } else {
+        transactionCalculatedValue.textContent = '-';
+        transactionCalculatedValue.style.color = '';
+      }
+    } else {
+      // 売却口数から金額を計算
+      const units = Number(transactionUnitsInput.value || 0);
+      if (units > 0) {
+        const amount = Math.round((units / 10000) * navValue);
+        transactionCalculatedValue.textContent = `${amount.toLocaleString()}円`;
+        transactionCalculatedValue.style.color = 'var(--accent)';
+      } else {
+        transactionCalculatedValue.textContent = '-';
+        transactionCalculatedValue.style.color = '';
+      }
+    }
+  }
+
+  // 日付・銘柄変更時に基準価額を取得
+  transactionFundSelect.addEventListener('change', fetchNavForDate);
+  transactionDateInput.addEventListener('change', fetchNavForDate);
+
+  // 購入金額または売却口数変更時に計算値を更新
+  transactionAmountInput.addEventListener('input', updateCalculatedValue);
+  transactionUnitsInput.addEventListener('input', updateCalculatedValue);
 
   transactionForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     const transactionType = document.querySelector('input[name="transactionType"]:checked').value;
     const fundId = transactionFundSelect.value;
     const date = transactionDateInput.value;
-    const navValue = Number(transactionNavValueInput.value);
+    const navValue = Number(transactionNavValue.dataset.value || 0);
     const isEditing = Boolean(state.editingTransactionId);
 
+    // 基準価額の検証
+    if (!navValue || navValue <= 0) {
+      setMessage('指定した約定日の基準価額が記録されていません。', 'error');
+      return;
+    }
+
     if (transactionType === 'purchase') {
-      // 購入処理
+      // 購入金額から取引を実行
       const amount = Number(transactionAmountInput.value);
+      // 購入処理
       setMessage(isEditing ? 'スポット購入を更新中...' : '購入登録中...', null);
       setLoading(true);
       try {
@@ -751,8 +838,9 @@
         setLoading(false);
       }
     } else {
-      // 売却処理
+      // 売却口数と売却金額から取引を実行
       const units = Number(transactionUnitsInput.value);
+      const amount = Number(transactionSaleAmountInput.value);
       setMessage(isEditing ? '売却を更新中...' : '売却登録中...', null);
       setLoading(true);
       try {
@@ -764,6 +852,7 @@
                 fundId,
                 date,
                 units,
+                amount,
                 navValue
               }
             : {
@@ -771,6 +860,7 @@
                 fundId,
                 date,
                 units,
+                amount,
                 navValue
               }
         );
