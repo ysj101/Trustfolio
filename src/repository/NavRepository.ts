@@ -76,7 +76,7 @@ export function createNavRepository(sheetRepository: SheetRepository): NavReposi
     },
     createNav: (nav: Nav): Result<void> => {
       return sheetRepository.appendRows(SHEET_NAMES.NAV_RECORDS, [
-        [nav.id, nav.fundId, nav.date, nav.value, nav.createdAt],
+        [nav.fundId, nav.date, nav.value, nav.createdAt],
       ]);
     },
   };
@@ -85,11 +85,8 @@ export function createNavRepository(sheetRepository: SheetRepository): NavReposi
 }
 
 function parseRow(row: unknown[], index: number): Result<Nav> {
-  const [id, fundId, date, value, createdAt] = row;
+  const [fundId, date, value, createdAt] = row;
 
-  if (typeof id !== 'string' || id === '') {
-    return fail('unexpected', `navsの${String(index + 2)}行目のidが不正です。`);
-  }
   if (typeof fundId !== 'string' || fundId === '') {
     return fail('unexpected', `navsの${String(index + 2)}行目のfundIdが不正です。`);
   }
@@ -121,7 +118,7 @@ function parseRow(row: unknown[], index: number): Result<Nav> {
     return fail('unexpected', `navsの${String(index + 2)}行目のcreatedAtが不正です。`);
   }
 
-  return { success: true, value: { id, fundId, date: dateStr, value, createdAt } };
+  return { success: true, value: { fundId, date: dateStr, value, createdAt } };
 }
 
 function fail<T>(type: AppError['type'], message: string): Result<T> {

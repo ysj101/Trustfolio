@@ -38,7 +38,6 @@ export type Fund = {
  * 基準価額履歴。
  */
 export type Nav = {
-  id: string;
   fundId: string;
   date: string;
   value: number;
@@ -131,8 +130,6 @@ export type Portfolio = {
  * ファンドごとまたは全体の日次実績を記録する。
  */
 export type Performance = {
-  /** ID */
-  id: string;
   /** ファンドID（全体実績の場合は空文字列） */
   fundId: string;
   /** 記録日付（YYYY-MM-DD形式） */
