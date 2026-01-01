@@ -1,13 +1,17 @@
 import {
+  PERFORMANCE_HEADERS,
+  PERFORMANCE_SHEET_NAME,
   SHEET_DEFINITIONS,
   SHEET_HEADERS,
   SHEET_NAMES,
+  getPerformanceSheetName,
   getTransactionSheetName,
   type SheetDefinition,
 } from '../Config';
 import type { Result } from '../domain/types';
 import { createFundRepository } from '../repository/FundRepository';
 import { createNavRepository } from '../repository/NavRepository';
+import { createPerformanceRepository } from '../repository/PerformanceRepository';
 import { createRecurringPurchaseRepository } from '../repository/RecurringPurchaseRepository';
 import type { SheetRepository } from '../repository/SheetRepository';
 import { openSheetRepository } from '../repository/SheetRepository';
@@ -189,6 +193,7 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
   const navRepository = createNavRepository(sheetRepository);
   const recurringRepository = createRecurringPurchaseRepository(sheetRepository);
   const transactionRepository = createTransactionRepository(sheetRepository);
+  const performanceRepository = createPerformanceRepository(sheetRepository);
   const fundUseCase = createFundUseCase(fundRepository);
   const navUseCase = createNavUseCase(fundRepository, navRepository);
   const transactionUseCase = createTransactionUseCase(fundRepository, transactionRepository);
@@ -205,7 +210,13 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
     transactionRepository
   );
   const rakutenService = createRakutenService();
-  const navFetchUseCase = createNavFetchUseCase(fundRepository, navRepository, rakutenService);
+  const navFetchUseCase = createNavFetchUseCase(
+    fundRepository,
+    navRepository,
+    transactionRepository,
+    performanceRepository,
+    rakutenService
+  );
 
   switch (request.action) {
     case 'initializeSheets': {
@@ -217,18 +228,40 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
         }
       }
 
-      // 全ファンドの取引シートを作成
+      // 全体実績シートを作成
+      const globalPerformanceDefinition: SheetDefinition = {
+        name: PERFORMANCE_SHEET_NAME as never,
+        headers: PERFORMANCE_HEADERS,
+      };
+      const globalPerfResult = sheetRepository.ensureSheet(globalPerformanceDefinition);
+      if (!globalPerfResult.success) {
+        return globalPerfResult;
+      }
+
+      // 全ファンドの取引シートと実績シートを作成
       const fundsResult = fundRepository.listFunds();
       if (fundsResult.success) {
         for (const fund of fundsResult.value) {
+          // 取引シートを作成
           const transactionSheetName = getTransactionSheetName(fund.id);
           const transactionDefinition: SheetDefinition = {
             name: transactionSheetName as never,
             headers: SHEET_HEADERS[SHEET_NAMES.TRANSACTIONS],
           };
-          const result = sheetRepository.ensureSheet(transactionDefinition);
-          if (!result.success) {
-            return result;
+          const transactionResult = sheetRepository.ensureSheet(transactionDefinition);
+          if (!transactionResult.success) {
+            return transactionResult;
+          }
+
+          // 実績シートを作成
+          const performanceSheetName = getPerformanceSheetName(fund.id);
+          const performanceDefinition: SheetDefinition = {
+            name: performanceSheetName as never,
+            headers: PERFORMANCE_HEADERS,
+          };
+          const performanceResult = sheetRepository.ensureSheet(performanceDefinition);
+          if (!performanceResult.success) {
+            return performanceResult;
           }
         }
       }

@@ -125,3 +125,28 @@ export type Portfolio = {
   totalGainRate: number | null;
   holdings: Holding[];
 };
+
+/**
+ * 実績記録。
+ * ファンドごとまたは全体の日次実績を記録する。
+ */
+export type Performance = {
+  /** ID */
+  id: string;
+  /** ファンドID（全体実績の場合は空文字列） */
+  fundId: string;
+  /** 記録日付（YYYY-MM-DD形式） */
+  date: string;
+  /** 保有口数 */
+  totalUnits: number;
+  /** 残存投資額（累計投資額 - 売却金額） */
+  remainingInvestment: number;
+  /** 評価額（現在の保有口数 × 基準価格） */
+  currentValue: number;
+  /** 損益（評価額 - 残存投資額） */
+  totalGain: number;
+  /** 未実現損益率 */
+  unrealizedGainRate: number;
+  /** 作成日時 */
+  createdAt: string;
+};
