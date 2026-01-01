@@ -36,6 +36,13 @@ export type PerformanceRepository = {
    * @returns 実績データまたはnull
    */
   findGlobalByDate: (date: string) => Result<PerformanceRecord | null>;
+
+  /**
+   * 最新の実績を取得（ファンド別）
+   * @param fundId ファンドID
+   * @returns 最新の実績データまたはnull
+   */
+  findLatestByFundId: (fundId: string) => Result<PerformanceRecord | null>;
 };
 
 /**
@@ -137,6 +144,31 @@ export function createPerformanceRepository(
       }
 
       return { success: true, value: null };
+    },
+    findLatestByFundId: (fundId: string): Result<PerformanceRecord | null> => {
+      const sheetNameResult = ensurePerformanceSheet(sheetRepository, fundId);
+      if (!sheetNameResult.success) {
+        return sheetNameResult as Result<PerformanceRecord | null>;
+      }
+
+      const rowsResult = sheetRepository.readAllRows(sheetNameResult.value);
+      if (!rowsResult.success) {
+        return rowsResult as Result<PerformanceRecord | null>;
+      }
+
+      const rows = rowsResult.value;
+      if (rows.length === 0) {
+        return { success: true, value: null };
+      }
+
+      // 最新のデータは最後の行
+      const latestRow = rows[rows.length - 1];
+      const parseResult = parseRow(latestRow, rows.length - 1);
+      if (!parseResult.success) {
+        return parseResult;
+      }
+
+      return { success: true, value: parseResult.value };
     },
   };
 

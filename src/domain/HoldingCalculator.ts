@@ -27,11 +27,13 @@ export function calculateHolding(
 
   let totalUnits = 0;
   let totalInvestment = 0;
+  let totalSaleAmount = 0;
 
   transactions.forEach((transaction) => {
     // 売却時は口数を減らす、購入時は口数を増やす
     if (transaction.type === 'REDEMPTION') {
       totalUnits -= transaction.units;
+      totalSaleAmount += Math.abs(transaction.amount);
     } else {
       totalUnits += transaction.units;
     }
@@ -69,9 +71,13 @@ export function calculateHolding(
   }
 
   const currentValue = Math.round((totalUnits / UNITS_BASE) * latestNav.value);
-  const unrealizedGain = currentValue - totalInvestment;
+  // 損益は残存投資額（購入金額 - 売却金額）を基準に算出する
+  const remainingInvestment = totalInvestment - totalSaleAmount;
+  const unrealizedGain = currentValue - remainingInvestment;
   const unrealizedGainRate =
-    totalInvestment > 0 ? Math.round((unrealizedGain / totalInvestment) * 10000) / 10000 : 0;
+    remainingInvestment > 0
+      ? Math.round((unrealizedGain / remainingInvestment) * 10000) / 10000
+      : 0;
 
   return {
     fundId: fund.id,

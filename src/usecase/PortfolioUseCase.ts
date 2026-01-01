@@ -1,8 +1,8 @@
 import type { Portfolio, Result } from '../domain/types';
 import type { FundRepository } from '../repository/FundRepository';
-import type { NavRepository } from '../repository/NavRepository';
 import type { TransactionRepository } from '../repository/TransactionRepository';
-import { calculateHolding, calculatePortfolio } from '../domain/HoldingCalculator';
+import type { HoldingUseCase } from './HoldingUseCase';
+import { calculatePortfolio } from '../domain/HoldingCalculator';
 
 export type PortfolioUseCase = {
   getPortfolioSummary: () => Result<Portfolio>;
@@ -13,8 +13,8 @@ export type PortfolioUseCase = {
  */
 export function createPortfolioUseCase(
   fundRepository: FundRepository,
-  navRepository: NavRepository,
-  transactionRepository: TransactionRepository
+  transactionRepository: TransactionRepository,
+  holdingUseCase: HoldingUseCase
 ): PortfolioUseCase {
   return {
     getPortfolioSummary: (): Result<Portfolio> => {
@@ -23,7 +23,12 @@ export function createPortfolioUseCase(
         return fundResult as Result<Portfolio>;
       }
 
-      const holdings = [] as Portfolio['holdings'];
+      const holdingsResult = holdingUseCase.listHoldings();
+      if (!holdingsResult.success) {
+        return holdingsResult as Result<Portfolio>;
+      }
+
+      const holdings = holdingsResult.value;
 
       // 全ファンドのIDリストを取得
       const fundIds = fundResult.value.map((f) => f.id);
@@ -32,23 +37,6 @@ export function createPortfolioUseCase(
       const allTransactionsResult = transactionRepository.listAll(fundIds);
       if (!allTransactionsResult.success) {
         return allTransactionsResult as Result<Portfolio>;
-      }
-
-      for (const fund of fundResult.value) {
-        const transactionResult = transactionRepository.listByFundId(fund.id);
-        if (!transactionResult.success) {
-          return transactionResult as Result<Portfolio>;
-        }
-
-        const navResult = navRepository.findLatestByFundId(fund.id);
-        if (!navResult.success) {
-          return navResult as Result<Portfolio>;
-        }
-
-        const holding = calculateHolding(fund, transactionResult.value, navResult.value);
-        if (holding !== null) {
-          holdings.push(holding);
-        }
       }
 
       const summary = calculatePortfolio(holdings, allTransactionsResult.value);

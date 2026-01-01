@@ -439,9 +439,17 @@
       const title = document.createElement('strong');
       title.textContent = holding.fundName;
       const detail = document.createElement('span');
-      const valueText =
-        holding.currentValue === null ? 'NAV未登録' : formatCurrency(holding.currentValue);
-      detail.textContent = `${holding.totalUnits.toLocaleString()}口 / ${valueText}`;
+
+      if (holding.currentValue === null) {
+        detail.textContent = `${holding.totalUnits.toLocaleString()}口 / NAV未登録`;
+      } else {
+        const valueText = formatCurrency(holding.currentValue);
+        const gainText = holding.unrealizedGain !== null ? formatCurrency(holding.unrealizedGain) : '-';
+        const rateText = holding.unrealizedGainRate !== null ? formatRate(holding.unrealizedGainRate) : '-';
+        const gainClass = holding.unrealizedGain !== null && holding.unrealizedGain >= 0 ? 'positive' : 'negative';
+        detail.innerHTML = `${holding.totalUnits.toLocaleString()}口 / ${valueText}<br><span class="${gainClass}">${gainText} (${rateText})</span>`;
+      }
+
       item.appendChild(title);
       item.appendChild(detail);
       holdingList.appendChild(item);
