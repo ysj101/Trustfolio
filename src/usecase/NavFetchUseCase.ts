@@ -5,7 +5,6 @@ import type { NavRepository } from '../repository/NavRepository';
 import type { PerformanceRepository } from '../repository/PerformanceRepository';
 import type { TransactionRepository } from '../repository/TransactionRepository';
 import type { RakutenService } from '../service/RakutenService';
-import { generateUlid } from '../utils/ulid';
 
 /**
  * 基準価額の自動取得結果（1銘柄分）。
@@ -192,7 +191,6 @@ function processFund(
 
   // 基準価額を登録
   const nav: Nav = {
-    id: generateUlid(),
     fundId: fund.id,
     date: navData.date,
     value: navData.value,
@@ -272,7 +270,6 @@ function recordFundPerformance(
 
   // 6. 実績データ作成
   const performance: Performance = {
-    id: generateUlid(),
     fundId: fund.id,
     date: nav.date,
     totalUnits: holding.totalUnits,
@@ -347,7 +344,6 @@ function recordGlobalPerformance(
 
   // 5. 全体実績データ作成
   const performance: Performance = {
-    id: generateUlid(),
     fundId: '', // 全体実績はfundIdなし
     date,
     totalUnits,

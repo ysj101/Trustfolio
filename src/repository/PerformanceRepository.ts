@@ -53,7 +53,6 @@ export function createPerformanceRepository(
 
       return sheetRepository.appendRows(sheetNameResult.value as never, [
         [
-          performance.id,
           performance.fundId,
           performance.date,
           performance.totalUnits,
@@ -73,7 +72,6 @@ export function createPerformanceRepository(
 
       return sheetRepository.appendRows(sheetNameResult.value as never, [
         [
-          performance.id,
           performance.fundId,
           performance.date,
           performance.totalUnits,
@@ -187,7 +185,6 @@ function ensureGlobalPerformanceSheet(sheetRepository: SheetRepository): Result<
 
 function parseRow(row: unknown[], index: number): Result<Performance> {
   const [
-    id,
     fundId,
     date,
     totalUnits,
@@ -198,9 +195,6 @@ function parseRow(row: unknown[], index: number): Result<Performance> {
     createdAt,
   ] = row;
 
-  if (typeof id !== 'string' || id === '') {
-    return fail('unexpected', `performanceの${String(index + 2)}行目のidが不正です。`);
-  }
   if (typeof fundId !== 'string') {
     return fail('unexpected', `performanceの${String(index + 2)}行目のfundIdが不正です。`);
   }
@@ -253,7 +247,6 @@ function parseRow(row: unknown[], index: number): Result<Performance> {
   return {
     success: true,
     value: {
-      id,
       fundId,
       date: dateStr,
       totalUnits,

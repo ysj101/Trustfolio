@@ -15,7 +15,7 @@ export const SHEET_NAMES = {
  */
 export const SHEET_HEADERS = {
   [SHEET_NAMES.FUNDS]: ['id', 'name', 'rakutenFundId', 'settlementBusinessDays', 'createdAt'],
-  [SHEET_NAMES.NAV_RECORDS]: ['id', 'fundId', 'date', 'value', 'createdAt'],
+  [SHEET_NAMES.NAV_RECORDS]: ['fundId', 'date', 'value', 'createdAt'],
   [SHEET_NAMES.TRANSACTIONS]: [
     'id',
     'fundId',
@@ -92,7 +92,6 @@ export const PERFORMANCE_SHEET_NAME = '_performance' as const;
  * 実績シートのヘッダー定義
  */
 export const PERFORMANCE_HEADERS = [
-  'id',
   'fundId',
   'date',
   'totalUnits',
