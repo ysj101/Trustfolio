@@ -49,11 +49,11 @@ export type SheetDefinition = {
 
 /**
  * 初期化対象となるシート定義一覧。
+ * 注: _transactionsシートは削除済み。取引データは_transactions_{fundId}に記録される。
  */
 export const SHEET_DEFINITIONS: readonly SheetDefinition[] = [
   { name: SHEET_NAMES.FUNDS, headers: SHEET_HEADERS[SHEET_NAMES.FUNDS] },
   { name: SHEET_NAMES.NAV_RECORDS, headers: SHEET_HEADERS[SHEET_NAMES.NAV_RECORDS] },
-  { name: SHEET_NAMES.TRANSACTIONS, headers: SHEET_HEADERS[SHEET_NAMES.TRANSACTIONS] },
   { name: SHEET_NAMES.RECURRING, headers: SHEET_HEADERS[SHEET_NAMES.RECURRING] },
 ];
 
@@ -73,3 +73,32 @@ export const SHEET_NAME_PREFIXES = {
 export function getTransactionSheetName(fundId: string): string {
   return `${SHEET_NAME_PREFIXES.TRANSACTIONS}${fundId}`;
 }
+
+/**
+ * ファンドIDから実績シート名を生成する
+ * @param fundId ファンドID
+ * @returns 実績シート名(例: _performance_fund001)
+ */
+export function getPerformanceSheetName(fundId: string): string {
+  return `${SHEET_NAME_PREFIXES.PERFORMANCE}${fundId}`;
+}
+
+/**
+ * 全体実績シート名
+ */
+export const PERFORMANCE_SHEET_NAME = '_performance' as const;
+
+/**
+ * 実績シートのヘッダー定義
+ */
+export const PERFORMANCE_HEADERS = [
+  'id',
+  'fundId',
+  'date',
+  'totalUnits',
+  'remainingInvestment',
+  'currentValue',
+  'totalGain',
+  'unrealizedGainRate',
+  'createdAt',
+] as const;
