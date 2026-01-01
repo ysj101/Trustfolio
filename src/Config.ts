@@ -56,3 +56,20 @@ export const SHEET_DEFINITIONS: readonly SheetDefinition[] = [
   { name: SHEET_NAMES.TRANSACTIONS, headers: SHEET_HEADERS[SHEET_NAMES.TRANSACTIONS] },
   { name: SHEET_NAMES.RECURRING, headers: SHEET_HEADERS[SHEET_NAMES.RECURRING] },
 ];
+
+/**
+ * 動的に生成されるシート名のプレフィックス定数
+ */
+export const SHEET_NAME_PREFIXES = {
+  TRANSACTIONS: '_transactions_',
+  PERFORMANCE: '_performance_',
+} as const;
+
+/**
+ * ファンドIDから取引シート名を生成する
+ * @param fundId ファンドID
+ * @returns 取引シート名(例: _transactions_fund001)
+ */
+export function getTransactionSheetName(fundId: string): string {
+  return `${SHEET_NAME_PREFIXES.TRANSACTIONS}${fundId}`;
+}

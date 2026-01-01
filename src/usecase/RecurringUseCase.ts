@@ -266,7 +266,18 @@ export function createRecurringUseCase(
         }
 
         const idempotencyKey = `${recurring.id}_${targetDate}`;
-        const existingResult = transactionRepository.findByIdempotencyKey(idempotencyKey);
+        const allFundsResult = fundRepository.listFunds();
+        if (!allFundsResult.success) {
+          return {
+            success: false,
+            error: {
+              type: 'unexpected',
+              message: `ファンド一覧の取得に失敗しました: ${allFundsResult.error.message}`,
+            },
+          };
+        }
+        const fundIds = allFundsResult.value.map((f) => f.id);
+        const existingResult = transactionRepository.findByIdempotencyKey(idempotencyKey, fundIds);
         if (!existingResult.success) {
           return {
             success: false,

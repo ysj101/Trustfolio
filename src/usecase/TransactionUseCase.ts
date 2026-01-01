@@ -53,7 +53,7 @@ export type TransactionUseCase = {
    * 既存のスポット購入または売却取引を削除する。
    * 積立購入の取引は削除できない。
    */
-  deleteSpotPurchase: (transactionId: string) => Result<Transaction>;
+  deleteSpotPurchase: (transactionId: string, fundId: string) => Result<Transaction>;
 };
 
 /**
@@ -86,7 +86,13 @@ export function createTransactionUseCase(
       return transactionRepository.listByFundId(fundId);
     },
     listAll: (): Result<Transaction[]> => {
-      return transactionRepository.listAll();
+      const fundsResult = fundRepository.listFunds();
+      if (!fundsResult.success) {
+        return fundsResult as Result<Transaction[]>;
+      }
+
+      const fundIds = fundsResult.value.map((f) => f.id);
+      return transactionRepository.listAll(fundIds);
     },
     executeSpotPurchase: (input: {
       fundId: string;
@@ -228,7 +234,7 @@ export function createTransactionUseCase(
 
       const { fundId, date, amount, navValue } = validateResult.value;
 
-      const existingResult = transactionRepository.findById(input.id);
+      const existingResult = transactionRepository.findById(input.id, fundId);
       if (!existingResult.success) {
         return existingResult as Result<Transaction>;
       }
@@ -307,7 +313,7 @@ export function createTransactionUseCase(
 
       const { fundId, date, units, amount, navValue } = validateResult.value;
 
-      const existingResult = transactionRepository.findById(input.id);
+      const existingResult = transactionRepository.findById(input.id, fundId);
       if (!existingResult.success) {
         return existingResult as Result<Transaction>;
       }
@@ -377,15 +383,21 @@ export function createTransactionUseCase(
 
       return { success: true, value: transaction };
     },
-    deleteSpotPurchase: (transactionId: string): Result<Transaction> => {
+    deleteSpotPurchase: (transactionId: string, fundId: string): Result<Transaction> => {
       if (typeof transactionId !== 'string' || transactionId.trim() === '') {
         return {
           success: false,
           error: { type: 'validation', message: '取引IDが不正です。', field: 'id' },
         };
       }
+      if (typeof fundId !== 'string' || fundId.trim() === '') {
+        return {
+          success: false,
+          error: { type: 'validation', message: '銘柄IDが不正です。', field: 'fundId' },
+        };
+      }
 
-      const existingResult = transactionRepository.findById(transactionId);
+      const existingResult = transactionRepository.findById(transactionId, fundId);
       if (!existingResult.success) {
         return existingResult as Result<Transaction>;
       }
@@ -407,7 +419,7 @@ export function createTransactionUseCase(
         };
       }
 
-      const deleteResult = transactionRepository.deleteTransaction(transactionId);
+      const deleteResult = transactionRepository.deleteTransaction(transactionId, fundId);
       if (!deleteResult.success) {
         return deleteResult as Result<Transaction>;
       }
