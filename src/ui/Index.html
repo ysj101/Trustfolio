@@ -4,104 +4,223 @@
     <base target="_top" />
     <?!= include('styles'); ?>
   </head>
-  <body>
-    <div class="app">
-      <header class="hero">
-        <h1>Trustfolio</h1>
-        <button id="refreshButton" class="ghost">再読み込み</button>
+  <body class="min-h-screen bg-slate-950 font-sans text-slate-100">
+    <div
+      aria-hidden="true"
+      class="pointer-events-none fixed inset-0 -z-10"
+      style="
+        background:
+          radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99, 102, 241, 0.15), transparent),
+          radial-gradient(ellipse 60% 40% at 100% 0%, rgba(139, 92, 246, 0.1), transparent);
+      "
+    ></div>
+    <div class="app mx-auto max-w-6xl px-6 pb-20 pt-12">
+      <header class="flex flex-wrap items-end justify-between gap-6 border-b border-slate-800 pb-8">
+        <h1 class="text-4xl font-semibold tracking-tight text-slate-100 sm:text-5xl">
+          Trustfolio
+        </h1>
+        <button
+          id="refreshButton"
+          class="inline-flex items-center justify-center rounded-lg border border-slate-800 bg-slate-900/60 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:bg-slate-800"
+        >
+          再読み込み
+        </button>
       </header>
 
-      <aside id="message" class="message" role="status" aria-live="polite"></aside>
+      <aside
+        id="message"
+        class="hidden mt-6 rounded-xl border border-slate-800 bg-slate-900/70 px-5 py-4 text-sm text-slate-300 transition data-[state=success]:border-emerald-500/30 data-[state=success]:bg-emerald-500/10 data-[state=success]:text-emerald-300 data-[state=error]:border-rose-500/30 data-[state=error]:bg-rose-500/10 data-[state=error]:text-rose-300"
+        role="status"
+        aria-live="polite"
+      ></aside>
 
-      <main class="grid">
-        <section class="panel">
-          <h2>ポートフォリオ</h2>
-          <div class="panel-body">
-            <div class="summary-group">
-              <div class="summary-card">
-                <div>
-                  <p class="summary-label">残存投資額</p>
-                  <p id="portfolioRemainingInvestment" class="summary-value">-</p>
+      <main class="mt-8 grid gap-6 lg:grid-cols-2">
+        <section class="rounded-3xl border border-slate-800 bg-slate-900/70 p-6 shadow-panel lg:col-span-2">
+          <h2 class="flex items-center gap-3 text-lg font-semibold text-slate-100">
+            <span class="h-5 w-1 rounded-full bg-indigo-500"></span>
+            ポートフォリオ
+          </h2>
+          <div class="mt-5">
+            <div class="flex flex-col gap-5">
+              <div class="grid gap-4 md:grid-cols-3">
+                <div class="rounded-xl border border-slate-800 bg-slate-950/40 p-4 transition hover:border-slate-700">
+                  <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                    残存投資額
+                  </p>
+                  <p
+                    id="portfolioRemainingInvestment"
+                    class="mt-2 text-xl font-semibold font-mono tracking-tight text-slate-100"
+                  >
+                    -
+                  </p>
                 </div>
-                <div>
-                  <p class="summary-label">評価額</p>
-                  <p id="portfolioValue" class="summary-value">-</p>
+                <div class="rounded-xl border border-slate-800 bg-slate-950/40 p-4 transition hover:border-slate-700">
+                  <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                    評価額
+                  </p>
+                  <p id="portfolioValue" class="mt-2 text-xl font-semibold font-mono tracking-tight text-slate-100">
+                    -
+                  </p>
                 </div>
-                <div>
-                  <p class="summary-label">損益（損益率）</p>
-                  <p id="portfolioUnrealizedGain" class="summary-value">-</p>
+                <div class="rounded-xl border border-slate-800 bg-slate-950/40 p-4 transition hover:border-slate-700">
+                  <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                    損益（損益率）
+                  </p>
+                  <p
+                    id="portfolioUnrealizedGain"
+                    class="mt-2 text-xl font-semibold font-mono tracking-tight text-slate-100"
+                  >
+                    -
+                  </p>
                 </div>
               </div>
-              <button id="portfolioToggleButton" class="toggle-button" type="button">
-                詳細を表示
+              <button
+                id="portfolioToggleButton"
+                class="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-800 bg-slate-900/60 px-4 py-2 text-sm font-medium text-slate-300 transition hover:bg-slate-800 hover:text-slate-100"
+                type="button"
+              >
+                <span id="portfolioToggleLabel">詳細を表示</span>
+                <span id="portfolioToggleIcon" class="text-xs transition-transform">▼</span>
               </button>
-              <div id="portfolioDetails" class="portfolio-details hidden">
-                <div class="summary-card">
-                  <div>
-                    <p class="summary-label">累計投入額</p>
-                    <p id="portfolioTotalInvestment" class="summary-value">-</p>
+              <div id="portfolioDetails" class="hidden flex flex-col gap-5">
+                <div class="grid gap-4 md:grid-cols-3">
+                  <div class="rounded-xl border border-slate-800 bg-slate-950/40 p-4 transition hover:border-slate-700">
+                    <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                      累計投入額
+                    </p>
+                    <p
+                      id="portfolioTotalInvestment"
+                      class="mt-2 text-xl font-semibold font-mono tracking-tight text-slate-100"
+                    >
+                      -
+                    </p>
                   </div>
-                  <div>
-                    <p class="summary-label">総損益</p>
-                    <p id="portfolioTotalGain" class="summary-value">-</p>
+                  <div class="rounded-xl border border-slate-800 bg-slate-950/40 p-4 transition hover:border-slate-700">
+                    <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                      総損益
+                    </p>
+                    <p
+                      id="portfolioTotalGain"
+                      class="mt-2 text-xl font-semibold font-mono tracking-tight text-slate-100"
+                    >
+                      -
+                    </p>
                   </div>
-                  <div>
-                    <p class="summary-label">総損益率</p>
-                    <p id="portfolioTotalGainRate" class="summary-value">-</p>
+                  <div class="rounded-xl border border-slate-800 bg-slate-950/40 p-4 transition hover:border-slate-700">
+                    <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                      総損益率
+                    </p>
+                    <p
+                      id="portfolioTotalGainRate"
+                      class="mt-2 text-xl font-semibold font-mono tracking-tight text-slate-100"
+                    >
+                      -
+                    </p>
                   </div>
                 </div>
-                <div class="summary-card">
-                  <div>
-                    <p class="summary-label">売却総額</p>
-                    <p id="portfolioTotalSaleAmount" class="summary-value">-</p>
+                <div class="grid gap-4 md:grid-cols-2">
+                  <div class="rounded-xl border border-slate-800 bg-slate-950/40 p-4 transition hover:border-slate-700">
+                    <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                      売却総額
+                    </p>
+                    <p
+                      id="portfolioTotalSaleAmount"
+                      class="mt-2 text-xl font-semibold font-mono tracking-tight text-slate-100"
+                    >
+                      -
+                    </p>
                   </div>
-                  <div>
-                    <p class="summary-label">実現損益</p>
-                    <p id="portfolioRealizedGain" class="summary-value">-</p>
+                  <div class="rounded-xl border border-slate-800 bg-slate-950/40 p-4 transition hover:border-slate-700">
+                    <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                      実現損益
+                    </p>
+                    <p
+                      id="portfolioRealizedGain"
+                      class="mt-2 text-xl font-semibold font-mono tracking-tight text-slate-100"
+                    >
+                      -
+                    </p>
                   </div>
                 </div>
               </div>
             </div>
-            <div class="list-block">
-              <h3>保有一覧</h3>
-              <ul id="holdingList" class="list"></ul>
+            <div class="mt-8">
+              <h3 class="mb-4 text-sm font-semibold uppercase tracking-[0.16em] text-slate-400">
+                保有一覧
+              </h3>
+              <ul id="holdingList" class="grid gap-2"></ul>
             </div>
           </div>
         </section>
 
-        <section class="panel">
-          <h2>取引履歴</h2>
-          <div class="panel-body">
-            <div class="list-block">
-              <ul id="recurringTransactionList" class="list"></ul>
-            </div>
+        <section class="rounded-3xl border border-slate-800 bg-slate-900/70 p-6 shadow-panel">
+          <h2 class="flex items-center gap-3 text-lg font-semibold text-slate-100">
+            <span class="h-5 w-1 rounded-full bg-indigo-500"></span>
+            取引履歴
+          </h2>
+          <div class="mt-5">
+            <ul id="recurringTransactionList" class="grid gap-2"></ul>
           </div>
         </section>
 
-        <section class="panel">
-          <h2>スポット取引</h2>
-          <div class="panel-body">
-            <form id="transactionForm" class="form">
-              <fieldset class="radio-group">
-                <legend>取引種別</legend>
-                <label class="radio-label">
-                  <input type="radio" name="transactionType" value="purchase" checked />
-                  購入
-                </label>
-                <label class="radio-label">
-                  <input type="radio" name="transactionType" value="sale" />
-                  売却
-                </label>
+        <section class="rounded-3xl border border-slate-800 bg-slate-900/70 p-6 shadow-panel">
+          <h2 class="flex items-center gap-3 text-lg font-semibold text-slate-100">
+            <span class="h-5 w-1 rounded-full bg-indigo-500"></span>
+            スポット取引
+          </h2>
+          <div class="mt-5">
+            <form id="transactionForm" class="grid gap-4">
+              <fieldset class="grid gap-3 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+                <legend class="text-xs font-semibold text-slate-300">取引種別</legend>
+                <div class="flex flex-wrap gap-4">
+                  <label class="inline-flex items-center gap-2 text-sm text-slate-300">
+                    <input
+                      type="radio"
+                      name="transactionType"
+                      value="purchase"
+                      checked
+                      class="h-4 w-4 text-indigo-500 focus:ring-indigo-500"
+                    />
+                    購入
+                  </label>
+                  <label class="inline-flex items-center gap-2 text-sm text-slate-300">
+                    <input
+                      type="radio"
+                      name="transactionType"
+                      value="sale"
+                      class="h-4 w-4 text-indigo-500 focus:ring-indigo-500"
+                    />
+                    売却
+                  </label>
+                </div>
               </fieldset>
 
-              <label for="transactionFundSelect">対象銘柄</label>
-              <select id="transactionFundSelect" name="transactionFundSelect"></select>
-              <label for="transactionDate" id="transactionDateLabel">約定日</label>
-              <input type="date" id="transactionDate" name="transactionDate" required />
+              <label for="transactionFundSelect" class="text-xs font-medium text-slate-400">対象銘柄</label>
+              <select
+                id="transactionFundSelect"
+                name="transactionFundSelect"
+                class="w-full rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+              ></select>
+              <label
+                for="transactionDate"
+                id="transactionDateLabel"
+                class="text-xs font-medium text-slate-400"
+              >
+                約定日
+              </label>
+              <input
+                type="date"
+                id="transactionDate"
+                name="transactionDate"
+                required
+                class="w-full rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+              />
 
               <!-- 購入用フィールド -->
               <div id="purchaseFields">
-                <label for="transactionAmount">購入金額 (円)</label>
+                <label for="transactionAmount" class="text-xs font-medium text-slate-400">
+                  購入金額 (円)
+                </label>
                 <input
                   type="number"
                   id="transactionAmount"
@@ -109,68 +228,105 @@
                   min="1"
                   step="1"
                   required
+                  class="w-full rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
                 />
               </div>
 
               <!-- 売却用フィールド -->
               <div id="saleFields" class="hidden">
-                <label for="transactionUnits">売却口数</label>
+                <label for="transactionUnits" class="text-xs font-medium text-slate-400">
+                  売却口数
+                </label>
                 <input
                   type="number"
                   id="transactionUnits"
                   name="transactionUnits"
                   min="1"
                   step="1"
+                  class="w-full rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
                 />
-                <label for="transactionSaleAmount">売却金額 (円)</label>
+                <label for="transactionSaleAmount" class="text-xs font-medium text-slate-400">
+                  売却金額 (円)
+                </label>
                 <input
                   type="number"
                   id="transactionSaleAmount"
                   name="transactionSaleAmount"
                   min="1"
                   step="1"
+                  class="w-full rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
                 />
               </div>
 
               <!-- 基準価額表示（自動取得） -->
               <div>
-                <label>基準価額（自動取得）</label>
-                <p id="transactionNavValue" class="calculated-value">-</p>
+                <label class="text-xs font-medium text-slate-400">基準価額（自動取得）</label>
+                <p
+                  id="transactionNavValue"
+                  class="rounded-md border border-slate-800 bg-slate-950/50 px-3 py-2 font-mono text-sm font-medium text-slate-400"
+                >
+                  -
+                </p>
               </div>
 
               <!-- 口数表示（購入時）または金額表示（売却時） -->
               <div>
-                <label id="transactionCalculatedLabel">取得口数（自動計算）</label>
-                <p id="transactionCalculatedValue" class="calculated-value">-</p>
+                <label id="transactionCalculatedLabel" class="text-xs font-medium text-slate-400">
+                  取得口数（自動計算）
+                </label>
+                <p
+                  id="transactionCalculatedValue"
+                  class="rounded-md border border-slate-800 bg-slate-950/50 px-3 py-2 font-mono text-sm font-medium text-slate-400"
+                >
+                  -
+                </p>
               </div>
 
-              <div class="form-inline">
-                <button type="submit" class="primary" id="transactionSubmitButton">購入登録</button>
-                <button type="button" class="ghost hidden" id="transactionCancelEdit">
+              <div class="flex flex-wrap items-center gap-3">
+                <button
+                  type="submit"
+                  class="inline-flex items-center justify-center rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white shadow-glow transition hover:bg-indigo-400"
+                  id="transactionSubmitButton"
+                >
+                  購入登録
+                </button>
+                <button
+                  type="button"
+                  class="hidden inline-flex items-center justify-center rounded-lg border border-slate-800 bg-slate-900/60 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:bg-slate-800"
+                  id="transactionCancelEdit"
+                >
                   編集をキャンセル
                 </button>
               </div>
             </form>
-            <div class="list-block">
-              <h3>取引履歴</h3>
-              <ul id="transactionList" class="list"></ul>
+            <div class="mt-8">
+              <h3 class="mb-4 text-sm font-semibold uppercase tracking-[0.16em] text-slate-400">
+                取引履歴
+              </h3>
+              <ul id="transactionList" class="grid gap-2"></ul>
             </div>
           </div>
         </section>
 
-        <section class="panel">
-          <h2>投資信託</h2>
-          <div class="panel-body">
-            <form id="fundForm" class="form">
-              <label for="fundName">銘柄名</label>
+        <section class="rounded-3xl border border-slate-800 bg-slate-900/70 p-6 shadow-panel">
+          <h2 class="flex items-center gap-3 text-lg font-semibold text-slate-100">
+            <span class="h-5 w-1 rounded-full bg-indigo-500"></span>
+            投資信託
+          </h2>
+          <div class="mt-5">
+            <form id="fundForm" class="grid gap-4">
+              <label for="fundName" class="text-xs font-medium text-slate-400">銘柄名</label>
               <input
                 type="text"
                 id="fundName"
                 name="fundName"
                 placeholder="例: つみたて全世界株式"
                 required
+                class="w-full rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
               />
-              <label for="fundRakutenFundId">楽天ファンドID (12桁)</label>
+              <label for="fundRakutenFundId" class="text-xs font-medium text-slate-400">
+                楽天ファンドID (12桁)
+              </label>
               <input
                 type="text"
                 id="fundRakutenFundId"
@@ -178,31 +334,51 @@
                 placeholder="例: JP90C000H1T1"
                 pattern="[A-Za-z0-9]{12}"
                 title="12桁の英数字を入力してください"
+                class="w-full rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
               />
-              <label for="fundSettlementBusinessDays">約定までの営業日数</label>
+              <label for="fundSettlementBusinessDays" class="text-xs font-medium text-slate-400">
+                約定までの営業日数
+              </label>
               <input
                 type="number"
                 id="fundSettlementBusinessDays"
                 name="fundSettlementBusinessDays"
                 min="0"
                 step="1"
+                class="w-full rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
               />
-              <button type="submit" class="primary">登録</button>
+              <button
+                type="submit"
+                class="inline-flex items-center justify-center rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white shadow-glow transition hover:bg-indigo-400"
+              >
+                登録
+              </button>
             </form>
-            <div class="list-block">
-              <h3>銘柄一覧</h3>
-              <ul id="fundList" class="list"></ul>
+            <div class="mt-8">
+              <h3 class="mb-4 text-sm font-semibold uppercase tracking-[0.16em] text-slate-400">
+                銘柄一覧
+              </h3>
+              <ul id="fundList" class="grid gap-2"></ul>
             </div>
           </div>
         </section>
 
-        <section class="panel">
-          <h2>積立設定</h2>
-          <div class="panel-body">
-            <form id="recurringForm" class="form">
-              <label for="recurringFundSelect">対象銘柄</label>
-              <select id="recurringFundSelect" name="recurringFundSelect"></select>
-              <label for="recurringMonthlyAmount">月額購入金額 (円)</label>
+        <section class="rounded-3xl border border-slate-800 bg-slate-900/70 p-6 shadow-panel">
+          <h2 class="flex items-center gap-3 text-lg font-semibold text-slate-100">
+            <span class="h-5 w-1 rounded-full bg-indigo-500"></span>
+            積立設定
+          </h2>
+          <div class="mt-5">
+            <form id="recurringForm" class="grid gap-4">
+              <label for="recurringFundSelect" class="text-xs font-medium text-slate-400">対象銘柄</label>
+              <select
+                id="recurringFundSelect"
+                name="recurringFundSelect"
+                class="w-full rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+              ></select>
+              <label for="recurringMonthlyAmount" class="text-xs font-medium text-slate-400">
+                月額購入金額 (円)
+              </label>
               <input
                 type="number"
                 id="recurringMonthlyAmount"
@@ -210,8 +386,11 @@
                 min="1"
                 step="1"
                 required
+                class="w-full rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
               />
-              <label for="recurringExecutionDay">注文日 (1〜28)</label>
+              <label for="recurringExecutionDay" class="text-xs font-medium text-slate-400">
+                注文日 (1〜28)
+              </label>
               <input
                 type="number"
                 id="recurringExecutionDay"
@@ -220,25 +399,55 @@
                 max="28"
                 step="1"
                 required
+                class="w-full rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
               />
-              <label for="recurringStartDate">開始日</label>
-              <input type="date" id="recurringStartDate" name="recurringStartDate" required />
-              <label for="recurringEndDate">終了日 (任意)</label>
-              <input type="date" id="recurringEndDate" name="recurringEndDate" />
-              <label class="checkbox">
-                <input type="checkbox" id="recurringIsActive" name="recurringIsActive" checked />
+              <label for="recurringStartDate" class="text-xs font-medium text-slate-400">開始日</label>
+              <input
+                type="date"
+                id="recurringStartDate"
+                name="recurringStartDate"
+                required
+                class="w-full rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+              />
+              <label for="recurringEndDate" class="text-xs font-medium text-slate-400">終了日 (任意)</label>
+              <input
+                type="date"
+                id="recurringEndDate"
+                name="recurringEndDate"
+                class="w-full rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+              />
+              <label class="inline-flex items-center gap-2 text-sm text-slate-300">
+                <input
+                  type="checkbox"
+                  id="recurringIsActive"
+                  name="recurringIsActive"
+                  checked
+                  class="h-4 w-4 rounded border-slate-700 text-indigo-500 focus:ring-indigo-500"
+                />
                 アクティブ
               </label>
-              <div class="form-inline">
-                <button type="submit" class="primary" id="recurringSubmitButton">設定を追加</button>
-                <button type="button" class="ghost hidden" id="recurringCancelEdit">
+              <div class="flex flex-wrap items-center gap-3">
+                <button
+                  type="submit"
+                  class="inline-flex items-center justify-center rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white shadow-glow transition hover:bg-indigo-400"
+                  id="recurringSubmitButton"
+                >
+                  設定を追加
+                </button>
+                <button
+                  type="button"
+                  class="hidden inline-flex items-center justify-center rounded-lg border border-slate-800 bg-slate-900/60 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:bg-slate-800"
+                  id="recurringCancelEdit"
+                >
                   編集をキャンセル
                 </button>
               </div>
             </form>
-            <div class="list-block">
-              <h3>積立一覧</h3>
-              <ul id="recurringList" class="list"></ul>
+            <div class="mt-8">
+              <h3 class="mb-4 text-sm font-semibold uppercase tracking-[0.16em] text-slate-400">
+                積立一覧
+              </h3>
+              <ul id="recurringList" class="grid gap-2"></ul>
             </div>
           </div>
         </section>
