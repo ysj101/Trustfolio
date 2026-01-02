@@ -46,7 +46,7 @@
   const portfolioRealizedGain = document.getElementById('portfolioRealizedGain');
   const portfolioRemainingInvestment = document.getElementById('portfolioRemainingInvestment');
   const portfolioValue = document.getElementById('portfolioValue');
-  const portfolioUnrealizedGainRate = document.getElementById('portfolioUnrealizedGainRate');
+  const portfolioUnrealizedGain = document.getElementById('portfolioUnrealizedGain');
   const portfolioTotalGain = document.getElementById('portfolioTotalGain');
   const portfolioTotalGainRate = document.getElementById('portfolioTotalGainRate');
   const portfolioToggleButton = document.getElementById('portfolioToggleButton');
@@ -478,8 +478,8 @@
     if (portfolio.totalCurrentValue === null) {
       portfolioValue.textContent = 'NAV未登録';
       portfolioValue.className = 'summary-value muted';
-      portfolioUnrealizedGainRate.textContent = '-';
-      portfolioUnrealizedGainRate.className = 'summary-value muted';
+      portfolioUnrealizedGain.textContent = '-';
+      portfolioUnrealizedGain.className = 'summary-value muted';
       portfolioTotalGain.textContent = '-';
       portfolioTotalGain.className = 'summary-value muted';
       portfolioTotalGainRate.textContent = '-';
@@ -491,10 +491,12 @@
     portfolioValue.textContent = formatCurrency(portfolio.totalCurrentValue);
     portfolioValue.className = 'summary-value';
 
-    // 未実現損益率
-    portfolioUnrealizedGainRate.textContent = formatRate(portfolio.totalUnrealizedGainRate);
-    portfolioUnrealizedGainRate.className = `summary-value ${
-      portfolio.totalUnrealizedGainRate >= 0 ? 'positive' : 'negative'
+    // 損益（損益率）
+    const unrealizedGainText = formatCurrency(portfolio.totalUnrealizedGain);
+    const unrealizedGainRateText = formatRate(portfolio.totalUnrealizedGainRate);
+    portfolioUnrealizedGain.textContent = `${unrealizedGainText} (${unrealizedGainRateText})`;
+    portfolioUnrealizedGain.className = `summary-value ${
+      portfolio.totalUnrealizedGain >= 0 ? 'positive' : 'negative'
     }`;
 
     // 総損益
