@@ -54,12 +54,38 @@
   const recurringTransactionList = document.getElementById('recurringTransactionList');
   const message = document.getElementById('message');
   const refreshButton = document.getElementById('refreshButton');
+  const portfolioToggleIcon = document.getElementById('portfolioToggleIcon');
+  const portfolioToggleLabel = document.getElementById('portfolioToggleLabel');
+
+  const listItemClass =
+    'flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-3 text-sm text-slate-100 transition hover:border-slate-700 hover:bg-slate-900/80';
+  const listContentClass = 'flex flex-col gap-1 text-sm text-slate-300';
+  const listActionsClass = 'flex items-center gap-2';
+  const listMetaClass = 'text-xs text-slate-400 font-mono';
+  const listEmptyClass = 'text-slate-400';
+  const ghostButtonClass =
+    'inline-flex items-center justify-center rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-1.5 text-xs font-semibold text-slate-100 transition hover:bg-slate-800';
+  const summaryValueBaseClass = 'mt-2 text-xl font-semibold font-mono tracking-tight';
+  const summaryValueDefaultClass = `${summaryValueBaseClass} text-slate-100`;
+  const summaryValueMutedClass = `${summaryValueBaseClass} text-slate-500`;
+  const summaryValuePositiveClass = `${summaryValueBaseClass} text-emerald-300`;
+  const summaryValueNegativeClass = `${summaryValueBaseClass} text-rose-300`;
+  const calculatedValueBaseClass =
+    'rounded-md border border-slate-800 bg-slate-950/50 px-3 py-2 font-mono text-sm font-medium';
+  const calculatedValueMutedClass = `${calculatedValueBaseClass} text-slate-400`;
+  const calculatedValueAccentClass = `${calculatedValueBaseClass} text-indigo-200`;
+  const calculatedValueErrorClass = `${calculatedValueBaseClass} text-rose-300`;
+  const badgeBaseClass =
+    'inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em]';
+  const badgeSpotClass = `${badgeBaseClass} bg-indigo-500/20 text-indigo-200`;
+  const badgeRedemptionClass = `${badgeBaseClass} bg-rose-500/20 text-rose-200`;
+  const badgeRecurringClass = `${badgeBaseClass} bg-emerald-500/20 text-emerald-200`;
 
   function setLoading(isLoading) {
     if (isLoading) {
-      app.classList.add('loading');
+      app.classList.add('opacity-60', 'pointer-events-none');
     } else {
-      app.classList.remove('loading');
+      app.classList.remove('opacity-60', 'pointer-events-none');
     }
     document.querySelectorAll('button, input, select').forEach((element) => {
       element.disabled = isLoading;
@@ -87,6 +113,11 @@
     } else {
       message.removeAttribute('data-state');
     }
+    if (text) {
+      message.classList.remove('hidden');
+    } else {
+      message.classList.add('hidden');
+    }
 
     if (successMessageTimer) {
       clearTimeout(successMessageTimer);
@@ -97,6 +128,7 @@
         if (message.getAttribute('data-state') === 'success') {
           message.textContent = '';
           message.removeAttribute('data-state');
+          message.classList.add('hidden');
         }
       }, 10000);
     }
@@ -124,10 +156,10 @@
     transactionAmountInput.value = '';
     transactionUnitsInput.value = '';
     transactionNavValue.textContent = '-';
-    transactionNavValue.style.color = '';
+    transactionNavValue.className = calculatedValueMutedClass;
     delete transactionNavValue.dataset.value;
     transactionCalculatedValue.textContent = '-';
-    transactionCalculatedValue.style.color = '';
+    transactionCalculatedValue.className = calculatedValueMutedClass;
   }
 
   function setTransactionEditMode(transaction) {
@@ -150,7 +182,7 @@
 
     // 基準価額を設定
     transactionNavValue.textContent = `${transaction.navValue.toLocaleString()}円`;
-    transactionNavValue.style.color = 'var(--accent)';
+    transactionNavValue.className = calculatedValueAccentClass;
     transactionNavValue.dataset.value = String(transaction.navValue);
 
     if (transaction.type === 'REDEMPTION') {
@@ -204,6 +236,7 @@
     fundList.innerHTML = '';
     if (state.funds.length === 0) {
       const empty = document.createElement('li');
+      empty.className = `${listItemClass} ${listEmptyClass}`;
       empty.textContent = '銘柄が登録されていません。';
       fundList.appendChild(empty);
       return;
@@ -211,9 +244,11 @@
 
     state.funds.forEach((fund) => {
       const item = document.createElement('li');
+      item.className = listItemClass;
       const name = document.createElement('strong');
       name.textContent = fund.name;
       const meta = document.createElement('span');
+      meta.className = listMetaClass;
       const codeText = fund.rakutenFundId ? ` (${fund.rakutenFundId})` : '';
       meta.textContent = `${fund.createdAt.split('T')[0]}${codeText}`;
       item.appendChild(name);
@@ -274,6 +309,7 @@
     transactionList.innerHTML = '';
     if (transactions.length === 0) {
       const empty = document.createElement('li');
+      empty.className = `${listItemClass} ${listEmptyClass}`;
       empty.textContent = '取引履歴がありません。';
       transactionList.appendChild(empty);
       return;
@@ -284,28 +320,26 @@
 
     recentTransactions.forEach((transaction) => {
       const item = document.createElement('li');
+      item.className = listItemClass;
       const content = document.createElement('div');
-      content.className = 'list-content';
+      content.className = listContentClass;
 
       // 日付と取引種別バッジを含むヘッダー行
       const header = document.createElement('div');
-      header.style.display = 'flex';
-      header.style.alignItems = 'center';
-      header.style.gap = '8px';
+      header.className = 'flex items-center gap-2 text-sm text-slate-200';
 
       const date = document.createElement('strong');
       date.textContent = transaction.date;
 
       const badge = document.createElement('span');
-      badge.className = 'transaction-badge';
       if (transaction.type === 'SPOT_PURCHASE') {
-        badge.classList.add('spot-purchase');
+        badge.className = badgeSpotClass;
         badge.textContent = 'スポット購入';
       } else if (transaction.type === 'REDEMPTION') {
-        badge.classList.add('redemption');
+        badge.className = badgeRedemptionClass;
         badge.textContent = '売却';
       } else {
-        badge.classList.add('recurring-purchase');
+        badge.className = badgeRecurringClass;
         badge.textContent = '積立購入';
       }
 
@@ -314,6 +348,7 @@
 
       // 取引詳細行
       const detail = document.createElement('span');
+      detail.className = 'text-xs text-slate-400';
       const unitsDisplay = transaction.type === 'REDEMPTION'
         ? `${Math.abs(transaction.units).toLocaleString()}口`
         : `${transaction.units.toLocaleString()}口`;
@@ -327,12 +362,12 @@
       // スポット購入と売却のみ編集・削除可能（積立購入は不可）
       if (transaction.type === 'SPOT_PURCHASE' || transaction.type === 'REDEMPTION') {
         const actions = document.createElement('div');
-        actions.className = 'list-actions';
-        const editButton = createActionButton('編集', 'ghost', () => {
+        actions.className = listActionsClass;
+        const editButton = createActionButton('編集', ghostButtonClass, () => {
           setTransactionEditMode(transaction);
         });
         const deleteLabel = transaction.type === 'REDEMPTION' ? '売却履歴' : 'スポット購入履歴';
-        const deleteButton = createActionButton('削除', 'ghost', async () => {
+        const deleteButton = createActionButton('削除', ghostButtonClass, async () => {
           if (!confirm(`${deleteLabel}を削除します。よろしいですか？`)) {
             return;
           }
@@ -370,6 +405,7 @@
     recurringList.innerHTML = '';
     if (recurrings.length === 0) {
       const empty = document.createElement('li');
+      empty.className = `${listItemClass} ${listEmptyClass}`;
       empty.textContent = '積立設定がありません。';
       recurringList.appendChild(empty);
       return;
@@ -377,11 +413,13 @@
 
     recurrings.forEach((recurring) => {
       const item = document.createElement('li');
+      item.className = listItemClass;
       const content = document.createElement('div');
-      content.className = 'list-content';
+      content.className = listContentClass;
       const title = document.createElement('strong');
       title.textContent = `${recurring.monthlyAmount.toLocaleString()}円 / 毎月${recurring.executionDay}日注文`;
       const detail = document.createElement('span');
+      detail.className = 'text-xs text-slate-400';
       const period = recurring.endDate ? `${recurring.startDate}〜${recurring.endDate}` : recurring.startDate;
       const status = recurring.isActive ? 'アクティブ' : '停止中';
       detail.textContent = `${period} / ${status}`;
@@ -390,11 +428,11 @@
       item.appendChild(content);
 
       const actions = document.createElement('div');
-      actions.className = 'list-actions';
-      const editButton = createActionButton('編集', 'ghost', () => {
+      actions.className = listActionsClass;
+      const editButton = createActionButton('編集', ghostButtonClass, () => {
         setRecurringEditMode(recurring);
       });
-      const deleteButton = createActionButton('削除', 'ghost', async () => {
+      const deleteButton = createActionButton('削除', ghostButtonClass, async () => {
         if (!confirm('積立設定を削除します。よろしいですか？')) {
           return;
         }
@@ -429,6 +467,7 @@
     holdingList.innerHTML = '';
     if (holdings.length === 0) {
       const empty = document.createElement('li');
+      empty.className = `${listItemClass} ${listEmptyClass}`;
       empty.textContent = '保有情報がありません。';
       holdingList.appendChild(empty);
       return;
@@ -436,9 +475,11 @@
 
     holdings.forEach((holding) => {
       const item = document.createElement('li');
+      item.className = listItemClass;
       const title = document.createElement('strong');
       title.textContent = holding.fundName;
       const detail = document.createElement('span');
+      detail.className = 'text-right text-sm text-slate-300 min-w-[200px]';
 
       if (holding.currentValue === null) {
         detail.textContent = `${holding.totalUnits.toLocaleString()}口 / NAV未登録`;
@@ -446,7 +487,10 @@
         const valueText = formatCurrency(holding.currentValue);
         const gainText = holding.unrealizedGain !== null ? formatCurrency(holding.unrealizedGain) : '-';
         const rateText = holding.unrealizedGainRate !== null ? formatRate(holding.unrealizedGainRate) : '-';
-        const gainClass = holding.unrealizedGain !== null && holding.unrealizedGain >= 0 ? 'positive' : 'negative';
+        const gainClass =
+          holding.unrealizedGain !== null && holding.unrealizedGain >= 0
+            ? 'text-emerald-300'
+            : 'text-rose-300';
         detail.innerHTML = `${holding.totalUnits.toLocaleString()}口 / ${valueText}<br><span class="${gainClass}">${gainText} (${rateText})</span>`;
       }
 
@@ -459,57 +503,53 @@
   function renderPortfolioSummary(portfolio) {
     // 残存投資額
     portfolioRemainingInvestment.textContent = formatCurrency(portfolio.remainingInvestment);
-    portfolioRemainingInvestment.className = 'summary-value';
+    portfolioRemainingInvestment.className = summaryValueDefaultClass;
 
     // 累計投入額
     portfolioTotalInvestment.textContent = formatCurrency(portfolio.totalInvestment);
-    portfolioTotalInvestment.className = 'summary-value';
+    portfolioTotalInvestment.className = summaryValueDefaultClass;
 
     // 売却総額
     portfolioTotalSaleAmount.textContent = formatCurrency(portfolio.totalSaleAmount);
-    portfolioTotalSaleAmount.className = 'summary-value';
+    portfolioTotalSaleAmount.className = summaryValueDefaultClass;
 
     // 実現損益
     portfolioRealizedGain.textContent = formatCurrency(portfolio.realizedGain);
-    portfolioRealizedGain.className = `summary-value ${
-      portfolio.realizedGain >= 0 ? 'positive' : 'negative'
-    }`;
+    portfolioRealizedGain.className =
+      portfolio.realizedGain >= 0 ? summaryValuePositiveClass : summaryValueNegativeClass;
 
     if (portfolio.totalCurrentValue === null) {
       portfolioValue.textContent = 'NAV未登録';
-      portfolioValue.className = 'summary-value muted';
+      portfolioValue.className = summaryValueMutedClass;
       portfolioUnrealizedGain.textContent = '-';
-      portfolioUnrealizedGain.className = 'summary-value muted';
+      portfolioUnrealizedGain.className = summaryValueMutedClass;
       portfolioTotalGain.textContent = '-';
-      portfolioTotalGain.className = 'summary-value muted';
+      portfolioTotalGain.className = summaryValueMutedClass;
       portfolioTotalGainRate.textContent = '-';
-      portfolioTotalGainRate.className = 'summary-value muted';
+      portfolioTotalGainRate.className = summaryValueMutedClass;
       return;
     }
 
     // 評価額
     portfolioValue.textContent = formatCurrency(portfolio.totalCurrentValue);
-    portfolioValue.className = 'summary-value';
+    portfolioValue.className = summaryValueDefaultClass;
 
     // 損益（損益率）
     const unrealizedGainText = formatCurrency(portfolio.totalUnrealizedGain);
     const unrealizedGainRateText = formatRate(portfolio.totalUnrealizedGainRate);
     portfolioUnrealizedGain.textContent = `${unrealizedGainText} (${unrealizedGainRateText})`;
-    portfolioUnrealizedGain.className = `summary-value ${
-      portfolio.totalUnrealizedGain >= 0 ? 'positive' : 'negative'
-    }`;
+    portfolioUnrealizedGain.className =
+      portfolio.totalUnrealizedGain >= 0 ? summaryValuePositiveClass : summaryValueNegativeClass;
 
     // 総損益
     portfolioTotalGain.textContent = formatCurrency(portfolio.totalGain);
-    portfolioTotalGain.className = `summary-value ${
-      portfolio.totalGain >= 0 ? 'positive' : 'negative'
-    }`;
+    portfolioTotalGain.className =
+      portfolio.totalGain >= 0 ? summaryValuePositiveClass : summaryValueNegativeClass;
 
     // 総損益率
     portfolioTotalGainRate.textContent = formatRate(portfolio.totalGainRate);
-    portfolioTotalGainRate.className = `summary-value ${
-      portfolio.totalGainRate >= 0 ? 'positive' : 'negative'
-    }`;
+    portfolioTotalGainRate.className =
+      portfolio.totalGainRate >= 0 ? summaryValuePositiveClass : summaryValueNegativeClass;
   }
 
   async function loadFunds() {
@@ -578,6 +618,7 @@
 
     if (recentTransactions.length === 0) {
       const emptyItem = document.createElement('li');
+      emptyItem.className = `${listItemClass} ${listEmptyClass}`;
       emptyItem.textContent = '取引履歴がありません。';
       recurringTransactionList.appendChild(emptyItem);
       return;
@@ -588,29 +629,26 @@
       const fundName = fund ? fund.name : '不明な銘柄';
 
       const item = document.createElement('li');
+      item.className = listItemClass;
       const content = document.createElement('div');
-      content.className = 'list-content';
+      content.className = listContentClass;
 
       // 日付と取引種別バッジを含むヘッダー行
       const header = document.createElement('div');
-      header.style.display = 'flex';
-      header.style.alignItems = 'center';
-      header.style.gap = '8px';
-      header.style.marginBottom = '4px';
+      header.className = 'mb-1 flex items-center gap-2 text-sm text-slate-200';
 
       const date = document.createElement('strong');
       date.textContent = transaction.date;
 
       const badge = document.createElement('span');
-      badge.className = 'transaction-badge';
       if (transaction.type === 'SPOT_PURCHASE') {
-        badge.classList.add('spot-purchase');
+        badge.className = badgeSpotClass;
         badge.textContent = 'スポット購入';
       } else if (transaction.type === 'REDEMPTION') {
-        badge.classList.add('redemption');
+        badge.className = badgeRedemptionClass;
         badge.textContent = '売却';
       } else {
-        badge.classList.add('recurring-purchase');
+        badge.className = badgeRecurringClass;
         badge.textContent = '積立購入';
       }
 
@@ -619,11 +657,11 @@
 
       // 銘柄名と取引詳細
       const fundNameDiv = document.createElement('div');
-      fundNameDiv.style.fontWeight = '500';
-      fundNameDiv.style.marginBottom = '4px';
+      fundNameDiv.className = 'text-sm font-medium text-slate-100';
       fundNameDiv.textContent = fundName;
 
       const detail = document.createElement('span');
+      detail.className = 'text-xs text-slate-400';
       const unitsDisplay = transaction.type === 'REDEMPTION'
         ? `${Math.abs(transaction.units).toLocaleString()}口`
         : `${transaction.units.toLocaleString()}口`;
@@ -710,6 +748,7 @@
 
     if (!fundId || !date) {
       transactionNavValue.textContent = '-';
+      transactionNavValue.className = calculatedValueMutedClass;
       updateCalculatedValue();
       return;
     }
@@ -722,7 +761,7 @@
 
       if (!response.success) {
         transactionNavValue.textContent = 'エラー';
-        transactionNavValue.style.color = 'var(--error)';
+        transactionNavValue.className = calculatedValueErrorClass;
         updateCalculatedValue();
         return;
       }
@@ -731,17 +770,17 @@
       const nav = response.value.find((n) => n.date === date);
       if (nav) {
         transactionNavValue.textContent = `${nav.value.toLocaleString()}円`;
-        transactionNavValue.style.color = 'var(--accent)';
+        transactionNavValue.className = calculatedValueAccentClass;
         transactionNavValue.dataset.value = String(nav.value);
       } else {
         transactionNavValue.textContent = '未記録';
-        transactionNavValue.style.color = 'var(--error)';
+        transactionNavValue.className = calculatedValueErrorClass;
         delete transactionNavValue.dataset.value;
       }
       updateCalculatedValue();
     } catch (error) {
       transactionNavValue.textContent = 'エラー';
-      transactionNavValue.style.color = 'var(--error)';
+      transactionNavValue.className = calculatedValueErrorClass;
       delete transactionNavValue.dataset.value;
       updateCalculatedValue();
     }
@@ -754,7 +793,7 @@
 
     if (!navValue || navValue <= 0) {
       transactionCalculatedValue.textContent = '-';
-      transactionCalculatedValue.style.color = '';
+      transactionCalculatedValue.className = calculatedValueMutedClass;
       return;
     }
 
@@ -764,10 +803,10 @@
       if (amount > 0) {
         const units = Math.round((amount / navValue) * 10000);
         transactionCalculatedValue.textContent = `${units.toLocaleString()}口`;
-        transactionCalculatedValue.style.color = 'var(--accent)';
+        transactionCalculatedValue.className = calculatedValueAccentClass;
       } else {
         transactionCalculatedValue.textContent = '-';
-        transactionCalculatedValue.style.color = '';
+        transactionCalculatedValue.className = calculatedValueMutedClass;
       }
     } else {
       // 売却口数から金額を計算
@@ -775,10 +814,10 @@
       if (units > 0) {
         const amount = Math.round((units / 10000) * navValue);
         transactionCalculatedValue.textContent = `${amount.toLocaleString()}円`;
-        transactionCalculatedValue.style.color = 'var(--accent)';
+        transactionCalculatedValue.className = calculatedValueAccentClass;
       } else {
         transactionCalculatedValue.textContent = '-';
-        transactionCalculatedValue.style.color = '';
+        transactionCalculatedValue.className = calculatedValueMutedClass;
       }
     }
   }
@@ -987,12 +1026,12 @@
     const isHidden = portfolioDetails.classList.contains('hidden');
     if (isHidden) {
       portfolioDetails.classList.remove('hidden');
-      portfolioToggleButton.classList.add('expanded');
-      portfolioToggleButton.textContent = '詳細を非表示';
+      portfolioToggleIcon.classList.add('rotate-180');
+      portfolioToggleLabel.textContent = '詳細を非表示';
     } else {
       portfolioDetails.classList.add('hidden');
-      portfolioToggleButton.classList.remove('expanded');
-      portfolioToggleButton.textContent = '詳細を表示';
+      portfolioToggleIcon.classList.remove('rotate-180');
+      portfolioToggleLabel.textContent = '詳細を表示';
     }
   });
 
