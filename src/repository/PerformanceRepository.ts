@@ -77,11 +77,12 @@ export function createPerformanceRepository(
         return sheetNameResult;
       }
 
+      // 全体実績ではtotalUnitsは記録しない（ファンドごとに単位が異なるため合計値に意味がない）
       return sheetRepository.appendRows(sheetNameResult.value as never, [
         [
           performance.fundId,
           performance.date,
-          performance.totalUnits,
+          '', // totalUnits: 全体実績では空（ファンドごとに単位が異なるため）
           performance.remainingInvestment,
           performance.currentValue,
           performance.totalGain,
@@ -251,7 +252,13 @@ function parseRow(row: unknown[], index: number): Result<PerformanceRecord> {
     );
   }
 
-  if (typeof totalUnits !== 'number' || Number.isNaN(totalUnits)) {
+  // totalUnitsは全体実績シートでは空文字列の場合がある（ファンド別実績では必須）
+  let totalUnitsValue: number;
+  if (totalUnits === '' || totalUnits === null || totalUnits === undefined) {
+    totalUnitsValue = 0; // 空の場合は0として扱う
+  } else if (typeof totalUnits === 'number' && !Number.isNaN(totalUnits)) {
+    totalUnitsValue = totalUnits;
+  } else {
     return fail('unexpected', `performanceの${String(index + 2)}行目のtotalUnitsが不正です。`);
   }
   if (typeof remainingInvestment !== 'number' || Number.isNaN(remainingInvestment)) {
@@ -281,7 +288,7 @@ function parseRow(row: unknown[], index: number): Result<PerformanceRecord> {
     value: {
       fundId,
       date: dateStr,
-      totalUnits,
+      totalUnits: totalUnitsValue,
       remainingInvestment,
       currentValue,
       totalGain,
