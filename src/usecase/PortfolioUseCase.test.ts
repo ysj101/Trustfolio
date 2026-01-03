@@ -44,6 +44,16 @@ describe('PortfolioUseCase', () => {
     const transactionRepository: TransactionRepository = {
       listByFundId: () => ok([]),
       listAll: () => ok(transactions),
+      listByFundIdsGrouped: (fundIds) => {
+        const map = new Map<string, Transaction[]>();
+        for (const fundId of fundIds) {
+          map.set(
+            fundId,
+            transactions.filter((tx) => tx.fundId === fundId)
+          );
+        }
+        return ok(map);
+      },
       createTransaction: () => ok(undefined),
       findByIdempotencyKey: () => ok(null),
       findById: () => ok(null),
@@ -94,6 +104,7 @@ describe('PortfolioUseCase', () => {
     const transactionRepository: TransactionRepository = {
       listByFundId: () => ok([]),
       listAll: () => ok([]),
+      listByFundIdsGrouped: () => ok(new Map()),
       createTransaction: () => ok(undefined),
       findByIdempotencyKey: () => ok(null),
       findById: () => ok(null),
@@ -136,6 +147,7 @@ describe('PortfolioUseCase', () => {
     const transactionRepository: TransactionRepository = {
       listByFundId: () => ok([]),
       listAll: () => ok([]),
+      listByFundIdsGrouped: () => ok(new Map()),
       createTransaction: () => ok(undefined),
       findByIdempotencyKey: () => ok(null),
       findById: () => ok(null),

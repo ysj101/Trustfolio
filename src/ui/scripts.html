@@ -561,13 +561,26 @@
     renderFunds();
     renderTransactionSelect();
     renderRecurringSelect();
-    if (state.selectedTransactionFundId) {
-      await loadTransactions(state.selectedTransactionFundId);
+
+    // 並列API呼び出し
+    const results = await Promise.allSettled([
+      state.selectedTransactionFundId
+        ? loadTransactions(state.selectedTransactionFundId)
+        : Promise.resolve(),
+      loadRecurringPurchases(),
+      loadHoldings(),
+      loadPortfolioSummary(),
+      loadRecurringTransactionHistory(),
+    ]);
+
+    // 失敗したAPIのエラーメッセージを集約
+    const errors = results
+      .filter((r) => r.status === 'rejected')
+      .map((r) => r.reason?.message || '不明なエラー');
+
+    if (errors.length > 0) {
+      setMessage(`一部のデータ取得に失敗しました: ${errors.join(', ')}`, 'error');
     }
-    await loadRecurringPurchases();
-    await loadHoldings();
-    await loadPortfolioSummary();
-    await loadRecurringTransactionHistory();
   }
 
   async function loadTransactions(fundId) {

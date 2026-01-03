@@ -56,20 +56,28 @@ export function createHoldingUseCase(
         return fundResult as Result<Holding[]>;
       }
 
+      // 全ファンドIDを取得
+      const fundIds = fundResult.value.map((f) => f.id);
+
+      // バッチ取得（合計3回程度のシートアクセス）
+      const transactionsMapResult = transactionRepository.listByFundIdsGrouped(fundIds);
+      if (!transactionsMapResult.success) {
+        return transactionsMapResult as Result<Holding[]>;
+      }
+
+      const navsMapResult = navRepository.findLatestByFundIds(fundIds);
+      if (!navsMapResult.success) {
+        return navsMapResult as Result<Holding[]>;
+      }
+
+      // メモリ上でHoldingを計算
       const holdings: Holding[] = [];
 
       for (const fund of fundResult.value) {
-        const transactionResult = transactionRepository.listByFundId(fund.id);
-        if (!transactionResult.success) {
-          return transactionResult as Result<Holding[]>;
-        }
+        const transactions = transactionsMapResult.value.get(fund.id) ?? [];
+        const nav = navsMapResult.value.get(fund.id) ?? null;
 
-        const navResult = navRepository.findLatestByFundId(fund.id);
-        if (!navResult.success) {
-          return navResult as Result<Holding[]>;
-        }
-
-        const holding = calculateHolding(fund, transactionResult.value, navResult.value);
+        const holding = calculateHolding(fund, transactions, nav);
         if (holding !== null) {
           holdings.push(holding);
         }
