@@ -101,3 +101,18 @@ export const PERFORMANCE_HEADERS = [
   'unrealizedGainRate',
   'createdAt',
 ] as const;
+
+/**
+ * 週次レポート送信先メールアドレスを取得する。
+ * スクリプトプロパティから取得する。
+ * 設定されていない場合はnullを返す。
+ *
+ * @returns 週次レポート送信先メールアドレス、未設定の場合はnull
+ */
+export function getWeeklyReportEmail(): string | null {
+  const email = PropertiesService.getScriptProperties().getProperty('WEEKLY_REPORT_EMAIL');
+  if (email === null || email.trim() === '') {
+    return null;
+  }
+  return email;
+}

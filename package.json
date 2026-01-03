@@ -6,6 +6,7 @@
     "build": "rollup -c",
     "push": "pnpm lint && pnpm build && clasp push --force",
     "setup:clasp": "scripts/setup-clasp.sh",
+    "sync:env": "node scripts/sync-env-to-gas.mjs",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "format": "prettier --write \"src/**/*.ts\"",

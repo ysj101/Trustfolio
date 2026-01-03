@@ -93,6 +93,8 @@ export type Holding = {
   totalUnits: number;
   averageCost: number;
   totalInvestment: number;
+  totalSaleAmount: number;
+  remainingInvestment: number;
   currentNavValue: number | null;
   currentNavDate: string | null;
   currentValue: number | null;

@@ -260,27 +260,24 @@ function recordFundPerformance(
     return { success: true, value: undefined }; // 保有なし
   }
 
-  // 4. 残存投資額を計算（売却額を引く）
-  const portfolio = calculatePortfolio([holding], transactionsResult.value);
+  // unrealizedGainとunrealizedGainRateはnullでないことを確認
+  if (holding.unrealizedGain === null || holding.unrealizedGainRate === null) {
+    return { success: true, value: undefined };
+  }
 
-  // 5. 損益と損益率を計算
-  const totalGain = holding.currentValue - portfolio.remainingInvestment;
-  const unrealizedGainRate =
-    portfolio.remainingInvestment !== 0 ? totalGain / portfolio.remainingInvestment : 0;
-
-  // 6. 実績データ作成
+  // 4. 実績データ作成
   const performance: PerformanceRecord = {
     fundId: fund.id,
     date: nav.date,
     totalUnits: holding.totalUnits,
-    remainingInvestment: portfolio.remainingInvestment,
+    remainingInvestment: holding.remainingInvestment,
     currentValue: holding.currentValue,
-    totalGain,
-    unrealizedGainRate,
+    totalGain: holding.unrealizedGain,
+    unrealizedGainRate: holding.unrealizedGainRate,
     createdAt: new Date().toISOString(),
   };
 
-  // 7. ファンド別シートに記録
+  // 5. ファンド別シートに記録
   return performanceRepository.createPerformance(performance);
 }
 
@@ -330,30 +327,25 @@ function recordGlobalPerformance(
   // 3. ポートフォリオサマリー計算
   const portfolio = calculatePortfolio(holdings, allTransactionsResult.value);
 
-  if (portfolio.totalCurrentValue === null) {
+  if (portfolio.totalCurrentValue === null || portfolio.totalUnrealizedGain === null) {
     return { success: true, value: undefined };
   }
-
-  // 4. 損益と損益率を計算
-  const totalGain = portfolio.totalCurrentValue - portfolio.remainingInvestment;
-  const unrealizedGainRate =
-    portfolio.remainingInvestment !== 0 ? totalGain / portfolio.remainingInvestment : 0;
 
   // 全保有口数を計算
   const totalUnits = holdings.reduce((sum, holding) => sum + holding.totalUnits, 0);
 
-  // 5. 全体実績データ作成
+  // 4. 全体実績データ作成（portfolioから既に計算済みの値を使用）
   const performance: PerformanceRecord = {
     fundId: '', // 全体実績はfundIdなし
     date,
     totalUnits,
     remainingInvestment: portfolio.remainingInvestment,
     currentValue: portfolio.totalCurrentValue,
-    totalGain,
-    unrealizedGainRate,
+    totalGain: portfolio.totalUnrealizedGain,
+    unrealizedGainRate: portfolio.totalUnrealizedGainRate ?? 0,
     createdAt: new Date().toISOString(),
   };
 
-  // 6. 全体シートに記録
+  // 5. 全体シートに記録
   return performanceRepository.createGlobalPerformance(performance);
 }

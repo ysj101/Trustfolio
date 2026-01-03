@@ -38,6 +38,15 @@ const footer = [
   '}',
   'function deleteNavFetchTrigger() {',
   '  return TrustfolioApp.deleteNavFetchTrigger();',
+  '}',
+  'function sendWeeklyReport() {',
+  '  return TrustfolioApp.sendWeeklyReport();',
+  '}',
+  'function setupWeeklyReportTrigger() {',
+  '  return TrustfolioApp.setupWeeklyReportTrigger();',
+  '}',
+  'function deleteWeeklyReportTrigger() {',
+  '  return TrustfolioApp.deleteWeeklyReportTrigger();',
   '}'
 ].join('\n');
 

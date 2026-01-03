@@ -55,6 +55,9 @@ export function calculateHolding(
   const averageCost =
     totalPurchaseUnits > 0 ? Math.round((totalInvestment / totalPurchaseUnits) * UNITS_BASE) : 0;
 
+  // 残存投資額を計算
+  const remainingInvestment = totalInvestment - totalSaleAmount;
+
   if (latestNav === null) {
     return {
       fundId: fund.id,
@@ -62,6 +65,8 @@ export function calculateHolding(
       totalUnits,
       averageCost,
       totalInvestment,
+      totalSaleAmount,
+      remainingInvestment,
       currentNavValue: null,
       currentNavDate: null,
       currentValue: null,
@@ -72,7 +77,6 @@ export function calculateHolding(
 
   const currentValue = Math.round((totalUnits / UNITS_BASE) * latestNav.value);
   // 損益は残存投資額（購入金額 - 売却金額）を基準に算出する
-  const remainingInvestment = totalInvestment - totalSaleAmount;
   const unrealizedGain = currentValue - remainingInvestment;
   const unrealizedGainRate =
     remainingInvestment > 0
@@ -85,6 +89,8 @@ export function calculateHolding(
     totalUnits,
     averageCost,
     totalInvestment,
+    totalSaleAmount,
+    remainingInvestment,
     currentNavValue: latestNav.value,
     currentNavDate: latestNav.date,
     currentValue,
