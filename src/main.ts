@@ -6,6 +6,8 @@ export type { NavFetchResult } from './usecase/NavFetchUseCase';
 import type { Result } from './domain/types';
 import type { NavFetchResult, NavFetchResultItem } from './usecase/NavFetchUseCase';
 import type { ExecuteRecurringResult } from './usecase/RecurringUseCase';
+import { getWeeklyReportEmail } from './Config';
+import { createEmailService } from './service/EmailService';
 
 /**
  * Webアプリのエントリーポイント（GET）。
@@ -69,6 +71,28 @@ function createJsonResponse(response: unknown): GoogleAppsScript.Content.TextOut
 }
 
 /**
+ * エラー通知メールを送信するヘルパー関数。
+ * スクリプトプロパティからメールアドレスを取得して送信する。
+ *
+ * @param taskName - タスク名
+ * @param errorMessage - エラーメッセージ
+ */
+function sendErrorNotificationEmail(taskName: string, errorMessage: string): void {
+  const recipient = getWeeklyReportEmail();
+  if (recipient === null) {
+    Logger.log('エラー通知メールの送信先が設定されていません（WEEKLY_REPORT_EMAIL）');
+    return;
+  }
+
+  const emailService = createEmailService();
+  const result = emailService.sendErrorNotification(taskName, errorMessage, recipient);
+
+  if (!result.success) {
+    Logger.log(`エラー通知メールの送信に失敗しました: ${result.error.message}`);
+  }
+}
+
+/**
  * 全銘柄の基準価額を自動取得する。
  * Google Apps Scriptのトリガーから呼び出すための関数。
  * 毎日21:00〜22:00頃に実行することを推奨（投資信託協会の基準価額公開後）。
@@ -77,12 +101,22 @@ export function fetchAllNavs(): void {
   const response = handleApiRequest({ action: 'fetchAllNavs' });
   if (!response.success) {
     console.error('基準価額の自動取得に失敗しました:', response.error.message);
+    // エラー通知メールを送信
+    sendErrorNotificationEmail(
+      '基準価額自動取得',
+      `基準価額の自動取得に失敗しました。\n\nエラー: ${response.error.message}\nタイプ: ${response.error.type}`
+    );
     return;
   }
 
   const result = response.value;
   if (!isNavFetchResult(result)) {
     console.error('基準価額の自動取得結果の形式が不正です');
+    // エラー通知メールを送信
+    sendErrorNotificationEmail(
+      '基準価額自動取得',
+      '基準価額の自動取得結果の形式が不正です。\n\nレスポンス形式が期待通りではありません。'
+    );
     return;
   }
 
@@ -96,6 +130,22 @@ export function fetchAllNavs(): void {
   );
 
   logNavFetchFailures(result.items);
+
+  // 失敗があった場合はメール通知
+  if (result.failedCount > 0) {
+    const failedItems = result.items.filter((item) => item.status === 'failed');
+    const errorDetails = failedItems
+      .map((item) => `- ${item.fundName} (${item.fundId}): ${item.message ?? '不明なエラー'}`)
+      .join('\n');
+    sendErrorNotificationEmail(
+      '基準価額自動取得（一部失敗）',
+      `基準価額の自動取得で一部の銘柄が失敗しました。\n\n` +
+        `総数: ${String(result.totalCount)}\n` +
+        `成功: ${String(result.successCount)}\n` +
+        `失敗: ${String(result.failedCount)}\n\n` +
+        `失敗した銘柄:\n${errorDetails}`
+    );
+  }
 }
 
 /**
@@ -115,11 +165,24 @@ export function executeRecurringPurchasesDaily(): Result<ExecuteRecurringResult>
     Logger.log(
       `[executeRecurringPurchasesDaily] 失敗: ${response.error.message} (${response.error.type})`
     );
+    // エラー通知メールを送信
+    sendErrorNotificationEmail(
+      '積立自動実行',
+      `積立の自動実行に失敗しました。\n\n` +
+        `約定日: ${today}\n` +
+        `エラー: ${response.error.message}\n` +
+        `タイプ: ${response.error.type}`
+    );
     return response as Result<ExecuteRecurringResult>;
   }
 
   if (!isExecuteRecurringResult(response.value)) {
     Logger.log('[executeRecurringPurchasesDaily] 失敗: 実行結果の形式が不正です。');
+    // エラー通知メールを送信
+    sendErrorNotificationEmail(
+      '積立自動実行',
+      `積立の自動実行結果の形式が不正です。\n\n約定日: ${today}\n\nレスポンス形式が期待通りではありません。`
+    );
     return {
       success: false,
       error: {
