@@ -6,6 +6,7 @@ import {
   SHEET_NAMES,
   getPerformanceSheetName,
   getTransactionSheetName,
+  getWeeklyReportEmail,
   type SheetDefinition,
 } from '../Config';
 import type { Result } from '../domain/types';
@@ -16,6 +17,7 @@ import { createRecurringPurchaseRepository } from '../repository/RecurringPurcha
 import type { SheetRepository } from '../repository/SheetRepository';
 import { openSheetRepository } from '../repository/SheetRepository';
 import { createTransactionRepository } from '../repository/TransactionRepository';
+import { createEmailService } from '../service/EmailService';
 import { createRakutenService } from '../service/RakutenService';
 import { createFundUseCase } from '../usecase/FundUseCase';
 import { createHoldingUseCase } from '../usecase/HoldingUseCase';
@@ -24,6 +26,7 @@ import { createNavUseCase } from '../usecase/NavUseCase';
 import { createPortfolioUseCase } from '../usecase/PortfolioUseCase';
 import { createRecurringUseCase } from '../usecase/RecurringUseCase';
 import { createTransactionUseCase } from '../usecase/TransactionUseCase';
+import { createWeeklyReportUseCase } from '../usecase/WeeklyReportUseCase';
 
 type InitializeSheetsRequest = {
   action: 'initializeSheets';
@@ -156,6 +159,10 @@ type FetchAllNavsRequest = {
   action: 'fetchAllNavs';
 };
 
+type SendWeeklyReportRequest = {
+  action: 'sendWeeklyReport';
+};
+
 export type ApiRequest =
   | InitializeSheetsRequest
   | ListFundsRequest
@@ -177,7 +184,8 @@ export type ApiRequest =
   | ListHoldingsRequest
   | GetHoldingRequest
   | GetPortfolioSummaryRequest
-  | FetchAllNavsRequest;
+  | FetchAllNavsRequest
+  | SendWeeklyReportRequest;
 
 /**
  * APIリクエストをハンドリングする。
@@ -360,6 +368,37 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
         return ensureResult;
       }
       return navFetchUseCase.fetchAndRegisterAllNavs();
+    }
+    case 'sendWeeklyReport': {
+      // メールアドレスを取得
+      const recipientEmail = getWeeklyReportEmail();
+      if (recipientEmail === null) {
+        return {
+          success: false,
+          error: {
+            type: 'validation',
+            message:
+              'WEEKLY_REPORT_EMAILが設定されていません。スクリプトプロパティに設定してください。',
+            field: 'WEEKLY_REPORT_EMAIL',
+          },
+        };
+      }
+
+      // 週次レポートを生成
+      const weeklyReportUseCase = createWeeklyReportUseCase(portfolioUseCase);
+      const reportResult = weeklyReportUseCase.generateWeeklyReport();
+      if (!reportResult.success) {
+        return reportResult;
+      }
+
+      // メールを送信
+      const emailService = createEmailService();
+      const sendResult = emailService.sendWeeklyReport(reportResult.value, recipientEmail);
+      if (!sendResult.success) {
+        return sendResult;
+      }
+
+      return { success: true, value: { message: '週次レポートを送信しました。' } };
     }
     default:
       return {

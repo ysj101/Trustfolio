@@ -282,3 +282,65 @@ function summarizeSkippedReasons(
   }
   return summary;
 }
+
+/**
+ * 週次レポートをメールで送信する。
+ * 毎週土曜日にトリガーから自動実行される関数。
+ * ポートフォリオの全体サマリーと保有銘柄一覧をメールで送信する。
+ */
+export function sendWeeklyReport(): void {
+  const response = handleApiRequest({ action: 'sendWeeklyReport' });
+
+  if (!response.success) {
+    Logger.log(`[sendWeeklyReport] 失敗: ${response.error.message} (${response.error.type})`);
+    return;
+  }
+
+  Logger.log('[sendWeeklyReport] 週次レポートを送信しました。');
+}
+
+/**
+ * 週次レポート送信トリガーを設定する。
+ * この関数を1回だけ手動実行することで、毎週土曜日の9:00-10:00に自動実行されるトリガーが設定される。
+ * 既存のトリガーは削除してから新しいトリガーを設定する。
+ */
+export function setupWeeklyReportTrigger(): void {
+  const existingTriggers = ScriptApp.getProjectTriggers();
+  for (const trigger of existingTriggers) {
+    if (trigger.getHandlerFunction() === 'sendWeeklyReport') {
+      ScriptApp.deleteTrigger(trigger);
+      Logger.log(`既存のトリガーを削除しました: ${trigger.getUniqueId()}`);
+    }
+  }
+
+  ScriptApp.newTrigger('sendWeeklyReport')
+    .timeBased()
+    .onWeekDay(ScriptApp.WeekDay.SATURDAY)
+    .atHour(9)
+    .create();
+
+  Logger.log('週次レポート送信トリガーを設定しました（毎週土曜日9:00-10:00実行）');
+}
+
+/**
+ * 週次レポート送信トリガーを削除する。
+ * 自動送信を停止したい場合に実行する。
+ */
+export function deleteWeeklyReportTrigger(): void {
+  const triggers = ScriptApp.getProjectTriggers();
+  let deletedCount = 0;
+
+  for (const trigger of triggers) {
+    if (trigger.getHandlerFunction() === 'sendWeeklyReport') {
+      ScriptApp.deleteTrigger(trigger);
+      deletedCount++;
+      Logger.log(`トリガーを削除しました: ${trigger.getUniqueId()}`);
+    }
+  }
+
+  if (deletedCount === 0) {
+    Logger.log('削除対象のトリガーが見つかりませんでした。');
+  } else {
+    Logger.log(`${String(deletedCount)}個のトリガーを削除しました。`);
+  }
+}

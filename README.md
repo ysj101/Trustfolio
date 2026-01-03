@@ -74,6 +74,7 @@ cp .env.example .env
 | 環境変数 | 説明 | 取得方法 |
 |----------|------|----------|
 | `GAS_SCRIPT_ID` | GASプロジェクトのScript ID | GASエディタのURL `https://script.google.com/home/projects/{SCRIPT_ID}/edit` から取得 |
+| `WEEKLY_REPORT_EMAIL` | 週次レポート送信先メールアドレス | 投資実績レポートを受信するメールアドレスを指定 |
 
 3. `.clasp.json`を生成します。
 
@@ -146,6 +147,32 @@ GASエディタで既存デプロイメントを更新します（URLが固定�
 1. Google Apps Scriptエディタの「トリガー」から「+ トリガーを追加」
 2. 関数: `fetchAllNavs`、イベント: `時間主導型`、時刻: `午後9時〜10時`を設定
 
+### 週次レポートの設定
+
+投資実績を毎週土曜日にメールで受信するには、以下の手順を実行します。
+
+#### 1. スクリプトプロパティの設定
+
+1. Google Apps Scriptエディタを開く
+2. プロジェクトの設定（歯車アイコン）をクリック
+3. 「スクリプトプロパティ」タブを選択
+4. 「スクリプトプロパティを追加」をクリック
+5. 以下を入力して保存
+   - プロパティ: `WEEKLY_REPORT_EMAIL`
+   - 値: メール送信先アドレス（例: `your_email@example.com`）
+
+#### 2. トリガーを設定
+
+1. Google Apps Scriptエディタを開く
+2. 関数選択ドロップダウンから`setupWeeklyReportTrigger`を選択
+3. 「実行」ボタンをクリック
+
+これで毎週土曜日の9:00-10:00に投資実績レポートが指定したメールアドレスに送信されます。
+
+#### トリガーの削除
+
+週次レポートの送信を停止したい場合は、`deleteWeeklyReportTrigger`関数を実行してください。
+
 ## コーディング規約
 
 | 項目 | 方針 |
@@ -162,6 +189,7 @@ GASエディタで既存デプロイメントを更新します（URLが固定�
 |----------|------|
 | `pnpm push` | lint→ビルド→GASへpush（メインコマンド） |
 | `pnpm setup:clasp` | `.env`から`.clasp.json`を生成 |
+| `pnpm sync:env` | `.env`からGASスクリプトプロパティ設定用の関数を出力 |
 | `pnpm build` | GAS用にバンドルして`dist/`へ出力 |
 | `pnpm lint` | ESLintでコード検査 |
 | `pnpm lint:fix` | ESLintで自動修正 |
