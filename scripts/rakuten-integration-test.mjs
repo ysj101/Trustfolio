@@ -1,7 +1,9 @@
+import { fileURLToPath } from 'url';
+
 const fundId = process.env.RAKUTEN_FUND_ID || 'JP90C000H1T1';
 const quoteUrl = `https://www.rakuten-sec.co.jp/web/fund/detail/?ID=${fundId}`;
 
-function parseNavFromRakutenHtml(html) {
+export function parseNavFromRakutenHtml(html) {
   const updateMatch = html.match(/(\d{4})年(\d{1,2})月(\d{1,2})日更新/);
   const updateYear = updateMatch?.[1] ?? '';
   const updateMonth = updateMatch?.[2] ?? '';
@@ -31,8 +33,8 @@ function parseNavFromRakutenHtml(html) {
   };
 }
 
-async function run() {
-  const response = await fetch(quoteUrl, {
+export async function run(fetchFn = fetch) {
+  const response = await fetchFn(quoteUrl, {
     method: 'GET',
     headers: {
       'User-Agent': 'Mozilla/5.0 (compatible; TrustfolioLocalTest/1.0)',
@@ -61,7 +63,10 @@ async function run() {
   }
 }
 
-run().catch((error) => {
-  console.error('楽天証券へのアクセスに失敗しました:', error);
-  process.exitCode = 1;
-});
+const isMain = process.argv[1] === fileURLToPath(import.meta.url);
+if (isMain) {
+  run().catch((error) => {
+    console.error('楽天証券へのアクセスに失敗しました:', error);
+    process.exitCode = 1;
+  });
+}
