@@ -18,11 +18,7 @@ export function createPortfolioUseCase(
 ): PortfolioUseCase {
   return {
     getPortfolioSummary: (): Result<Portfolio> => {
-      const fundResult = fundRepository.listFunds();
-      if (!fundResult.success) {
-        return fundResult as Result<Portfolio>;
-      }
-
+      // HoldingUseCaseを利用してHoldingsを取得（内部でバッチ取得済み）
       const holdingsResult = holdingUseCase.listHoldings();
       if (!holdingsResult.success) {
         return holdingsResult as Result<Portfolio>;
@@ -31,15 +27,23 @@ export function createPortfolioUseCase(
       const holdings = holdingsResult.value;
 
       // 全ファンドのIDリストを取得
-      const fundIds = fundResult.value.map((f) => f.id);
-
-      // 全取引履歴を収集（実現損益計算用）
-      const allTransactionsResult = transactionRepository.listAll(fundIds);
-      if (!allTransactionsResult.success) {
-        return allTransactionsResult as Result<Portfolio>;
+      const fundResult = fundRepository.listFunds();
+      if (!fundResult.success) {
+        return fundResult as Result<Portfolio>;
       }
 
-      const summary = calculatePortfolio(holdings, allTransactionsResult.value);
+      const fundIds = fundResult.value.map((f) => f.id);
+
+      // 全トランザクション取得（実現損益計算用）
+      const transactionsMapResult = transactionRepository.listByFundIdsGrouped(fundIds);
+      if (!transactionsMapResult.success) {
+        return transactionsMapResult as Result<Portfolio>;
+      }
+
+      // 全トランザクションでPortfolio計算
+      const allTransactions = Array.from(transactionsMapResult.value.values()).flat();
+
+      const summary = calculatePortfolio(holdings, allTransactions);
       return {
         success: true,
         value: {

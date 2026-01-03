@@ -25,6 +25,17 @@ function createNavRepository(navs: Nav[]): NavRepository {
         navs.filter((nav) => nav.fundId === fundId).sort((a, b) => (a.date < b.date ? 1 : -1))[0] ??
           null
       ),
+    findLatestByFundIds: (fundIds) => {
+      const map = new Map<string, Nav | null>();
+      for (const fundId of fundIds) {
+        const latestNav =
+          navs
+            .filter((nav) => nav.fundId === fundId)
+            .sort((a, b) => (a.date < b.date ? 1 : -1))[0] ?? null;
+        map.set(fundId, latestNav);
+      }
+      return ok(map);
+    },
     createNav: () => ok(undefined),
   };
 }
@@ -33,6 +44,16 @@ function createTransactionRepository(transactions: Transaction[]): TransactionRe
   return {
     listByFundId: (fundId) => ok(transactions.filter((tx) => tx.fundId === fundId)),
     listAll: () => ok([...transactions]),
+    listByFundIdsGrouped: (fundIds) => {
+      const map = new Map<string, Transaction[]>();
+      for (const fundId of fundIds) {
+        map.set(
+          fundId,
+          transactions.filter((tx) => tx.fundId === fundId)
+        );
+      }
+      return ok(map);
+    },
     createTransaction: () => ok(undefined),
     findByIdempotencyKey: () => ok(null),
     findById: () => ok(null),
@@ -176,6 +197,10 @@ describe('HoldingUseCase', () => {
     const transactionRepository: TransactionRepository = {
       listByFundId: () => ({ success: false, error: { type: 'unexpected', message: '取得失敗' } }),
       listAll: () => ok([]),
+      listByFundIdsGrouped: () => ({
+        success: false,
+        error: { type: 'unexpected', message: '取得失敗' },
+      }),
       createTransaction: () => ok(undefined),
       findByIdempotencyKey: () => ok(null),
       findById: () => ok(null),

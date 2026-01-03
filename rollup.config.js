@@ -59,7 +59,7 @@ function copyUiFiles() {
       if (!fs.existsSync(srcDir)) {
         return;
       }
-      copyDirectory(srcDir, distDir);
+      copyDirectory(srcDir, distDir, { ignoreNames: new Set(['styles.html']) });
     }
   };
 }
@@ -78,16 +78,20 @@ function copyManifest() {
   };
 }
 
-function copyDirectory(source, destination) {
+function copyDirectory(source, destination, options) {
   if (!fs.existsSync(destination)) {
     fs.mkdirSync(destination, { recursive: true });
   }
+  const ignoreNames = options?.ignoreNames ?? new Set();
   const entries = fs.readdirSync(source, { withFileTypes: true });
   entries.forEach((entry) => {
+    if (ignoreNames.has(entry.name)) {
+      return;
+    }
     const srcPath = path.join(source, entry.name);
     const destPath = path.join(destination, entry.name);
     if (entry.isDirectory()) {
-      copyDirectory(srcPath, destPath);
+      copyDirectory(srcPath, destPath, options);
       return;
     }
     fs.copyFileSync(srcPath, destPath);
@@ -104,7 +108,7 @@ module.exports = {
   },
   plugins: [
     typescript({
-      tsconfig: './tsconfig.json'
+      tsconfig: './tsconfig.build.json'
     }),
     copyUiFiles(),
     copyManifest()

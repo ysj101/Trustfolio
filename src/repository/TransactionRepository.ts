@@ -10,6 +10,7 @@ import type { SheetRepository } from './SheetRepository';
 export type TransactionRepository = {
   listByFundId: (fundId: string) => Result<Transaction[]>;
   listAll: (fundIds: string[]) => Result<Transaction[]>;
+  listByFundIdsGrouped: (fundIds: string[]) => Result<Map<string, Transaction[]>>;
   createTransaction: (transaction: Transaction) => Result<void>;
   findByIdempotencyKey: (idempotencyKey: string, fundIds: string[]) => Result<Transaction | null>;
   findById: (transactionId: string, fundId: string) => Result<Transaction | null>;
@@ -80,6 +81,50 @@ export function createTransactionRepository(
       allTransactions.sort((a, b) => (a.date < b.date ? 1 : -1));
 
       return { success: true, value: allTransactions };
+    },
+    listByFundIdsGrouped: (fundIds: string[]): Result<Map<string, Transaction[]>> => {
+      // 各ファンドIDに対するトランザクション配列を保持するMap
+      const transactionsMap = new Map<string, Transaction[]>();
+
+      // fundIdsを初期化（トランザクションが存在しないファンドには空配列を設定）
+      for (const fundId of fundIds) {
+        transactionsMap.set(fundId, []);
+      }
+
+      // 各ファンドのトランザクションシートを読み込み
+      for (const fundId of fundIds) {
+        const sheetName = getTransactionSheetName(fundId);
+        const rowsResult = sheetRepository.readAllRows(sheetName as never);
+
+        // シートが存在しない場合はスキップ(エラーにしない)
+        if (!rowsResult.success) {
+          continue;
+        }
+
+        const transactions: Transaction[] = [];
+
+        for (const [index, row] of rowsResult.value.entries()) {
+          // 空行はスキップ
+          const isEmpty = row.every((cell) => cell === '' || cell === null || cell === undefined);
+          if (isEmpty) {
+            continue;
+          }
+
+          const parsed = parseRow(row, index);
+          if (!parsed.success) {
+            return parsed;
+          }
+          transactions.push(parsed.value);
+        }
+
+        // 日付でソート（降順）
+        transactions.sort((a, b) => (a.date < b.date ? 1 : -1));
+
+        // Mapに格納
+        transactionsMap.set(fundId, transactions);
+      }
+
+      return { success: true, value: transactionsMap };
     },
     createTransaction: (transaction: Transaction): Result<void> => {
       const sheetNameResult = ensureTransactionSheet(sheetRepository, transaction.fundId);

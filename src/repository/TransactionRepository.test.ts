@@ -246,4 +246,197 @@ describe('TransactionRepository', () => {
       expect(result.value).toBeNull();
     }
   });
+
+  describe('listByFundIdsGrouped', () => {
+    it('複数のファンドIDに対する取引をグループ化して取得する', () => {
+      // 前提: 複数のファンドに取引が存在する
+      // 事前条件: 各ファンドに対応する取引シートが存在する
+      // 検証: ファンドIDごとにグループ化されたMapが返される
+      const sheetName1 = getTransactionSheetName('三菱UFJ国際投信-eMAXIS');
+      const sheetName2 = getTransactionSheetName('野村アセット-NASDAQ100');
+      const sheetRepository = createInMemorySheetRepository({
+        [sheetName1]: [
+          [...SHEET_HEADERS[SHEET_NAMES.TRANSACTIONS]],
+          [
+            'tx-1',
+            '三菱UFJ国際投信-eMAXIS',
+            'SPOT_PURCHASE',
+            '2024-01-01',
+            10000,
+            10000,
+            10000,
+            '',
+            '',
+            '2024-01-01T00:00:00.000Z',
+          ],
+          [
+            'tx-2',
+            '三菱UFJ国際投信-eMAXIS',
+            'SPOT_PURCHASE',
+            '2024-02-01',
+            20000,
+            11000,
+            18182,
+            '',
+            '',
+            '2024-02-01T00:00:00.000Z',
+          ],
+        ],
+        [sheetName2]: [
+          [...SHEET_HEADERS[SHEET_NAMES.TRANSACTIONS]],
+          [
+            'tx-3',
+            '野村アセット-NASDAQ100',
+            'SPOT_PURCHASE',
+            '2024-01-15',
+            30000,
+            25000,
+            12000,
+            '',
+            '',
+            '2024-01-15T00:00:00.000Z',
+          ],
+        ],
+      });
+      const repository = createTransactionRepository(sheetRepository);
+      const result = repository.listByFundIdsGrouped([
+        '三菱UFJ国際投信-eMAXIS',
+        '野村アセット-NASDAQ100',
+      ]);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        const txMap = result.value;
+        expect(txMap.size).toBe(2);
+
+        const emaxisTxs = txMap.get('三菱UFJ国際投信-eMAXIS');
+        expect(emaxisTxs).toHaveLength(2);
+        // 降順ソート確認（最新が先頭）
+        expect(emaxisTxs?.[0]?.date).toBe('2024-02-01');
+        expect(emaxisTxs?.[1]?.date).toBe('2024-01-01');
+
+        const nasdaqTxs = txMap.get('野村アセット-NASDAQ100');
+        expect(nasdaqTxs).toHaveLength(1);
+        expect(nasdaqTxs?.[0]?.amount).toBe(30000);
+      }
+    });
+
+    it('取引が存在しないファンドには空配列を設定する', () => {
+      // 前提: 一部のファンドに取引が存在しない
+      // 事前条件: 片方のファンドのシートのみ存在する
+      // 検証: 取引が存在しないファンドには空配列が設定される
+      const sheetName1 = getTransactionSheetName('三菱UFJ国際投信-eMAXIS');
+      const sheetRepository = createInMemorySheetRepository({
+        [sheetName1]: [
+          [...SHEET_HEADERS[SHEET_NAMES.TRANSACTIONS]],
+          [
+            'tx-1',
+            '三菱UFJ国際投信-eMAXIS',
+            'SPOT_PURCHASE',
+            '2024-01-01',
+            10000,
+            10000,
+            10000,
+            '',
+            '',
+            '2024-01-01T00:00:00.000Z',
+          ],
+        ],
+      });
+      const repository = createTransactionRepository(sheetRepository);
+      const result = repository.listByFundIdsGrouped([
+        '三菱UFJ国際投信-eMAXIS',
+        '野村アセット-NASDAQ100',
+      ]);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        const txMap = result.value;
+        expect(txMap.size).toBe(2);
+
+        const emaxisTxs = txMap.get('三菱UFJ国際投信-eMAXIS');
+        expect(emaxisTxs).toHaveLength(1);
+
+        const nasdaqTxs = txMap.get('野村アセット-NASDAQ100');
+        expect(nasdaqTxs).toEqual([]);
+      }
+    });
+
+    it('空のファンドID配列を渡すと空のMapを返す', () => {
+      // 前提: ファンドIDが空配列である
+      // 事前条件: 取引シートにデータがある
+      // 検証: 空のMapが返される
+      const sheetName1 = getTransactionSheetName('fund-1');
+      const sheetRepository = createInMemorySheetRepository({
+        [sheetName1]: [
+          [...SHEET_HEADERS[SHEET_NAMES.TRANSACTIONS]],
+          [
+            'tx-1',
+            'fund-1',
+            'SPOT_PURCHASE',
+            '2024-01-01',
+            10000,
+            10000,
+            10000,
+            '',
+            '',
+            '2024-01-01T00:00:00.000Z',
+          ],
+        ],
+      });
+      const repository = createTransactionRepository(sheetRepository);
+      const result = repository.listByFundIdsGrouped([]);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.value.size).toBe(0);
+      }
+    });
+
+    it('空行を除外してグループ化する', () => {
+      // 前提: 取引シートに空行が混在する
+      // 事前条件: ファンドの取引シートに空行がある
+      // 検証: 空行が除外された状態でグループ化される
+      const sheetName1 = getTransactionSheetName('fund-1');
+      const sheetRepository = createInMemorySheetRepository({
+        [sheetName1]: [
+          [...SHEET_HEADERS[SHEET_NAMES.TRANSACTIONS]],
+          [
+            'tx-1',
+            'fund-1',
+            'SPOT_PURCHASE',
+            '2024-01-01',
+            10000,
+            10000,
+            10000,
+            '',
+            '',
+            '2024-01-01T00:00:00.000Z',
+          ],
+          ['', '', '', '', '', '', '', '', '', ''],
+          [
+            'tx-2',
+            'fund-1',
+            'SPOT_PURCHASE',
+            '2024-02-01',
+            20000,
+            11000,
+            18182,
+            '',
+            '',
+            '2024-02-01T00:00:00.000Z',
+          ],
+        ],
+      });
+      const repository = createTransactionRepository(sheetRepository);
+      const result = repository.listByFundIdsGrouped(['fund-1']);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        const txMap = result.value;
+        const fund1Txs = txMap.get('fund-1');
+        expect(fund1Txs).toHaveLength(2);
+      }
+    });
+  });
 });

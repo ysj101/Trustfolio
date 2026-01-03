@@ -6,6 +6,7 @@ export type NavRepository = {
   listByFundId: (fundId: string) => Result<Nav[]>;
   findByFundAndDate: (fundId: string, date: string) => Result<Nav | null>;
   findLatestByFundId: (fundId: string) => Result<Nav | null>;
+  findLatestByFundIds: (fundIds: string[]) => Result<Map<string, Nav | null>>;
   createNav: (nav: Nav) => Result<void>;
 };
 
@@ -73,6 +74,54 @@ export function createNavRepository(sheetRepository: SheetRepository): NavReposi
       }
       const latest = listResult.value[0] ?? null;
       return { success: true, value: latest };
+    },
+    findLatestByFundIds: (fundIds: string[]): Result<Map<string, Nav | null>> => {
+      // NAV_RECORDSシートを1回だけ読み込む
+      const rowsResult = sheetRepository.readAllRows(SHEET_NAMES.NAV_RECORDS);
+      if (!rowsResult.success) {
+        return rowsResult;
+      }
+
+      // 各ファンドIDに対する最新NAVを保持するMap
+      const latestNavMap = new Map<string, Nav | null>();
+
+      // fundIdsを初期化（NAVが存在しないファンドにはnullを設定）
+      for (const fundId of fundIds) {
+        latestNavMap.set(fundId, null);
+      }
+
+      // 全行を走査して、各ファンドの最新NAVを特定
+      for (const [index, row] of rowsResult.value.entries()) {
+        // 空行はスキップ
+        const isEmpty = row.every((cell) => cell === '' || cell === null || cell === undefined);
+        if (isEmpty) {
+          continue;
+        }
+
+        const parsed = parseRow(row, index);
+        if (!parsed.success) {
+          return parsed;
+        }
+
+        const nav = parsed.value;
+
+        // 対象のファンドIDでない場合はスキップ
+        if (!fundIds.includes(nav.fundId)) {
+          continue;
+        }
+
+        // 既存の最新NAVと比較して、より新しい日付のNAVなら更新
+        const currentLatest = latestNavMap.get(nav.fundId);
+        if (
+          currentLatest === null ||
+          currentLatest === undefined ||
+          nav.date > currentLatest.date
+        ) {
+          latestNavMap.set(nav.fundId, nav);
+        }
+      }
+
+      return { success: true, value: latestNavMap };
     },
     createNav: (nav: Nav): Result<void> => {
       return sheetRepository.appendRows(SHEET_NAMES.NAV_RECORDS, [
