@@ -7,10 +7,12 @@
  *   RAKUTEN_FUND_IDS=JP90C000H1T1,JP90C000FXB7 pnpm test:nav-fetch
  */
 
+import { fileURLToPath } from 'url';
+
 const fundIdsEnv = process.env.RAKUTEN_FUND_IDS || 'JP90C000H1T1';
 const fundIds = fundIdsEnv.split(',').map((id) => id.trim());
 
-function parseNavFromRakutenHtml(html) {
+export function parseNavFromRakutenHtml(html) {
   const updateMatch = html.match(/(\d{4})年(\d{1,2})月(\d{1,2})日更新/);
   const updateYear = updateMatch?.[1] ?? '';
   const updateMonth = updateMatch?.[2] ?? '';
@@ -40,11 +42,11 @@ function parseNavFromRakutenHtml(html) {
   };
 }
 
-async function fetchNav(fundId) {
+export async function fetchNav(fundId, fetchFn = fetch) {
   const url = `https://www.rakuten-sec.co.jp/web/fund/detail/?ID=${fundId}`;
 
   try {
-    const response = await fetch(url, {
+    const response = await fetchFn(url, {
       method: 'GET',
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; TrustfolioLocalTest/1.0)',
@@ -77,7 +79,7 @@ async function fetchNav(fundId) {
   }
 }
 
-async function run() {
+export async function run() {
   console.log('NAV自動取得機能の統合テスト開始');
   console.log(`対象銘柄数: ${fundIds.length}`);
   console.log('');
@@ -118,7 +120,10 @@ async function run() {
   }
 }
 
-run().catch((error) => {
-  console.error('テスト実行エラー:', error);
-  process.exitCode = 1;
-});
+const isMain = process.argv[1] === fileURLToPath(import.meta.url);
+if (isMain) {
+  run().catch((error) => {
+    console.error('テスト実行エラー:', error);
+    process.exitCode = 1;
+  });
+}

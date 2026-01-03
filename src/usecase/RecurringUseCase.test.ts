@@ -1,0 +1,346 @@
+import { describe, expect, it } from 'vitest';
+import { createRecurringUseCase } from './RecurringUseCase';
+import type { FundRepository } from '../repository/FundRepository';
+import type { NavRepository } from '../repository/NavRepository';
+import type { RecurringPurchaseRepository } from '../repository/RecurringPurchaseRepository';
+import type { TransactionRepository } from '../repository/TransactionRepository';
+import type { Fund, Nav, RecurringPurchase, Transaction } from '../domain/types';
+import { ok, fail } from '../test/fakes';
+
+function createFundRepository(funds: Fund[]): FundRepository {
+  return {
+    listFunds: () => ok(funds),
+    findByName: () => ok(null),
+    findById: (id) => ok(funds.find((fund) => fund.id === id) ?? null),
+    createFund: () => ok(undefined),
+    updateFund: () => ok(undefined),
+  };
+}
+
+function createNavRepository(navs: Nav[]): NavRepository {
+  return {
+    listByFundId: (fundId) => ok(navs.filter((nav) => nav.fundId === fundId)),
+    findByFundAndDate: () => ok(null),
+    findLatestByFundId: () => ok(null),
+    createNav: () => ok(undefined),
+  };
+}
+
+function createRecurringRepository(seed: RecurringPurchase[]): RecurringPurchaseRepository {
+  const recurrings = [...seed];
+  return {
+    listAll: () => ok([...recurrings]),
+    listActive: () => ok(recurrings.filter((item) => item.isActive)),
+    createRecurringPurchase: (recurring) => {
+      recurrings.push(recurring);
+      return ok(undefined);
+    },
+    findById: (recurringId) => ok(recurrings.find((item) => item.id === recurringId) ?? null),
+    updateRecurringPurchase: (recurring) => {
+      const index = recurrings.findIndex((item) => item.id === recurring.id);
+      if (index === -1) {
+        return fail('not_found', `対象の積立設定が見つかりません: id=${recurring.id}`);
+      }
+      recurrings[index] = recurring;
+      return ok(undefined);
+    },
+    deleteRecurringPurchase: (recurringId) => {
+      const index = recurrings.findIndex((item) => item.id === recurringId);
+      if (index === -1) {
+        return fail('not_found', `対象の積立設定が見つかりません: id=${recurringId}`);
+      }
+      recurrings.splice(index, 1);
+      return ok(undefined);
+    },
+  };
+}
+
+function createTransactionRepository(seed: Transaction[]): TransactionRepository {
+  const transactions = [...seed];
+  return {
+    listByFundId: (fundId) => ok(transactions.filter((tx) => tx.fundId === fundId)),
+    listAll: (fundIds) => ok(transactions.filter((tx) => fundIds.includes(tx.fundId))),
+    createTransaction: (transaction) => {
+      transactions.push(transaction);
+      return ok(undefined);
+    },
+    findByIdempotencyKey: (idempotencyKey) =>
+      ok(transactions.find((tx) => tx.idempotencyKey === idempotencyKey) ?? null),
+    findById: () => ok(null),
+    updateTransaction: () => ok(undefined),
+    deleteTransaction: () => ok(undefined),
+  };
+}
+
+describe('RecurringUseCase', () => {
+  it('終了日が開始日より前の場合はバリデーションエラーになる', () => {
+    // 前提: 終了日が開始日より前である
+    // 事前条件: 銘柄IDは有効である
+    // 検証: endDateフィールドのエラーが返る
+    const useCase = createRecurringUseCase(
+      createFundRepository([]),
+      createNavRepository([]),
+      createRecurringRepository([]),
+      createTransactionRepository([])
+    );
+    const result = useCase.createRecurringPurchase({
+      fundId: 'fund-001',
+      monthlyAmount: 10000,
+      executionDay: 10,
+      startDate: '2024-03-10',
+      endDate: '2024-03-01',
+      isActive: true,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.field).toBe('endDate');
+    }
+  });
+
+  it('積立実行時に成功・スキップ理由が集計される', () => {
+    // 前提: 実行対象・非アクティブ・重複・非対象日の積立が混在する
+    // 事前条件: 営業日カレンダーに注文日と約定日が含まれる
+    // 検証: 成功1件と各スキップ理由が返る
+    const funds: Fund[] = [
+      {
+        id: 'fund-001',
+        name: '国内株式',
+        rakutenFundId: null,
+        settlementBusinessDays: 1,
+        createdAt: '2024-01-01T00:00:00.000Z',
+      },
+    ];
+    const navs: Nav[] = [
+      {
+        fundId: 'fund-001',
+        date: '2024-03-01',
+        value: 10000,
+        createdAt: '2024-03-01T00:00:00.000Z',
+      },
+      {
+        fundId: 'fund-001',
+        date: '2024-03-05',
+        value: 10500,
+        createdAt: '2024-03-05T00:00:00.000Z',
+      },
+    ];
+    const recurrings: RecurringPurchase[] = [
+      {
+        id: 'rec-success',
+        fundId: 'fund-001',
+        monthlyAmount: 10000,
+        executionDay: 1,
+        startDate: '2024-01-01',
+        endDate: null,
+        isActive: true,
+        createdAt: '2024-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'rec-inactive',
+        fundId: 'fund-001',
+        monthlyAmount: 10000,
+        executionDay: 1,
+        startDate: '2024-01-01',
+        endDate: null,
+        isActive: false,
+        createdAt: '2024-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'rec-duplicate',
+        fundId: 'fund-001',
+        monthlyAmount: 10000,
+        executionDay: 1,
+        startDate: '2024-01-01',
+        endDate: null,
+        isActive: true,
+        createdAt: '2024-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'rec-not-target',
+        fundId: 'fund-001',
+        monthlyAmount: 10000,
+        executionDay: 20,
+        startDate: '2024-01-01',
+        endDate: null,
+        isActive: true,
+        createdAt: '2024-01-01T00:00:00.000Z',
+      },
+    ];
+    const existingTransactions: Transaction[] = [
+      {
+        id: 'tx-dup',
+        fundId: 'fund-001',
+        type: 'RECURRING_PURCHASE',
+        date: '2024-03-05',
+        amount: 10000,
+        navValue: 10500,
+        units: 9524,
+        recurringPurchaseId: 'rec-duplicate',
+        idempotencyKey: 'rec-duplicate_2024-03-05',
+        createdAt: '2024-03-05T00:00:00.000Z',
+      },
+    ];
+
+    const useCase = createRecurringUseCase(
+      createFundRepository(funds),
+      createNavRepository(navs),
+      createRecurringRepository(recurrings),
+      createTransactionRepository(existingTransactions)
+    );
+    const result = useCase.executeRecurringPurchases('2024-03-05');
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.value.executed).toHaveLength(1);
+      expect(result.value.skipped).toEqual(
+        expect.arrayContaining([
+          { recurringPurchaseId: 'rec-inactive', reason: 'INACTIVE' },
+          { recurringPurchaseId: 'rec-duplicate', reason: 'ALREADY_EXECUTED' },
+          { recurringPurchaseId: 'rec-not-target', reason: 'NOT_TARGET_DATE' },
+        ])
+      );
+    }
+  });
+
+  it('約定日が不正な形式の場合はバリデーションエラーになる', () => {
+    // 前提: 約定日がYYYY-MM-DD形式ではない
+    // 事前条件: 依存リポジトリは正常応答する
+    // 検証: targetDateフィールドのエラーが返る
+    const useCase = createRecurringUseCase(
+      createFundRepository([]),
+      createNavRepository([]),
+      createRecurringRepository([]),
+      createTransactionRepository([])
+    );
+    const result = useCase.executeRecurringPurchases('2024/03/05');
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.field).toBe('targetDate');
+    }
+  });
+
+  it('約定までの営業日数が未設定の場合はエラーになる', () => {
+    // 前提: settlementBusinessDaysが未設定である
+    // 事前条件: 積立設定が存在する
+    // 検証: settlementBusinessDaysフィールドのエラーが返る
+    const funds: Fund[] = [
+      {
+        id: 'fund-001',
+        name: '国内株式',
+        rakutenFundId: null,
+        settlementBusinessDays: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+      },
+    ];
+    const recurrings: RecurringPurchase[] = [
+      {
+        id: 'rec-1',
+        fundId: 'fund-001',
+        monthlyAmount: 10000,
+        executionDay: 5,
+        startDate: '2024-01-01',
+        endDate: null,
+        isActive: true,
+        createdAt: '2024-01-01T00:00:00.000Z',
+      },
+    ];
+    const useCase = createRecurringUseCase(
+      createFundRepository(funds),
+      createNavRepository([]),
+      createRecurringRepository(recurrings),
+      createTransactionRepository([])
+    );
+    const result = useCase.executeRecurringPurchases('2024-03-05');
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.field).toBe('settlementBusinessDays');
+    }
+  });
+
+  it('約定までの営業日数が負の場合はエラーになる', () => {
+    // 前提: settlementBusinessDaysが負の値である
+    // 事前条件: 積立設定が存在する
+    // 検証: settlementBusinessDaysフィールドのエラーが返る
+    const funds: Fund[] = [
+      {
+        id: 'fund-002',
+        name: '海外株式',
+        rakutenFundId: null,
+        settlementBusinessDays: -1,
+        createdAt: '2024-01-01T00:00:00.000Z',
+      },
+    ];
+    const recurrings: RecurringPurchase[] = [
+      {
+        id: 'rec-2',
+        fundId: 'fund-002',
+        monthlyAmount: 10000,
+        executionDay: 5,
+        startDate: '2024-01-01',
+        endDate: null,
+        isActive: true,
+        createdAt: '2024-01-01T00:00:00.000Z',
+      },
+    ];
+    const useCase = createRecurringUseCase(
+      createFundRepository(funds),
+      createNavRepository([]),
+      createRecurringRepository(recurrings),
+      createTransactionRepository([])
+    );
+    const result = useCase.executeRecurringPurchases('2024-03-05');
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.field).toBe('settlementBusinessDays');
+    }
+  });
+
+  it('積立設定の更新対象が存在しない場合はnot_foundになる', () => {
+    // 前提: 更新対象の積立設定が存在しない
+    // 事前条件: リポジトリが空である
+    // 検証: not_foundエラーが返る
+    const useCase = createRecurringUseCase(
+      createFundRepository([
+        {
+          id: 'fund-010',
+          name: '国内株式',
+          rakutenFundId: null,
+          settlementBusinessDays: 1,
+          createdAt: '2024-01-01T00:00:00.000Z',
+        },
+      ]),
+      createNavRepository([]),
+      createRecurringRepository([]),
+      createTransactionRepository([])
+    );
+    const result = useCase.updateRecurringPurchase({
+      id: 'missing-id',
+      fundId: 'fund-010',
+      monthlyAmount: 10000,
+      executionDay: 5,
+      startDate: '2024-01-01',
+      endDate: null,
+      isActive: true,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.type).toBe('not_found');
+    }
+  });
+
+  it('積立設定の削除対象が存在しない場合はnot_foundになる', () => {
+    // 前提: 削除対象の積立設定が存在しない
+    // 事前条件: リポジトリが空である
+    // 検証: not_foundエラーが返る
+    const useCase = createRecurringUseCase(
+      createFundRepository([]),
+      createNavRepository([]),
+      createRecurringRepository([]),
+      createTransactionRepository([])
+    );
+    const result = useCase.deleteRecurringPurchase('missing-id');
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.type).toBe('not_found');
+    }
+  });
+});
