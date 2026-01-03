@@ -14,6 +14,20 @@ export type EmailService = {
    * @returns 送信結果
    */
   sendWeeklyReport: (report: WeeklyReport, recipient: string) => Result<void>;
+
+  /**
+   * エラー通知メールを送信する。
+   *
+   * @param taskName - タスク名（例: 基準価額自動取得、積立自動実行）
+   * @param errorMessage - エラーメッセージ
+   * @param recipient - 送信先メールアドレス
+   * @returns 送信結果
+   */
+  sendErrorNotification: (
+    taskName: string,
+    errorMessage: string,
+    recipient: string
+  ) => Result<void>;
 };
 
 /**
@@ -188,6 +202,77 @@ export function createEmailService(): EmailService {
       });
 
       Logger.log(`週次レポートメールを送信しました: ${recipient}`);
+
+      return { success: true, value: undefined };
+    },
+
+    sendErrorNotification: (
+      taskName: string,
+      errorMessage: string,
+      recipient: string
+    ): Result<void> => {
+      // メールアドレスのバリデーション
+      if (!recipient || typeof recipient !== 'string' || recipient.trim() === '') {
+        return {
+          success: false,
+          error: {
+            type: 'validation',
+            message: '送信先メールアドレスが指定されていません。',
+            field: 'recipient',
+          },
+        };
+      }
+
+      // タスク名のバリデーション
+      if (!taskName || typeof taskName !== 'string' || taskName.trim() === '') {
+        return {
+          success: false,
+          error: {
+            type: 'validation',
+            message: 'タスク名が指定されていません。',
+            field: 'taskName',
+          },
+        };
+      }
+
+      // エラー通知メール本文
+      const now = new Date();
+      const timestamp = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss');
+
+      const htmlBody = `
+        <html>
+          <head>
+            <meta charset="utf-8">
+          </head>
+          <body style="font-family: 'Hiragino Sans', 'Meiryo', sans-serif; padding: 20px;">
+            <h1 style="color: #c62828;">Trustfolio エラー通知</h1>
+            <p style="color: #666;">発生日時: ${timestamp}</p>
+
+            <h2 style="color: #333; margin-top: 30px;">タスク</h2>
+            <p style="font-size: 16px; color: #333;">${taskName}</p>
+
+            <h2 style="color: #333; margin-top: 30px;">エラー内容</h2>
+            <div style="background-color: #ffebee; border-left: 4px solid #c62828; padding: 16px; margin: 16px 0;">
+              <pre style="margin: 0; white-space: pre-wrap; word-wrap: break-word; font-family: monospace; color: #333;">${errorMessage}</pre>
+            </div>
+
+            <p style="color: #999; font-size: 12px; margin-top: 40px;">
+              このメールはTrustfolioから自動送信されています。
+            </p>
+          </body>
+        </html>
+      `;
+
+      const subject = `【Trustfolio】エラー通知: ${taskName}`;
+
+      // GASのMailAppを使用してメール送信
+      MailApp.sendEmail({
+        to: recipient,
+        subject,
+        htmlBody,
+      });
+
+      Logger.log(`エラー通知メールを送信しました: ${recipient} (タスク: ${taskName})`);
 
       return { success: true, value: undefined };
     },
