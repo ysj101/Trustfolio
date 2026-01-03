@@ -331,14 +331,12 @@ function recordGlobalPerformance(
     return { success: true, value: undefined };
   }
 
-  // 全保有口数を計算
-  const totalUnits = holdings.reduce((sum, holding) => sum + holding.totalUnits, 0);
-
   // 4. 全体実績データ作成（portfolioから既に計算済みの値を使用）
+  // 注: totalUnitsは全体実績では意味を持たないため0を設定
   const performance: PerformanceRecord = {
     fundId: '', // 全体実績はfundIdなし
     date,
-    totalUnits,
+    totalUnits: 0, // 全体実績では各ファンドの単位が異なるため合計値に意味がない
     remainingInvestment: portfolio.remainingInvestment,
     currentValue: portfolio.totalCurrentValue,
     totalGain: portfolio.totalUnrealizedGain,
