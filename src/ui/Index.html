@@ -15,16 +15,35 @@
       "
     ></div>
     <div class="app mx-auto max-w-6xl px-6 pb-20 pt-12">
-      <header class="flex flex-wrap items-end justify-between gap-6 border-b border-slate-800 pb-8">
-        <h1 class="text-4xl font-semibold tracking-tight text-slate-100 sm:text-5xl">
-          Trustfolio
-        </h1>
-        <button
-          id="refreshButton"
-          class="inline-flex items-center justify-center rounded-lg border border-slate-800 bg-slate-900/60 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:bg-slate-800"
-        >
-          再読み込み
-        </button>
+      <header class="border-b border-slate-800 pb-6">
+        <div class="flex flex-wrap items-end justify-between gap-6 mb-6">
+          <h1 class="text-4xl font-semibold tracking-tight text-slate-100 sm:text-5xl">
+            Trustfolio
+          </h1>
+          <button
+            id="refreshButton"
+            class="inline-flex items-center justify-center rounded-lg border border-slate-800 bg-slate-900/60 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:bg-slate-800"
+          >
+            再読み込み
+          </button>
+        </div>
+        <nav class="flex gap-2 border-b border-slate-800">
+          <button
+            id="tabPortfolio"
+            data-tab="portfolio"
+            class="tab-button px-4 py-3 text-sm font-medium text-slate-300 border-b-2 border-transparent transition hover:text-slate-100 data-[active=true]:text-indigo-300 data-[active=true]:border-indigo-500"
+            data-active="true"
+          >
+            ポートフォリオ
+          </button>
+          <button
+            id="tabPerformance"
+            data-tab="performance"
+            class="tab-button px-4 py-3 text-sm font-medium text-slate-300 border-b-2 border-transparent transition hover:text-slate-100 data-[active=true]:text-indigo-300 data-[active=true]:border-indigo-500"
+          >
+            パフォーマンス推移
+          </button>
+        </nav>
       </header>
 
       <aside
@@ -34,7 +53,9 @@
         aria-live="polite"
       ></aside>
 
-      <main class="mt-8 grid gap-6 lg:grid-cols-2">
+      <main class="mt-8">
+        <!-- ポートフォリオタブ -->
+        <div id="portfolioTab" class="tab-content grid gap-6 lg:grid-cols-2" data-tab="portfolio">
         <section class="rounded-3xl border border-slate-800 bg-slate-900/70 p-6 shadow-panel lg:col-span-2">
           <h2 class="flex items-center gap-3 text-lg font-semibold text-slate-100">
             <span class="h-5 w-1 rounded-full bg-indigo-500"></span>
@@ -451,9 +472,59 @@
             </div>
           </div>
         </section>
+        </div>
+
+        <!-- パフォーマンス推移タブ -->
+        <div id="performanceTab" class="tab-content hidden grid gap-6" data-tab="performance">
+          <!-- 期間選択 -->
+          <section class="flex flex-wrap gap-3">
+            <button
+              id="periodAll"
+              data-period="all"
+              class="period-btn px-4 py-2 rounded-lg border border-slate-800 bg-slate-900/60 text-sm font-medium text-slate-300 transition hover:bg-slate-800 hover:text-slate-100 data-[active=true]:bg-indigo-500 data-[active=true]:text-white data-[active=true]:border-indigo-500"
+              data-active="true"
+            >
+              全期間
+            </button>
+            <button
+              id="period1y"
+              data-period="1y"
+              class="period-btn px-4 py-2 rounded-lg border border-slate-800 bg-slate-900/60 text-sm font-medium text-slate-300 transition hover:bg-slate-800 hover:text-slate-100 data-[active=true]:bg-indigo-500 data-[active=true]:text-white data-[active=true]:border-indigo-500"
+            >
+              1年
+            </button>
+            <button
+              id="period3m"
+              data-period="3m"
+              class="period-btn px-4 py-2 rounded-lg border border-slate-800 bg-slate-900/60 text-sm font-medium text-slate-300 transition hover:bg-slate-800 hover:text-slate-100 data-[active=true]:bg-indigo-500 data-[active=true]:text-white data-[active=true]:border-indigo-500"
+            >
+              3ヶ月
+            </button>
+            <button
+              id="period1m"
+              data-period="1m"
+              class="period-btn px-4 py-2 rounded-lg border border-slate-800 bg-slate-900/60 text-sm font-medium text-slate-300 transition hover:bg-slate-800 hover:text-slate-100 data-[active=true]:bg-indigo-500 data-[active=true]:text-white data-[active=true]:border-indigo-500"
+            >
+              1ヶ月
+            </button>
+          </section>
+
+          <!-- パフォーマンス推移（統合グラフ） -->
+          <section class="rounded-3xl border border-slate-800 bg-slate-900/70 p-6 shadow-panel">
+            <h2 class="flex items-center gap-3 text-lg font-semibold text-slate-100">
+              <span class="h-5 w-1 rounded-full bg-emerald-500"></span>
+              パフォーマンス推移
+            </h2>
+            <div class="mt-5">
+              <canvas id="chartCombined" style="height: 450px;"></canvas>
+            </div>
+          </section>
+        </div>
       </main>
     </div>
 
     <?!= include('scripts'); ?>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <?!= include('performance-scripts'); ?>
   </body>
 </html>

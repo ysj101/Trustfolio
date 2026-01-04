@@ -43,6 +43,12 @@ export type PerformanceRepository = {
    * @returns 最新の実績データまたはnull
    */
   findLatestByFundId: (fundId: string) => Result<PerformanceRecord | null>;
+
+  /**
+   * 全体実績の履歴を取得
+   * @returns 全体実績の配列（日付昇順）
+   */
+  listGlobalHistory: () => Result<PerformanceRecord[]>;
 };
 
 /**
@@ -170,6 +176,38 @@ export function createPerformanceRepository(
       }
 
       return { success: true, value: parseResult.value };
+    },
+
+    listGlobalHistory: (): Result<PerformanceRecord[]> => {
+      const rowsResult = sheetRepository.readAllRows(PERFORMANCE_SHEET_NAME as never);
+      if (!rowsResult.success) {
+        return rowsResult as Result<PerformanceRecord[]>;
+      }
+
+      const records: PerformanceRecord[] = [];
+      for (let index = 0; index < rowsResult.value.length; index += 1) {
+        const row = rowsResult.value[index];
+        // 空行をスキップ
+        const isEmpty = row.every((cell) => cell === '' || cell === null || cell === undefined);
+        if (isEmpty) {
+          continue;
+        }
+
+        const parsed = parseRow(row, index);
+        if (!parsed.success) {
+          // パースエラーの場合、その行をスキップして続行
+          // Logger.log()でエラーを記録するが、処理は継続
+          console.warn(
+            `[PerformanceRepository] Skipping invalid row at index ${String(index)}: ${parsed.error.message}`
+          );
+          continue;
+        }
+        records.push(parsed.value);
+      }
+
+      // 日付昇順でソート
+      records.sort((a, b) => (a.date < b.date ? -1 : 1));
+      return { success: true, value: records };
     },
   };
 

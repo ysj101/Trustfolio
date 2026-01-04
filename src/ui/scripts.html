@@ -1,6 +1,7 @@
 <script>
   'use strict';
 
+  (function() {
   const state = {
     funds: [],
     selectedTransactionFundId: null,
@@ -1022,15 +1023,27 @@
 
 
   refreshButton.addEventListener('click', async () => {
-    setMessage('再読み込み中...', null);
-    setLoading(true);
-    try {
-      await loadFunds();
-      setMessage('最新の情報を取得しました。', 'success');
-    } catch (error) {
-      setMessage(error.message, 'error');
-    } finally {
-      setLoading(false);
+    // 現在アクティブなタブを確認
+    const activeTab = document.querySelector('.tab-content:not(.hidden)');
+    const activeTabName = activeTab ? activeTab.getAttribute('data-tab') : 'portfolio';
+
+    if (activeTabName === 'performance') {
+      // パフォーマンスタブの場合、パフォーマンスデータを再読み込み
+      if (typeof window.loadPerformanceData === 'function') {
+        window.loadPerformanceData();
+      }
+    } else {
+      // ポートフォリオタブの場合、ポートフォリオデータを再読み込み
+      setMessage('再読み込み中...', null);
+      setLoading(true);
+      try {
+        await loadFunds();
+        setMessage('最新の情報を取得しました。', 'success');
+      } catch (error) {
+        setMessage(error.message, 'error');
+      } finally {
+        setLoading(false);
+      }
     }
   });
 
@@ -1048,6 +1061,51 @@
     }
   });
 
+  // タブ切り替え
+  const tabButtons = document.querySelectorAll('.tab-button');
+  const tabContents = document.querySelectorAll('.tab-content');
+
+  function switchTab(tabName) {
+    console.log('[Tab] Switching to tab:', tabName);
+    // タブボタンの状態更新
+    tabButtons.forEach((button) => {
+      if (button.getAttribute('data-tab') === tabName) {
+        button.setAttribute('data-active', 'true');
+      } else {
+        button.setAttribute('data-active', 'false');
+      }
+    });
+
+    // タブコンテンツの表示/非表示
+    tabContents.forEach((content) => {
+      if (content.getAttribute('data-tab') === tabName) {
+        content.classList.remove('hidden');
+      } else {
+        content.classList.add('hidden');
+      }
+    });
+
+    // パフォーマンスタブに切り替えた時、データ読み込み
+    if (tabName === 'performance') {
+      console.log('[Tab] Performance tab activated');
+      console.log('[Tab] window.loadPerformanceData exists:', typeof window.loadPerformanceData === 'function');
+      if (typeof window.loadPerformanceData === 'function') {
+        console.log('[Tab] Calling window.loadPerformanceData()');
+        window.loadPerformanceData();
+      } else {
+        console.error('[Tab] window.loadPerformanceData is not a function!');
+      }
+    }
+  }
+
+  // タブボタンのクリックイベント
+  tabButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      const tabName = button.getAttribute('data-tab');
+      switchTab(tabName);
+    });
+  });
+
   (async () => {
     setMessage('読み込み中...', null);
     setLoading(true);
@@ -1060,4 +1118,5 @@
       setLoading(false);
     }
   })();
+  })(); // Close IIFE
 </script>

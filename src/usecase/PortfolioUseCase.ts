@@ -1,11 +1,13 @@
-import type { Portfolio, Result } from '../domain/types';
+import type { Portfolio, PortfolioPerformanceHistory, Result } from '../domain/types';
 import type { FundRepository } from '../repository/FundRepository';
 import type { TransactionRepository } from '../repository/TransactionRepository';
 import type { HoldingUseCase } from './HoldingUseCase';
+import type { PerformanceRepository } from '../repository/PerformanceRepository';
 import { calculatePortfolio } from '../domain/HoldingCalculator';
 
 export type PortfolioUseCase = {
   getPortfolioSummary: () => Result<Portfolio>;
+  getPortfolioPerformanceHistory: () => Result<PortfolioPerformanceHistory[]>;
 };
 
 /**
@@ -14,7 +16,8 @@ export type PortfolioUseCase = {
 export function createPortfolioUseCase(
   fundRepository: FundRepository,
   transactionRepository: TransactionRepository,
-  holdingUseCase: HoldingUseCase
+  holdingUseCase: HoldingUseCase,
+  performanceRepository: PerformanceRepository
 ): PortfolioUseCase {
   return {
     getPortfolioSummary: (): Result<Portfolio> => {
@@ -51,6 +54,22 @@ export function createPortfolioUseCase(
           holdings,
         },
       };
+    },
+    getPortfolioPerformanceHistory: (): Result<PortfolioPerformanceHistory[]> => {
+      const historyResult = performanceRepository.listGlobalHistory();
+      if (!historyResult.success) {
+        return historyResult as Result<PortfolioPerformanceHistory[]>;
+      }
+
+      const history: PortfolioPerformanceHistory[] = historyResult.value.map((record) => ({
+        date: record.date,
+        remainingInvestment: record.remainingInvestment,
+        currentValue: record.currentValue,
+        totalGain: record.totalGain,
+        unrealizedGainRate: record.unrealizedGainRate,
+      }));
+
+      return { success: true, value: history };
     },
   };
 }

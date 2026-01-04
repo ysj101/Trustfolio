@@ -163,6 +163,10 @@ type SendWeeklyReportRequest = {
   action: 'sendWeeklyReport';
 };
 
+type GetPortfolioPerformanceHistoryRequest = {
+  action: 'getPortfolioPerformanceHistory';
+};
+
 export type ApiRequest =
   | InitializeSheetsRequest
   | ListFundsRequest
@@ -185,7 +189,8 @@ export type ApiRequest =
   | GetHoldingRequest
   | GetPortfolioSummaryRequest
   | FetchAllNavsRequest
-  | SendWeeklyReportRequest;
+  | SendWeeklyReportRequest
+  | GetPortfolioPerformanceHistoryRequest;
 
 /**
  * APIリクエストをハンドリングする。
@@ -209,7 +214,8 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
   const portfolioUseCase = createPortfolioUseCase(
     fundRepository,
     transactionRepository,
-    holdingUseCase
+    holdingUseCase,
+    performanceRepository
   );
   const recurringUseCase = createRecurringUseCase(
     fundRepository,
@@ -399,6 +405,9 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
       }
 
       return { success: true, value: { message: '週次レポートを送信しました。' } };
+    }
+    case 'getPortfolioPerformanceHistory': {
+      return portfolioUseCase.getPortfolioPerformanceHistory();
     }
     default:
       return {
