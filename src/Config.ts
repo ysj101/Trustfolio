@@ -49,7 +49,7 @@ export type SheetDefinition = {
 
 /**
  * 初期化対象となるシート定義一覧。
- * 注: _transactionsシートは削除済み。取引データは_transactions_{fundId}に記録される。
+ * 注: _transactionsシートは削除済み。取引データは_tx_{fundId末尾3文字}に記録される。
  */
 export const SHEET_DEFINITIONS: readonly SheetDefinition[] = [
   { name: SHEET_NAMES.FUNDS, headers: SHEET_HEADERS[SHEET_NAMES.FUNDS] },
@@ -58,29 +58,47 @@ export const SHEET_DEFINITIONS: readonly SheetDefinition[] = [
 ];
 
 /**
- * 動的に生成されるシート名のプレフィックス定数
+ * 動的に生成されるシート名のプレフィックス定数。
+ * ファンド別シート名を短縮するための新しいプレフィックスを定義する。
  */
 export const SHEET_NAME_PREFIXES = {
-  TRANSACTIONS: '_transactions_',
-  PERFORMANCE: '_performance_',
+  TRANSACTIONS: '_tx_',
+  PERFORMANCE: '_perf_',
 } as const;
 
 /**
- * ファンドIDから取引シート名を生成する
+ * ファンドIDの末尾3文字を取得する。
+ * シート名短縮のために使用する。
+ *
  * @param fundId ファンドID
- * @returns 取引シート名(例: _transactions_fund001)
+ * @returns ファンドIDの末尾3文字（3文字未満の場合は全体）
+ *
+ * 注意: 末尾3文字が重複するとシート名が競合するため、ユースケースで重複検知する。
  */
-export function getTransactionSheetName(fundId: string): string {
-  return `${SHEET_NAME_PREFIXES.TRANSACTIONS}${fundId}`;
+export function getFundIdSuffix(fundId: string): string {
+  return fundId.slice(-3);
 }
 
 /**
- * ファンドIDから実績シート名を生成する
+ * ファンドIDから取引シート名を生成する。
+ * ファンドIDの末尾3文字を使用して短縮する。
+ *
  * @param fundId ファンドID
- * @returns 実績シート名(例: _performance_fund001)
+ * @returns 取引シート名(例: _tx_001)
+ */
+export function getTransactionSheetName(fundId: string): string {
+  return `${SHEET_NAME_PREFIXES.TRANSACTIONS}${getFundIdSuffix(fundId)}`;
+}
+
+/**
+ * ファンドIDから実績シート名を生成する。
+ * ファンドIDの末尾3文字を使用して短縮する。
+ *
+ * @param fundId ファンドID
+ * @returns 実績シート名(例: _perf_001)
  */
 export function getPerformanceSheetName(fundId: string): string {
-  return `${SHEET_NAME_PREFIXES.PERFORMANCE}${fundId}`;
+  return `${SHEET_NAME_PREFIXES.PERFORMANCE}${getFundIdSuffix(fundId)}`;
 }
 
 /**
