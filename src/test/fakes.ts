@@ -97,7 +97,7 @@ export function createFakeSheet(name: string, initialRows: unknown[][] = []): Fa
     },
   });
 
-  return {
+  const sheet: FakeSheet = {
     name,
     getLastRow: () => rows.length,
     getLastColumn: () => rows.reduce((max, row) => Math.max(max, row.length), 0),
@@ -143,6 +143,8 @@ export function createFakeSheet(name: string, initialRows: unknown[][] = []): Fa
     setCell,
     getData: () => rows.map((row) => [...row]),
   };
+
+  return sheet;
 }
 
 export type FakeSpreadsheet = {

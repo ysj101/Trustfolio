@@ -83,6 +83,7 @@ describe('FundUseCase', () => {
     if (result.success) {
       expect(result.value.name).toBe('世界株インデックス');
       expect(result.value.rakutenFundId).toBe('ABCD1234EFGH');
+      expect(result.value.id).not.toBe('');
       expect(result.value.createdAt).toContain('T');
     }
   });
@@ -162,6 +163,39 @@ describe('FundUseCase', () => {
     if (result.success) {
       expect(result.value.createdAt).toBe('2024-01-01T00:00:00.000Z');
       expect(result.value.name).toBe('国内株式（更新後）');
+    }
+  });
+
+  it('ファンドID末尾3文字が重複する場合は更新を拒否する', () => {
+    // 前提: 更新対象以外のファンドと末尾3文字が一致する
+    // 事前条件: 2件のファンドが存在し、末尾3文字が一致する
+    // 検証: conflictエラーが返る
+    const repository = createFundRepository([
+      {
+        id: 'fund-999',
+        name: '国内債券',
+        rakutenFundId: null,
+        settlementBusinessDays: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'abc999',
+        name: '国内株式',
+        rakutenFundId: null,
+        settlementBusinessDays: null,
+        createdAt: '2024-01-02T00:00:00.000Z',
+      },
+    ]);
+    const useCase = createFundUseCase(repository);
+    const result = useCase.updateFund({
+      id: 'fund-999',
+      name: '国内債券（更新）',
+      rakutenFundId: null,
+      settlementBusinessDays: null,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.type).toBe('conflict');
     }
   });
 });

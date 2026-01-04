@@ -1,5 +1,6 @@
 import type { Fund, Result } from '../domain/types';
 import type { FundRepository } from '../repository/FundRepository';
+import { getFundIdSuffix } from '../Config';
 import { generateUlid } from '../utils/ulid';
 
 export type FundUseCase = {
@@ -73,6 +74,11 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
         settlementBusinessDays,
         createdAt: new Date().toISOString(),
       };
+
+      const suffixValidation = validateFundIdSuffixUniqueness(fundRepository, fund.id);
+      if (!suffixValidation.success) {
+        return suffixValidation as Result<Fund>;
+      }
 
       const createResult = fundRepository.createFund(fund);
       if (!createResult.success) {
@@ -150,6 +156,11 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
         createdAt: existingResult.value.createdAt,
       };
 
+      const suffixValidation = validateFundIdSuffixUniqueness(fundRepository, id, id);
+      if (!suffixValidation.success) {
+        return suffixValidation as Result<Fund>;
+      }
+
       const updateResult = fundRepository.updateFund(updatedFund);
       if (!updateResult.success) {
         return updateResult as Result<Fund>;
@@ -197,5 +208,45 @@ function validateSettlementBusinessDays(value: number): Result<void> {
       },
     };
   }
+  return { success: true, value: undefined };
+}
+
+/**
+ * ファンドID末尾3文字の重複を検知する。
+ * ファンド別シート名の重複を防ぐために使用する。
+ *
+ * @param fundRepository ファンドリポジトリ
+ * @param targetFundId 検証対象のファンドID
+ * @param excludeFundId 検証から除外するファンドID（更新時の自分自身）
+ * @returns 重複がなければ成功、重複があれば競合エラー
+ */
+function validateFundIdSuffixUniqueness(
+  fundRepository: FundRepository,
+  targetFundId: string,
+  excludeFundId?: string
+): Result<void> {
+  const listResult = fundRepository.listFunds();
+  if (!listResult.success) {
+    return listResult as Result<void>;
+  }
+
+  const targetSuffix = getFundIdSuffix(targetFundId);
+  const duplicate = listResult.value.find((fund) => {
+    if (excludeFundId !== undefined && fund.id === excludeFundId) {
+      return false;
+    }
+    return getFundIdSuffix(fund.id) === targetSuffix;
+  });
+
+  if (duplicate) {
+    return {
+      success: false,
+      error: {
+        type: 'conflict',
+        message: `ファンドID末尾3文字が重複しています。対象末尾: ${targetSuffix}`,
+      },
+    };
+  }
+
   return { success: true, value: undefined };
 }

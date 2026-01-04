@@ -188,7 +188,6 @@ export function createTransactionRepository(
       return { success: true, value: findResult.value?.transaction ?? null };
     },
     updateTransaction: (transaction: Transaction): Result<void> => {
-      const sheetName = getTransactionSheetName(transaction.fundId);
       const findResult = findTransactionRow(sheetRepository, transaction.id, transaction.fundId);
       if (!findResult.success) {
         return findResult;
@@ -197,6 +196,7 @@ export function createTransactionRepository(
         return fail('not_found', `対象の取引履歴が見つかりません: id=${transaction.id}`);
       }
 
+      const sheetName = getTransactionSheetName(transaction.fundId);
       return sheetRepository.updateRow(sheetName as never, findResult.value.rowIndex, [
         transaction.id,
         transaction.fundId,
@@ -211,7 +211,6 @@ export function createTransactionRepository(
       ]);
     },
     deleteTransaction: (transactionId: string, fundId: string): Result<void> => {
-      const sheetName = getTransactionSheetName(fundId);
       const findResult = findTransactionRow(sheetRepository, transactionId, fundId);
       if (!findResult.success) {
         return findResult;
@@ -220,6 +219,7 @@ export function createTransactionRepository(
         return fail('not_found', `対象の取引履歴が見つかりません: id=${transactionId}`);
       }
 
+      const sheetName = getTransactionSheetName(fundId);
       return sheetRepository.deleteRow(sheetName as never, findResult.value.rowIndex);
     },
   };

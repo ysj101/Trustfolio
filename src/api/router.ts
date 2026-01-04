@@ -7,6 +7,7 @@ import {
   getPerformanceSheetName,
   getTransactionSheetName,
   getWeeklyReportEmail,
+  getFundIdSuffix,
   type SheetDefinition,
 } from '../Config';
 import type { Result } from '../domain/types';
@@ -255,6 +256,22 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
       // 全ファンドの取引シートと実績シートを作成
       const fundsResult = fundRepository.listFunds();
       if (fundsResult.success) {
+        const suffixMap = new Map<string, string>();
+        for (const fund of fundsResult.value) {
+          const suffix = getFundIdSuffix(fund.id);
+          const existingId = suffixMap.get(suffix);
+          if (existingId !== undefined) {
+            return {
+              success: false,
+              error: {
+                type: 'conflict',
+                message: `ファンドID末尾3文字が重複しています。対象末尾: ${suffix}`,
+              },
+            };
+          }
+          suffixMap.set(suffix, fund.id);
+        }
+
         for (const fund of fundsResult.value) {
           // 取引シートを作成
           const transactionSheetName = getTransactionSheetName(fund.id);
@@ -439,3 +456,13 @@ function ensureRequiredSheetsForNavFetch(sheetRepository: SheetRepository): Resu
 
   return { success: true, value: undefined };
 }
+
+/**
+ * ファンド別シート名の旧形式を新形式に移行する。
+ * 旧シートが存在し、新シートが存在しない場合にリネームを行う。
+ * 新旧が同時に存在する場合は衝突として失敗させる。
+ *
+ * @param sheetRepository シートリポジトリ
+ * @param fundRepository ファンドリポジトリ
+ * @returns 移行結果のサマリー、またはエラー
+ */
