@@ -1,0 +1,500 @@
+<script>
+  'use strict';
+
+  (function() {
+  // グローバル状態
+  let allData = [];
+  let charts = {};
+  let activePeriod = 'all';
+
+  // DOM要素
+  const app = document.querySelector('.app');
+  const message = document.getElementById('message');
+  const periodButtons = document.querySelectorAll('.period-btn');
+
+  /**
+   * ローディング状態の管理
+   */
+  function setLoading(isLoading) {
+    if (isLoading) {
+      app.classList.add('opacity-60', 'pointer-events-none');
+    } else {
+      app.classList.remove('opacity-60', 'pointer-events-none');
+    }
+    document.querySelectorAll('button').forEach((element) => {
+      element.disabled = isLoading;
+    });
+    const refreshButton = document.getElementById('refreshButton');
+    if (refreshButton) {
+      refreshButton.disabled = false;
+    }
+  }
+
+  /**
+   * APIリクエスト送信
+   */
+  function callApi(request) {
+    return new Promise((resolve, reject) => {
+      google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler((error) => {
+          reject(error);
+        })
+        .handleApiRequest(request);
+    });
+  }
+
+  let successMessageTimer = null;
+
+  /**
+   * メッセージ表示
+   */
+  function setMessage(text, stateValue) {
+    message.textContent = text;
+    if (stateValue) {
+      message.setAttribute('data-state', stateValue);
+    } else {
+      message.removeAttribute('data-state');
+    }
+    if (text) {
+      message.classList.remove('hidden');
+    } else {
+      message.classList.add('hidden');
+    }
+
+    if (successMessageTimer) {
+      clearTimeout(successMessageTimer);
+      successMessageTimer = null;
+    }
+    if (stateValue === 'success') {
+      successMessageTimer = setTimeout(() => {
+        if (message.getAttribute('data-state') === 'success') {
+          message.textContent = '';
+          message.removeAttribute('data-state');
+          message.classList.add('hidden');
+        }
+      }, 10000);
+    }
+  }
+
+  /**
+   * 期間フィルタリング
+   */
+  function filterDataByPeriod(data, period) {
+    if (period === 'all' || data.length === 0) {
+      return data;
+    }
+
+    const now = new Date();
+    const cutoffDate = new Date(now);
+
+    switch (period) {
+      case '1m':
+        cutoffDate.setMonth(now.getMonth() - 1);
+        break;
+      case '3m':
+        cutoffDate.setMonth(now.getMonth() - 3);
+        break;
+      case '1y':
+        cutoffDate.setFullYear(now.getFullYear() - 1);
+        break;
+      default:
+        return data;
+    }
+
+    return data.filter((item) => new Date(item.date) >= cutoffDate);
+  }
+
+  /**
+   * Chart.jsの共通設定
+   */
+  function getChartOptions(title, valueFormatter, positiveColor, negativeColor) {
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false,
+        },
+        tooltip: {
+          backgroundColor: 'rgba(15, 23, 42, 0.9)',
+          titleColor: '#cbd5e1',
+          bodyColor: '#e2e8f0',
+          borderColor: '#475569',
+          borderWidth: 1,
+          padding: 12,
+          displayColors: false,
+          callbacks: {
+            label: (context) => {
+              return valueFormatter(context.parsed.y);
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: {
+            color: 'rgba(71, 85, 105, 0.3)',
+            borderColor: 'rgba(71, 85, 105, 0.5)',
+          },
+          ticks: {
+            color: '#94a3b8',
+            maxRotation: 0,
+            autoSkipPadding: 20,
+          },
+        },
+        y: {
+          grid: {
+            color: 'rgba(71, 85, 105, 0.3)',
+            borderColor: 'rgba(71, 85, 105, 0.5)',
+          },
+          ticks: {
+            color: '#94a3b8',
+            callback: (value) => valueFormatter(value),
+          },
+        },
+      },
+      elements: {
+        line: {
+          tension: 0.3,
+          borderWidth: 2,
+        },
+        point: {
+          radius: 0,
+          hitRadius: 10,
+          hoverRadius: 4,
+        },
+      },
+      interaction: {
+        mode: 'index',
+        intersect: false,
+      },
+    };
+  }
+
+  /**
+   * グラフの作成または更新
+   */
+  function createOrUpdateChart(canvasId, data, key, label, color, valueFormatter) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) {
+      return;
+    }
+    const ctx = canvas.getContext('2d');
+    const labels = data.map((item) => item.date);
+    const values = data.map((item) => item[key]);
+
+    // 正負で色を変える場合の処理
+    const isSignAware = key === 'totalGain' || key === 'unrealizedGainRate';
+    let lineColor = color;
+    let backgroundColor = color.replace('1)', '0.1)');
+
+    if (isSignAware && values.length > 0) {
+      // 最新値で色を決定
+      const latestValue = values[values.length - 1];
+      if (latestValue >= 0) {
+        lineColor = 'rgba(110, 231, 183, 1)'; // emerald
+        backgroundColor = 'rgba(110, 231, 183, 0.1)';
+      } else {
+        lineColor = 'rgba(252, 165, 165, 1)'; // rose
+        backgroundColor = 'rgba(252, 165, 165, 0.1)';
+      }
+    }
+
+    const chartData = {
+      labels: labels,
+      datasets: [
+        {
+          label: label,
+          data: values,
+          borderColor: lineColor,
+          backgroundColor: backgroundColor,
+          fill: true,
+        },
+      ],
+    };
+
+    if (charts[canvasId]) {
+      // 既存のグラフを更新
+      charts[canvasId].data = chartData;
+      charts[canvasId].update('none');
+    } else {
+      // 新規グラフを作成
+      if (typeof Chart === 'undefined') {
+        return;
+      }
+      charts[canvasId] = new Chart(ctx, {
+        type: 'line',
+        data: chartData,
+        options: getChartOptions(label, valueFormatter, lineColor, backgroundColor),
+      });
+    }
+  }
+
+  /**
+   * 通貨フォーマット
+   */
+  function formatCurrency(value) {
+    return `${Math.round(value).toLocaleString()}円`;
+  }
+
+  /**
+   * パーセントフォーマット
+   */
+  function formatPercent(value) {
+    return `${(value * 100).toFixed(2)}%`;
+  }
+
+  /**
+   * 統合グラフ（評価額・残存投資額・損益率）の作成または更新
+   */
+  function createOrUpdateCombinedChart(canvasId, data) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) {
+      return;
+    }
+    const ctx = canvas.getContext('2d');
+    const labels = data.map((item) => item.date);
+    const currentValueData = data.map((item) => item.currentValue);
+    const remainingInvestmentData = data.map((item) => item.remainingInvestment);
+    const gainRateData = data.map((item) => item.unrealizedGainRate);
+
+    const chartData = {
+      labels: labels,
+      datasets: [
+        {
+          label: '評価額',
+          data: currentValueData,
+          borderColor: 'rgba(16, 185, 129, 1)',
+          backgroundColor: 'rgba(16, 185, 129, 0.1)',
+          fill: true,
+          yAxisID: 'y-left',
+          tension: 0.3,
+          borderWidth: 2,
+          pointRadius: 0,
+          pointHitRadius: 10,
+          pointHoverRadius: 4,
+        },
+        {
+          label: '残存投資額',
+          data: remainingInvestmentData,
+          borderColor: 'rgba(100, 116, 139, 1)',
+          backgroundColor: 'rgba(100, 116, 139, 0.1)',
+          fill: true,
+          yAxisID: 'y-left',
+          tension: 0.3,
+          borderWidth: 2,
+          pointRadius: 0,
+          pointHitRadius: 10,
+          pointHoverRadius: 4,
+        },
+        {
+          label: '損益率',
+          data: gainRateData,
+          borderColor: 'rgba(168, 85, 247, 1)',
+          backgroundColor: 'rgba(168, 85, 247, 0.1)',
+          fill: true,
+          yAxisID: 'y-right',
+          tension: 0.3,
+          borderWidth: 2,
+          pointRadius: 0,
+          pointHitRadius: 10,
+          pointHoverRadius: 4,
+        },
+      ],
+    };
+
+    const options = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true,
+          position: 'top',
+          labels: {
+            color: '#cbd5e1',
+            padding: 15,
+            font: {
+              size: 12,
+            },
+            usePointStyle: true,
+          },
+        },
+        tooltip: {
+          backgroundColor: 'rgba(15, 23, 42, 0.9)',
+          titleColor: '#cbd5e1',
+          bodyColor: '#e2e8f0',
+          borderColor: '#475569',
+          borderWidth: 1,
+          padding: 12,
+          displayColors: true,
+          callbacks: {
+            label: (context) => {
+              const label = context.dataset.label || '';
+              const value = context.parsed.y;
+              if (context.dataset.yAxisID === 'y-left') {
+                return `${label}: ${formatCurrency(value)}`;
+              } else {
+                return `${label}: ${formatPercent(value)}`;
+              }
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: {
+            color: 'rgba(71, 85, 105, 0.3)',
+            borderColor: 'rgba(71, 85, 105, 0.5)',
+          },
+          ticks: {
+            color: '#94a3b8',
+            maxRotation: 0,
+            autoSkipPadding: 20,
+          },
+        },
+        'y-left': {
+          type: 'linear',
+          position: 'left',
+          grid: {
+            color: 'rgba(71, 85, 105, 0.3)',
+            borderColor: 'rgba(71, 85, 105, 0.5)',
+          },
+          ticks: {
+            color: '#94a3b8',
+            callback: (value) => formatCurrency(value),
+          },
+          title: {
+            display: true,
+            text: '評価額（円）',
+            color: '#cbd5e1',
+            font: {
+              size: 12,
+            },
+          },
+        },
+        'y-right': {
+          type: 'linear',
+          position: 'right',
+          grid: {
+            drawOnChartArea: false,
+          },
+          ticks: {
+            color: '#94a3b8',
+            callback: (value) => formatPercent(value),
+          },
+          title: {
+            display: true,
+            text: '損益率（%）',
+            color: '#cbd5e1',
+            font: {
+              size: 12,
+            },
+          },
+        },
+      },
+      interaction: {
+        mode: 'index',
+        intersect: false,
+      },
+    };
+
+    if (charts[canvasId]) {
+      // 既存のグラフを更新
+      charts[canvasId].data = chartData;
+      charts[canvasId].options = options;
+      charts[canvasId].update('none');
+    } else {
+      // 新規グラフを作成
+      if (typeof Chart === 'undefined') {
+        return;
+      }
+      charts[canvasId] = new Chart(ctx, {
+        type: 'line',
+        data: chartData,
+        options: options,
+      });
+    }
+  }
+
+  /**
+   * すべてのグラフを更新
+   */
+  function updateAllCharts() {
+    const filteredData = filterDataByPeriod(allData, activePeriod);
+
+    if (filteredData.length === 0) {
+      setMessage('表示するデータがありません。', 'error');
+      return;
+    }
+
+    setMessage('');
+
+    // 統合グラフ（評価額・残存投資額・損益率）
+    createOrUpdateCombinedChart('chartCombined', filteredData);
+  }
+
+  /**
+   * データ読み込み
+   */
+  async function loadData() {
+    setLoading(true);
+    setMessage('データを読み込んでいます...', '');
+
+    try {
+      const result = await callApi({ action: 'getPortfolioPerformanceHistory' });
+
+      if (!result || !result.success) {
+        const errorMessage = result?.error?.message || 'データの取得に失敗しました。';
+        setMessage(errorMessage, 'error');
+        setLoading(false);
+        return;
+      }
+
+      allData = result.value || [];
+
+      if (allData.length === 0) {
+        setMessage('実績データがありません。基準価額を取得してください。', 'error');
+        setLoading(false);
+        return;
+      }
+
+      updateAllCharts();
+      setMessage('データを読み込みました。', 'success');
+    } catch (error) {
+      setMessage(`エラー: ${error.message || error}`, 'error');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  /**
+   * 期間ボタンのクリックイベント
+   */
+  periodButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      const period = button.getAttribute('data-period');
+      activePeriod = period;
+
+      // ボタンのアクティブ状態を更新
+      periodButtons.forEach((btn) => {
+        btn.setAttribute('data-active', 'false');
+      });
+      button.setAttribute('data-active', 'true');
+
+      // グラフを再描画
+      updateAllCharts();
+    });
+  });
+
+  /**
+   * Chart.jsが読み込まれているか確認して初期化
+   */
+  if (typeof Chart === 'undefined') {
+    setMessage('Chart.jsの読み込みに失敗しました。ページを再読み込みしてください。', 'error');
+  }
+
+  // グローバルに公開して、タブ切り替え時に呼べるようにする
+  window.loadPerformanceData = loadData;
+  })(); // Close IIFE
+</script>

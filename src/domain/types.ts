@@ -149,3 +149,14 @@ export type PerformanceRecord = {
   /** 作成日時 */
   createdAt: string;
 };
+
+/**
+ * クライアント向けのポートフォリオパフォーマンス履歴データ型。
+ */
+export type PortfolioPerformanceHistory = {
+  date: string;
+  remainingInvestment: number;
+  currentValue: number;
+  totalGain: number;
+  unrealizedGainRate: number;
+};
