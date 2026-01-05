@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createRakutenService, fetchRakutenQuote } from './RakutenService';
+import { createRakutenService, fetchRakutenQuote } from '../../src/service/RakutenService';
 
 describe('RakutenService', () => {
   it('楽天ファンドIDが不正な場合はバリデーションエラーになる', () => {

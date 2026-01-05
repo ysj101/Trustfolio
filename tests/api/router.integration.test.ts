@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { handleApiRequest } from './router';
+import { handleApiRequest } from '../../src/api/router';
 import {
   SHEET_HEADERS,
   SHEET_NAMES,
@@ -7,10 +7,10 @@ import {
   PERFORMANCE_SHEET_NAME,
   getTransactionSheetName,
   getPerformanceSheetName,
-} from '../Config';
-import { createInMemorySheetRepository, ok } from '../test/fakes';
+} from '../../src/Config';
+import { createInMemorySheetRepository, ok } from '../fakes';
 
-vi.mock('../repository/SheetRepository', () => ({
+vi.mock('../../src/repository/SheetRepository', () => ({
   openSheetRepository: vi.fn(),
 }));
 
@@ -40,7 +40,7 @@ function hasHoldings(value: unknown): value is { holdings: unknown[] } {
 
 describe('router integration', () => {
   beforeEach(async () => {
-    const { openSheetRepository } = vi.mocked(await import('../repository/SheetRepository'));
+    const { openSheetRepository } = vi.mocked(await import('../../src/repository/SheetRepository'));
     const fundId = 'fund-001';
     const transactionSheet = getTransactionSheetName(fundId);
     const performanceSheet = getPerformanceSheetName(fundId);

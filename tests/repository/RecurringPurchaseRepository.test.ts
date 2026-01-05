@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { createRecurringPurchaseRepository } from './RecurringPurchaseRepository';
-import { SHEET_NAMES } from '../Config';
-import { createInMemorySheetRepository } from '../test/fakes';
+import { createRecurringPurchaseRepository } from '../../src/repository/RecurringPurchaseRepository';
+import { SHEET_NAMES } from '../../src/Config';
+import { createInMemorySheetRepository } from '../fakes';
 
 describe('RecurringPurchaseRepository', () => {
   it('文字列のisActiveをbooleanに変換する', () => {

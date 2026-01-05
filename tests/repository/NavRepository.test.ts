@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { createNavRepository } from './NavRepository';
-import { SHEET_NAMES } from '../Config';
-import { createInMemorySheetRepository } from '../test/fakes';
+import { createNavRepository } from '../../src/repository/NavRepository';
+import { SHEET_NAMES } from '../../src/Config';
+import { createInMemorySheetRepository } from '../fakes';
 
 describe('NavRepository', () => {
   it('Date型の日付をYYYY-MM-DDに変換する', () => {

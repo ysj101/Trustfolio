@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { createFundRepository } from './FundRepository';
-import { SHEET_NAMES } from '../Config';
-import { createInMemorySheetRepository } from '../test/fakes';
+import { createFundRepository } from '../../src/repository/FundRepository';
+import { SHEET_NAMES } from '../../src/Config';
+import { createInMemorySheetRepository } from '../fakes';
 
 describe('FundRepository', () => {
   it('文字列のsettlementBusinessDaysを数値に変換する', () => {

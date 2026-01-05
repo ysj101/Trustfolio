@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { createNavFetchUseCase } from './NavFetchUseCase';
-import type { FundRepository } from '../repository/FundRepository';
-import type { NavRepository } from '../repository/NavRepository';
-import type { TransactionRepository } from '../repository/TransactionRepository';
-import type { PerformanceRepository } from '../repository/PerformanceRepository';
-import type { RakutenService } from '../service/RakutenService';
-import type { Fund, PerformanceRecord } from '../domain/types';
-import { ok, fail } from '../test/fakes';
+import { createNavFetchUseCase } from '../../src/usecase/NavFetchUseCase';
+import type { FundRepository } from '../../src/repository/FundRepository';
+import type { NavRepository } from '../../src/repository/NavRepository';
+import type { TransactionRepository } from '../../src/repository/TransactionRepository';
+import type { PerformanceRepository } from '../../src/repository/PerformanceRepository';
+import type { RakutenService } from '../../src/service/RakutenService';
+import type { Fund, PerformanceRecord } from '../../src/domain/types';
+import { ok, fail } from '../fakes';
 
 describe('NavFetchUseCase', () => {
   it('ステータス別に結果が集計される', () => {

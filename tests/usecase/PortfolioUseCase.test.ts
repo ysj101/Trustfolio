@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { createPortfolioUseCase } from './PortfolioUseCase';
-import type { FundRepository } from '../repository/FundRepository';
-import type { TransactionRepository } from '../repository/TransactionRepository';
-import type { HoldingUseCase } from './HoldingUseCase';
-import type { Fund, Transaction } from '../domain/types';
-import { ok, fail } from '../test/fakes';
+import { createPortfolioUseCase } from '../../src/usecase/PortfolioUseCase';
+import type { FundRepository } from '../../src/repository/FundRepository';
+import type { TransactionRepository } from '../../src/repository/TransactionRepository';
+import type { HoldingUseCase } from '../../src/usecase/HoldingUseCase';
+import type { Fund, Transaction } from '../../src/domain/types';
+import { ok, fail } from '../fakes';
 
 describe('PortfolioUseCase', () => {
   it('保有情報と取引履歴からポートフォリオサマリーを返す', () => {

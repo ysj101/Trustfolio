@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { createTransactionUseCase } from './TransactionUseCase';
-import type { FundRepository } from '../repository/FundRepository';
-import type { TransactionRepository } from '../repository/TransactionRepository';
-import type { Fund, Transaction } from '../domain/types';
-import { ok, fail } from '../test/fakes';
+import { createTransactionUseCase } from '../../src/usecase/TransactionUseCase';
+import type { FundRepository } from '../../src/repository/FundRepository';
+import type { TransactionRepository } from '../../src/repository/TransactionRepository';
+import type { Fund, Transaction } from '../../src/domain/types';
+import { ok, fail } from '../fakes';
 
 function createFundRepository(funds: Fund[]): FundRepository {
   return {

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createWeeklyReportUseCase } from './WeeklyReportUseCase';
-import type { PortfolioUseCase } from './PortfolioUseCase';
-import { ok } from '../test/fakes';
+import { createWeeklyReportUseCase } from '../../src/usecase/WeeklyReportUseCase';
+import type { PortfolioUseCase } from '../../src/usecase/PortfolioUseCase';
+import { ok } from '../fakes';
 
 describe('WeeklyReportUseCase', () => {
   it('ポートフォリオ情報と生成日時を返す', () => {

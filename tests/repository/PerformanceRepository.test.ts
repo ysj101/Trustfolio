@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { createPerformanceRepository } from './PerformanceRepository';
-import { PERFORMANCE_HEADERS, PERFORMANCE_SHEET_NAME, getPerformanceSheetName } from '../Config';
-import { createInMemorySheetRepository } from '../test/fakes';
+import { createPerformanceRepository } from '../../src/repository/PerformanceRepository';
+import {
+  PERFORMANCE_HEADERS,
+  PERFORMANCE_SHEET_NAME,
+  getPerformanceSheetName,
+} from '../../src/Config';
+import { createInMemorySheetRepository } from '../fakes';
 
 describe('PerformanceRepository', () => {
   it('最新の実績は最後の行を取得する', () => {

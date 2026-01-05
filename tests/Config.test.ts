@@ -4,7 +4,7 @@ import {
   getPerformanceSheetName,
   getTransactionSheetName,
   getWeeklyReportEmail,
-} from './Config';
+} from '../src/Config';
 
 describe('Config', () => {
   it('ファンドIDから取引シート名を生成する', () => {

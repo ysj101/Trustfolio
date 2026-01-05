@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculateUnits, calculateValue } from './PurchaseCalculator';
+import { calculateUnits, calculateValue } from '../../src/domain/PurchaseCalculator';
 
 describe('PurchaseCalculator', () => {
   it('購入金額が0以下の場合は検証エラーを返す', () => {

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { createHoldingUseCase } from './HoldingUseCase';
-import type { FundRepository } from '../repository/FundRepository';
-import type { NavRepository } from '../repository/NavRepository';
-import type { TransactionRepository } from '../repository/TransactionRepository';
-import type { Fund, Nav, Transaction } from '../domain/types';
-import { ok } from '../test/fakes';
+import { createHoldingUseCase } from '../../src/usecase/HoldingUseCase';
+import type { FundRepository } from '../../src/repository/FundRepository';
+import type { NavRepository } from '../../src/repository/NavRepository';
+import type { TransactionRepository } from '../../src/repository/TransactionRepository';
+import type { Fund, Nav, Transaction } from '../../src/domain/types';
+import { ok } from '../fakes';
 
 function createFundRepository(funds: Fund[]): FundRepository {
   return {
