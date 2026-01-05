@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { createNavUseCase } from './NavUseCase';
-import type { FundRepository } from '../repository/FundRepository';
-import type { NavRepository } from '../repository/NavRepository';
-import type { Fund, Nav } from '../domain/types';
-import { ok } from '../test/fakes';
+import { createNavUseCase } from '../../src/usecase/NavUseCase';
+import type { FundRepository } from '../../src/repository/FundRepository';
+import type { NavRepository } from '../../src/repository/NavRepository';
+import type { Fund, Nav } from '../../src/domain/types';
+import { ok } from '../fakes';
 
 function createFundRepository(funds: Fund[]): FundRepository {
   return {

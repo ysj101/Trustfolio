@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { createTransactionRepository } from './TransactionRepository';
-import { getTransactionSheetName, SHEET_NAMES, SHEET_HEADERS } from '../Config';
-import { createInMemorySheetRepository } from '../test/fakes';
+import { createTransactionRepository } from '../../src/repository/TransactionRepository';
+import { getTransactionSheetName, SHEET_NAMES, SHEET_HEADERS } from '../../src/Config';
+import { createInMemorySheetRepository } from '../fakes';
 
 describe('TransactionRepository', () => {
   it('空行を除外して取引履歴を取得する', () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { calculateHolding, calculatePortfolio } from './HoldingCalculator';
-import type { Fund, Nav, Transaction } from './types';
+import { calculateHolding, calculatePortfolio } from '../../src/domain/HoldingCalculator';
+import type { Fund, Nav, Transaction } from '../../src/domain/types';
 
 const fund: Fund = {
   id: 'fund-001',

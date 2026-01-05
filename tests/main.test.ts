@@ -12,18 +12,18 @@ import {
   sendWeeklyReport,
   doGet,
   include,
-} from './main';
-import type { EmailService } from './service/EmailService';
+} from '../src/main';
+import type { EmailService } from '../src/service/EmailService';
 
-vi.mock('./api/router', () => ({
+vi.mock('../src/api/router', () => ({
   handleApiRequest: vi.fn(),
 }));
 
-vi.mock('./Config', () => ({
+vi.mock('../src/Config', () => ({
   getWeeklyReportEmail: vi.fn(),
 }));
 
-vi.mock('./service/EmailService', () => ({
+vi.mock('../src/service/EmailService', () => ({
   createEmailService: vi.fn(),
 }));
 
@@ -81,7 +81,7 @@ describe('main', () => {
     // 前提: handleApiRequestが失敗する
     // 事前条件: SpreadsheetApp.getUiがalertを持つ
     // 検証: alertが呼ばれる
-    const { handleApiRequest } = vi.mocked(await import('./api/router'));
+    const { handleApiRequest } = vi.mocked(await import('../src/api/router'));
     handleApiRequest.mockReturnValue({
       success: false,
       error: { type: 'unexpected', message: '初期化に失敗しました。' },
@@ -115,17 +115,17 @@ describe('main', () => {
     // 前提: 自動取得が失敗する
     // 事前条件: 送信先メールアドレスが設定されている
     // 検証: エラー通知メール送信が呼ばれる
-    const { handleApiRequest } = vi.mocked(await import('./api/router'));
+    const { handleApiRequest } = vi.mocked(await import('../src/api/router'));
     handleApiRequest.mockReturnValue({
       success: false,
       error: { type: 'unexpected', message: '取得に失敗しました。' },
     });
 
-    const { getWeeklyReportEmail } = vi.mocked(await import('./Config'));
+    const { getWeeklyReportEmail } = vi.mocked(await import('../src/Config'));
     getWeeklyReportEmail.mockReturnValue('notify@example.com');
 
     const sendErrorNotification = vi.fn(() => ({ success: true as const, value: undefined }));
-    const { createEmailService } = vi.mocked(await import('./service/EmailService'));
+    const { createEmailService } = vi.mocked(await import('../src/service/EmailService'));
     createEmailService.mockReturnValue({ sendErrorNotification } as EmailService);
 
     fetchAllNavs();
@@ -136,14 +136,14 @@ describe('main', () => {
     // 前提: 自動取得が成功だが結果形式が不正である
     // 事前条件: 送信先メールアドレスが設定されている
     // 検証: エラー通知メール送信が呼ばれる
-    const { handleApiRequest } = vi.mocked(await import('./api/router'));
+    const { handleApiRequest } = vi.mocked(await import('../src/api/router'));
     handleApiRequest.mockReturnValue({ success: true, value: { invalid: true } });
 
-    const { getWeeklyReportEmail } = vi.mocked(await import('./Config'));
+    const { getWeeklyReportEmail } = vi.mocked(await import('../src/Config'));
     getWeeklyReportEmail.mockReturnValue('notify@example.com');
 
     const sendErrorNotification = vi.fn(() => ({ success: true as const, value: undefined }));
-    const { createEmailService } = vi.mocked(await import('./service/EmailService'));
+    const { createEmailService } = vi.mocked(await import('../src/service/EmailService'));
     createEmailService.mockReturnValue({ sendErrorNotification } as EmailService);
 
     fetchAllNavs();
@@ -209,7 +209,7 @@ describe('main', () => {
     // 前提: 自動取得が成功し、失敗銘柄が存在する
     // 事前条件: 送信先メールアドレスが設定されている
     // 検証: 一部失敗の通知メールが送信される
-    const { handleApiRequest } = vi.mocked(await import('./api/router'));
+    const { handleApiRequest } = vi.mocked(await import('../src/api/router'));
     handleApiRequest.mockReturnValue({
       success: true,
       value: {
@@ -235,11 +235,11 @@ describe('main', () => {
       },
     });
 
-    const { getWeeklyReportEmail } = vi.mocked(await import('./Config'));
+    const { getWeeklyReportEmail } = vi.mocked(await import('../src/Config'));
     getWeeklyReportEmail.mockReturnValue('notify@example.com');
 
     const sendErrorNotification = vi.fn(() => ({ success: true as const, value: undefined }));
-    const { createEmailService } = vi.mocked(await import('./service/EmailService'));
+    const { createEmailService } = vi.mocked(await import('../src/service/EmailService'));
     createEmailService.mockReturnValue({ sendErrorNotification } as EmailService);
 
     fetchAllNavs();
@@ -282,7 +282,7 @@ describe('main', () => {
     // 前提: 積立自動実行が成功する
     // 事前条件: handleApiRequestが成功結果を返す
     // 検証: 成功ログが出力される
-    const { handleApiRequest } = vi.mocked(await import('./api/router'));
+    const { handleApiRequest } = vi.mocked(await import('../src/api/router'));
     handleApiRequest.mockReturnValue({
       success: true,
       value: {
@@ -301,17 +301,17 @@ describe('main', () => {
     // 前提: 積立自動実行が失敗する
     // 事前条件: 送信先メールアドレスが設定されている
     // 検証: エラー通知メール送信が呼ばれる
-    const { handleApiRequest } = vi.mocked(await import('./api/router'));
+    const { handleApiRequest } = vi.mocked(await import('../src/api/router'));
     handleApiRequest.mockReturnValue({
       success: false,
       error: { type: 'unexpected', message: '積立に失敗しました。' },
     });
 
-    const { getWeeklyReportEmail } = vi.mocked(await import('./Config'));
+    const { getWeeklyReportEmail } = vi.mocked(await import('../src/Config'));
     getWeeklyReportEmail.mockReturnValue('notify@example.com');
 
     const sendErrorNotification = vi.fn(() => ({ success: true as const, value: undefined }));
-    const { createEmailService } = vi.mocked(await import('./service/EmailService'));
+    const { createEmailService } = vi.mocked(await import('../src/service/EmailService'));
     createEmailService.mockReturnValue({ sendErrorNotification } as EmailService);
 
     executeRecurringPurchasesDaily();
@@ -323,7 +323,7 @@ describe('main', () => {
     // 前提: 週次レポート送信が成功する
     // 事前条件: handleApiRequestが成功結果を返す
     // 検証: 成功ログが出力される
-    const { handleApiRequest } = vi.mocked(await import('./api/router'));
+    const { handleApiRequest } = vi.mocked(await import('../src/api/router'));
     handleApiRequest.mockReturnValue({ success: true, value: { message: 'ok' } });
     const logMock = vi.spyOn(globalThis.Logger, 'log');
 

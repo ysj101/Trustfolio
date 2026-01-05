@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { openSheetRepository } from './SheetRepository';
-import type { SheetDefinition } from '../Config';
-import { createFakeSpreadsheet } from '../test/fakes';
+import { openSheetRepository } from '../../src/repository/SheetRepository';
+import type { SheetDefinition } from '../../src/Config';
+import { createFakeSpreadsheet } from '../fakes';
 
 describe('SheetRepository', () => {
   it('空シートの場合はヘッダーが設定される', () => {

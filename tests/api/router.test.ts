@@ -1,19 +1,19 @@
 import { describe, expect, it, vi } from 'vitest';
-import { handleApiRequest } from './router';
+import { handleApiRequest } from '../../src/api/router';
 import {
   PERFORMANCE_SHEET_NAME,
   SHEET_DEFINITIONS,
   getPerformanceSheetName,
   getTransactionSheetName,
-} from '../Config';
-import type { SheetRepository } from '../repository/SheetRepository';
-import { ok, fail } from '../test/fakes';
+} from '../../src/Config';
+import type { SheetRepository } from '../../src/repository/SheetRepository';
+import { ok, fail } from '../fakes';
 
-vi.mock('../repository/SheetRepository', () => ({
+vi.mock('../../src/repository/SheetRepository', () => ({
   openSheetRepository: vi.fn(),
 }));
 
-vi.mock('../repository/FundRepository', () => ({
+vi.mock('../../src/repository/FundRepository', () => ({
   createFundRepository: () => ({
     listFunds: () =>
       ok([
@@ -32,7 +32,7 @@ vi.mock('../repository/FundRepository', () => ({
   }),
 }));
 
-vi.mock('../repository/NavRepository', () => ({
+vi.mock('../../src/repository/NavRepository', () => ({
   createNavRepository: () => ({
     listByFundId: () => ok([]),
     findByFundAndDate: () => ok(null),
@@ -41,7 +41,7 @@ vi.mock('../repository/NavRepository', () => ({
   }),
 }));
 
-vi.mock('../repository/RecurringPurchaseRepository', () => ({
+vi.mock('../../src/repository/RecurringPurchaseRepository', () => ({
   createRecurringPurchaseRepository: () => ({
     listAll: () => ok([]),
     listActive: () => ok([]),
@@ -52,7 +52,7 @@ vi.mock('../repository/RecurringPurchaseRepository', () => ({
   }),
 }));
 
-vi.mock('../repository/TransactionRepository', () => ({
+vi.mock('../../src/repository/TransactionRepository', () => ({
   createTransactionRepository: () => ({
     listByFundId: () => ok([]),
     listAll: () => ok([]),
@@ -64,7 +64,7 @@ vi.mock('../repository/TransactionRepository', () => ({
   }),
 }));
 
-vi.mock('../repository/PerformanceRepository', () => ({
+vi.mock('../../src/repository/PerformanceRepository', () => ({
   createPerformanceRepository: () => ({
     createPerformance: () => ok(undefined),
     createGlobalPerformance: () => ok(undefined),
@@ -74,7 +74,7 @@ vi.mock('../repository/PerformanceRepository', () => ({
   }),
 }));
 
-vi.mock('../service/RakutenService', () => ({
+vi.mock('../../src/service/RakutenService', () => ({
   createRakutenService: () => ({
     fetchLatestNav: () => fail('unexpected', '楽天証券の取得に失敗しました。'),
   }),
@@ -85,7 +85,7 @@ describe('router', () => {
     // 前提: openSheetRepositoryが失敗を返す
     // 事前条件: エラー内容が設定されている
     // 検証: 失敗結果が返る
-    const { openSheetRepository } = vi.mocked(await import('../repository/SheetRepository'));
+    const { openSheetRepository } = vi.mocked(await import('../../src/repository/SheetRepository'));
     openSheetRepository.mockReturnValue(fail('unexpected', 'シート接続に失敗しました。'));
 
     const result = handleApiRequest({ action: 'listFunds' });
@@ -99,7 +99,7 @@ describe('router', () => {
     // 前提: ensureSheetが失敗する
     // 事前条件: openSheetRepositoryがシートリポジトリを返す
     // 検証: initializeSheetsが失敗結果を返す
-    const { openSheetRepository } = vi.mocked(await import('../repository/SheetRepository'));
+    const { openSheetRepository } = vi.mocked(await import('../../src/repository/SheetRepository'));
     const sheetRepository = {
       ensureSheet: () => fail('unexpected', 'シート作成に失敗しました。'),
       getRequiredSheet: () => ok({} as GoogleAppsScript.Spreadsheet.Sheet),
@@ -122,7 +122,7 @@ describe('router', () => {
     // 前提: ensureSheetが成功する
     // 事前条件: fundRepositoryが銘柄を1件返す
     // 検証: 基本シートとファンド別シートが作成される
-    const { openSheetRepository } = vi.mocked(await import('../repository/SheetRepository'));
+    const { openSheetRepository } = vi.mocked(await import('../../src/repository/SheetRepository'));
     const ensured: string[] = [];
     const sheetRepository = {
       ensureSheet: (definition: { name: string }) => {
@@ -158,7 +158,7 @@ describe('router', () => {
     // 前提: シート接続が成功する
     // 事前条件: createFundRepositoryが銘柄を返す
     // 検証: 銘柄一覧が返る
-    const { openSheetRepository } = vi.mocked(await import('../repository/SheetRepository'));
+    const { openSheetRepository } = vi.mocked(await import('../../src/repository/SheetRepository'));
     const sheetRepository = {
       ensureSheet: () => ok({} as GoogleAppsScript.Spreadsheet.Sheet),
       getRequiredSheet: () => ok({} as GoogleAppsScript.Spreadsheet.Sheet),
@@ -181,7 +181,7 @@ describe('router', () => {
     // 前提: 必要シートのensureSheetが失敗する
     // 事前条件: openSheetRepositoryがシートリポジトリを返す
     // 検証: fetchAllNavsが失敗結果を返す
-    const { openSheetRepository } = vi.mocked(await import('../repository/SheetRepository'));
+    const { openSheetRepository } = vi.mocked(await import('../../src/repository/SheetRepository'));
     const sheetRepository = {
       ensureSheet: () => fail('unexpected', '必要シートの検証に失敗しました。'),
       getRequiredSheet: () => ok({} as GoogleAppsScript.Spreadsheet.Sheet),

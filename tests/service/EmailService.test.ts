@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createEmailService } from './EmailService';
-import type { WeeklyReport } from '../usecase/WeeklyReportUseCase';
+import { createEmailService } from '../../src/service/EmailService';
+import type { WeeklyReport } from '../../src/usecase/WeeklyReportUseCase';
 
 describe('EmailService', () => {
   it('送信先が空の場合はバリデーションエラーになる', () => {

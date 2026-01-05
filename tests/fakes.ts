@@ -1,6 +1,6 @@
-import type { Result, AppError } from '../domain/types';
-import type { SheetDefinition } from '../Config';
-import type { SheetRepository } from '../repository/SheetRepository';
+import type { Result, AppError } from '../src/domain/types';
+import type { SheetDefinition } from '../src/Config';
+import type { SheetRepository } from '../src/repository/SheetRepository';
 
 export function ok<T>(value: T): Result<T> {
   return { success: true, value };

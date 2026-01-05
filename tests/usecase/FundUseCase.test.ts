@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { createFundUseCase } from './FundUseCase';
-import type { FundRepository } from '../repository/FundRepository';
-import type { Fund } from '../domain/types';
-import { ok, fail } from '../test/fakes';
+import { createFundUseCase } from '../../src/usecase/FundUseCase';
+import type { FundRepository } from '../../src/repository/FundRepository';
+import type { Fund } from '../../src/domain/types';
+import { ok, fail } from '../fakes';
 
 function createFundRepository(seed: Fund[] = []): FundRepository {
   const funds = [...seed];

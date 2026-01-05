@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { runRakutenIntegrationTest } from './RakutenIntegrationTest';
-import * as RakutenService from '../service/RakutenService';
-import { ok } from '../test/fakes';
+import { runRakutenIntegrationTest } from '../../src/integration/RakutenIntegrationTest';
+import * as RakutenService from '../../src/service/RakutenService';
+import { ok } from '../fakes';
 
 describe('RakutenIntegrationTest', () => {
   it('楽天ファンドIDの固定値で取得処理を呼び出す', () => {

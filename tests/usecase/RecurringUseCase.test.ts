@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { createRecurringUseCase } from './RecurringUseCase';
-import type { FundRepository } from '../repository/FundRepository';
-import type { NavRepository } from '../repository/NavRepository';
-import type { RecurringPurchaseRepository } from '../repository/RecurringPurchaseRepository';
-import type { TransactionRepository } from '../repository/TransactionRepository';
-import type { Fund, Nav, RecurringPurchase, Transaction } from '../domain/types';
-import { ok, fail } from '../test/fakes';
+import { createRecurringUseCase } from '../../src/usecase/RecurringUseCase';
+import type { FundRepository } from '../../src/repository/FundRepository';
+import type { NavRepository } from '../../src/repository/NavRepository';
+import type { RecurringPurchaseRepository } from '../../src/repository/RecurringPurchaseRepository';
+import type { TransactionRepository } from '../../src/repository/TransactionRepository';
+import type { Fund, Nav, RecurringPurchase, Transaction } from '../../src/domain/types';
+import { ok, fail } from '../fakes';
 
 function createFundRepository(funds: Fund[]): FundRepository {
   return {

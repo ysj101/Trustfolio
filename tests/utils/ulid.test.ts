@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { generateUlid } from './ulid';
+import { generateUlid } from '../../src/utils/ulid';
 
 describe('ulid', () => {
   it('ULIDが26文字のCrockford Base32で生成される', () => {
