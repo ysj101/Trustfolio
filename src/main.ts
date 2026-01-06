@@ -150,11 +150,11 @@ export function fetchAllNavs(): void {
 
 /**
  * 積立設定に基づく自動発注を毎日実行する。
- * 約定日をJSTで生成し、結果の成功/スキップ/失敗をログに記録する。
+ * 実行日（注文日候補）をJSTで生成し、結果の成功/スキップ/失敗をログに記録する。
  */
 export function executeRecurringPurchasesDaily(): Result<ExecuteRecurringResult> {
   const today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
-  Logger.log(`[executeRecurringPurchasesDaily] 約定日: ${today}`);
+  Logger.log(`[executeRecurringPurchasesDaily] 実行日: ${today}`);
 
   const response = handleApiRequest({
     action: 'executeRecurringPurchases',
@@ -169,7 +169,7 @@ export function executeRecurringPurchasesDaily(): Result<ExecuteRecurringResult>
     sendErrorNotificationEmail(
       '積立自動実行',
       `積立の自動実行に失敗しました。\n\n` +
-        `約定日: ${today}\n` +
+        `実行日: ${today}\n` +
         `エラー: ${response.error.message}\n` +
         `タイプ: ${response.error.type}`
     );
@@ -181,7 +181,7 @@ export function executeRecurringPurchasesDaily(): Result<ExecuteRecurringResult>
     // エラー通知メールを送信
     sendErrorNotificationEmail(
       '積立自動実行',
-      `積立の自動実行結果の形式が不正です。\n\n約定日: ${today}\n\nレスポンス形式が期待通りではありません。`
+      `積立の自動実行結果の形式が不正です。\n\n実行日: ${today}\n\nレスポンス形式が期待通りではありません。`
     );
     return {
       success: false,
