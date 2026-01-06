@@ -45,6 +45,11 @@ export type RecurringUseCase = {
    * 既存の積立設定を削除する。
    */
   deleteRecurringPurchase: (recurringId: string) => Result<RecurringPurchase>;
+  /**
+   * 指定した実行日（注文日候補）に基づいて積立購入を実行する。
+   * targetDateは注文日として扱われ、executionDayと比較して実行すべき積立設定を特定する。
+   * 約定日は注文日 + settlementBusinessDays で計算される。
+   */
   executeRecurringPurchases: (targetDate: string) => Result<ExecuteRecurringResult>;
 };
 
@@ -187,7 +192,7 @@ export function createRecurringUseCase(
           success: false,
           error: {
             type: 'validation',
-            message: '約定日はYYYY-MM-DD形式で入力してください。',
+            message: '実行日はYYYY-MM-DD形式で入力してください。',
             field: 'targetDate',
           },
         };
@@ -254,18 +259,20 @@ export function createRecurringUseCase(
           return navCalendarResult as Result<ExecuteRecurringResult>;
         }
 
-        const settlementMatch = findSettlementMatch(
+        // targetDateが注文日として適切かチェックし、約定日を計算
+        const orderAndSettlement = findOrderDateAndSettlementDate(
           recurring,
           targetDate,
           fund.settlementBusinessDays,
           navCalendarResult.value.businessDates
         );
-        if (!settlementMatch) {
+        if (!orderAndSettlement) {
           skipped.push({ recurringPurchaseId: recurring.id, reason: 'NOT_TARGET_DATE' });
           continue;
         }
 
-        const idempotencyKey = `${recurring.id}_${targetDate}`;
+        const { orderDate, settlementDate } = orderAndSettlement;
+        const idempotencyKey = `${recurring.id}_${orderDate}`;
         const allFundsResult = fundRepository.listFunds();
         if (!allFundsResult.success) {
           return {
@@ -292,7 +299,7 @@ export function createRecurringUseCase(
           continue;
         }
 
-        const navValue = navCalendarResult.value.byDate.get(targetDate);
+        const navValue = navCalendarResult.value.byDate.get(settlementDate);
         if (!navValue) {
           skipped.push({ recurringPurchaseId: recurring.id, reason: 'NO_NAV' });
           continue;
@@ -308,7 +315,7 @@ export function createRecurringUseCase(
           id: generateUlid(),
           fundId: recurring.fundId,
           type: 'RECURRING_PURCHASE',
-          date: targetDate,
+          date: settlementDate,
           amount: recurring.monthlyAmount,
           navValue: navValue.value,
           units: unitsResult.value,
@@ -480,68 +487,79 @@ function getNavCalendar(
 }
 
 /**
- * 注文日と約定日を対応付け、対象日の約定に一致するかを判定する。
+ * 実行日（targetDate）が注文日として適切かチェックし、注文日と約定日を返す。
+ *
+ * 処理の流れ:
+ * 1. targetDateが営業日でない場合、その月のexecutionDayに最も近い前後の営業日を注文日候補とする
+ * 2. 注文日候補が積立期間内かチェック
+ * 3. 注文日から settlementBusinessDays 後の約定日を計算
+ * 4. 約定日のNAVが存在するかチェック
  */
-function findSettlementMatch(
+function findOrderDateAndSettlementDate(
   recurring: RecurringPurchase,
   targetDate: string,
   settlementBusinessDays: number,
   businessDates: string[]
 ): { orderDate: string; settlementDate: string } | null {
-  const candidateOrderDates = buildCandidateOrderDates(
-    targetDate,
-    recurring.executionDay,
-    settlementBusinessDays
-  );
-
-  for (const orderDate of candidateOrderDates) {
-    if (!isWithinRecurringPeriod(recurring, orderDate)) {
-      continue;
-    }
-    const settlementDate = addBusinessDays(orderDate, settlementBusinessDays, businessDates);
-    if (settlementDate === null) {
-      continue;
-    }
-    if (settlementDate === targetDate) {
-      return { orderDate, settlementDate };
-    }
-  }
-
-  return null;
-}
-
-/**
- * 対象日の約定に一致しうる注文日候補を月単位で列挙する。
- */
-function buildCandidateOrderDates(
-  targetDate: string,
-  executionDay: number,
-  settlementBusinessDays: number
-): string[] {
+  // targetDateの年月を取得
   const [yearText, monthText] = targetDate.split('-');
   const year = Number(yearText);
   const month = Number(monthText);
-  // 営業日ベースの月概算（候補となる注文月の探索範囲用）
-  const BUSINESS_DAYS_PER_MONTH = 20;
-  const monthsBack = Math.max(1, Math.ceil(settlementBusinessDays / BUSINESS_DAYS_PER_MONTH) + 1);
-  const candidates: string[] = [];
 
-  for (let offset = 0; offset <= monthsBack; offset += 1) {
-    const shifted = shiftMonth(year, month, -offset);
-    candidates.push(formatIsoDate(shifted.year, shifted.month, executionDay));
+  // 今月のexecutionDay（希望注文日）を生成
+  const desiredOrderDate = formatIsoDate(year, month, recurring.executionDay);
+
+  // 希望注文日が営業日かチェック
+  if (businessDates.includes(desiredOrderDate)) {
+    // 希望注文日が営業日の場合、targetDateと一致する場合のみ実行
+    if (targetDate === desiredOrderDate) {
+      const orderDate = desiredOrderDate;
+      if (!isWithinRecurringPeriod(recurring, orderDate)) {
+        return null;
+      }
+      const settlementDate = addBusinessDays(orderDate, settlementBusinessDays, businessDates);
+      if (settlementDate === null) {
+        return null;
+      }
+      return { orderDate, settlementDate };
+    }
+    return null;
   }
 
-  return candidates;
+  // 希望注文日が営業日でない場合、翌営業日を注文日とする
+  const actualOrderDate = findNextBusinessDay(desiredOrderDate, businessDates);
+  if (actualOrderDate === null) {
+    return null;
+  }
+
+  // targetDateと一致する場合のみ実行
+  if (targetDate !== actualOrderDate) {
+    return null;
+  }
+
+  if (!isWithinRecurringPeriod(recurring, actualOrderDate)) {
+    return null;
+  }
+
+  const settlementDate = addBusinessDays(actualOrderDate, settlementBusinessDays, businessDates);
+  if (settlementDate === null) {
+    return null;
+  }
+
+  return { orderDate: actualOrderDate, settlementDate };
 }
 
 /**
- * 指定した年月から月オフセット分だけ移動する。
+ * 指定した日付より後の最初の営業日を返す。
+ * 営業日が存在しない場合はnullを返す。
  */
-function shiftMonth(year: number, month: number, offset: number): { year: number; month: number } {
-  const zeroBased = year * 12 + (month - 1) + offset;
-  const nextYear = Math.floor(zeroBased / 12);
-  const nextMonth = ((zeroBased % 12) + 12) % 12;
-  return { year: nextYear, month: nextMonth + 1 };
+function findNextBusinessDay(date: string, businessDates: string[]): string | null {
+  for (const businessDate of businessDates) {
+    if (businessDate > date) {
+      return businessDate;
+    }
+  }
+  return null;
 }
 
 /**

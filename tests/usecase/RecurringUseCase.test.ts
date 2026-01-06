@@ -99,7 +99,7 @@ describe('RecurringUseCase', () => {
 
   it('積立実行時に成功・スキップ理由が集計される', () => {
     // 前提: 実行対象・非アクティブ・重複・非対象日の積立が混在する
-    // 事前条件: 営業日カレンダーに注文日と約定日が含まれる
+    // 事前条件: 3/1が営業日で注文日、3/4が約定日
     // 検証: 成功1件と各スキップ理由が返る
     const funds: Fund[] = [
       {
@@ -119,9 +119,9 @@ describe('RecurringUseCase', () => {
       },
       {
         fundId: 'fund-001',
-        date: '2024-03-05',
+        date: '2024-03-04',
         value: 10500,
-        createdAt: '2024-03-05T00:00:00.000Z',
+        createdAt: '2024-03-04T00:00:00.000Z',
       },
     ];
     const recurrings: RecurringPurchase[] = [
@@ -171,13 +171,13 @@ describe('RecurringUseCase', () => {
         id: 'tx-dup',
         fundId: 'fund-001',
         type: 'RECURRING_PURCHASE',
-        date: '2024-03-05',
+        date: '2024-03-04',
         amount: 10000,
         navValue: 10500,
         units: 9524,
         recurringPurchaseId: 'rec-duplicate',
-        idempotencyKey: 'rec-duplicate_2024-03-05',
-        createdAt: '2024-03-05T00:00:00.000Z',
+        idempotencyKey: 'rec-duplicate_2024-03-01',
+        createdAt: '2024-03-04T00:00:00.000Z',
       },
     ];
 
@@ -187,7 +187,7 @@ describe('RecurringUseCase', () => {
       createRecurringRepository(recurrings),
       createTransactionRepository(existingTransactions)
     );
-    const result = useCase.executeRecurringPurchases('2024-03-05');
+    const result = useCase.executeRecurringPurchases('2024-03-01');
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.value.executed).toHaveLength(1);
@@ -201,8 +201,8 @@ describe('RecurringUseCase', () => {
     }
   });
 
-  it('約定日が不正な形式の場合はバリデーションエラーになる', () => {
-    // 前提: 約定日がYYYY-MM-DD形式ではない
+  it('実行日が不正な形式の場合はバリデーションエラーになる', () => {
+    // 前提: 実行日がYYYY-MM-DD形式ではない
     // 事前条件: 依存リポジトリは正常応答する
     // 検証: targetDateフィールドのエラーが返る
     const useCase = createRecurringUseCase(
@@ -341,6 +341,181 @@ describe('RecurringUseCase', () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error.type).toBe('not_found');
+    }
+  });
+
+  it('毎月1日注文設定で1/1-4が休日の場合、1/5に注文し1/6に約定する', () => {
+    // 前提: executionDay=1（毎月1日に注文）、settlementBusinessDays=1
+    // 事前条件: 1/5が最初の営業日（NAV存在）、1/6にもNAVが存在
+    // 検証: 1/5実行で注文され、Transaction.date=1/6（約定日）となる
+    const funds: Fund[] = [
+      {
+        id: 'fund-001',
+        name: 'テストファンド',
+        rakutenFundId: null,
+        settlementBusinessDays: 1,
+        createdAt: '2024-01-01T00:00:00.000Z',
+      },
+    ];
+    const navs: Nav[] = [
+      {
+        fundId: 'fund-001',
+        date: '2025-01-05',
+        value: 10000,
+        createdAt: '2025-01-05T00:00:00.000Z',
+      },
+      {
+        fundId: 'fund-001',
+        date: '2025-01-06',
+        value: 10100,
+        createdAt: '2025-01-06T00:00:00.000Z',
+      },
+    ];
+    const recurrings: RecurringPurchase[] = [
+      {
+        id: 'rec-001',
+        fundId: 'fund-001',
+        monthlyAmount: 10000,
+        executionDay: 1,
+        startDate: '2025-01-01',
+        endDate: null,
+        isActive: true,
+        createdAt: '2025-01-01T00:00:00.000Z',
+      },
+    ];
+
+    const useCase = createRecurringUseCase(
+      createFundRepository(funds),
+      createNavRepository(navs),
+      createRecurringRepository(recurrings),
+      createTransactionRepository([])
+    );
+
+    // 1/5に実行（注文日）
+    const result = useCase.executeRecurringPurchases('2025-01-05');
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.value.executed).toHaveLength(1);
+      const transaction = result.value.executed[0];
+      expect(transaction.date).toBe('2025-01-06'); // 約定日
+      expect(transaction.navValue).toBe(10100); // 1/6のNAV
+      expect(transaction.idempotencyKey).toBe('rec-001_2025-01-05'); // 注文日ベースのキー
+    }
+  });
+
+  it('毎月1日注文設定で1/1が営業日の場合、1/1に注文し1/2に約定する', () => {
+    // 前提: executionDay=1（毎月1日に注文）、settlementBusinessDays=1
+    // 事前条件: 1/1が営業日（NAV存在）、1/2にもNAVが存在
+    // 検証: 1/1実行で注文され、Transaction.date=1/2（約定日）となる
+    const funds: Fund[] = [
+      {
+        id: 'fund-001',
+        name: 'テストファンド',
+        rakutenFundId: null,
+        settlementBusinessDays: 1,
+        createdAt: '2024-01-01T00:00:00.000Z',
+      },
+    ];
+    const navs: Nav[] = [
+      {
+        fundId: 'fund-001',
+        date: '2025-01-01',
+        value: 10000,
+        createdAt: '2025-01-01T00:00:00.000Z',
+      },
+      {
+        fundId: 'fund-001',
+        date: '2025-01-02',
+        value: 10100,
+        createdAt: '2025-01-02T00:00:00.000Z',
+      },
+    ];
+    const recurrings: RecurringPurchase[] = [
+      {
+        id: 'rec-001',
+        fundId: 'fund-001',
+        monthlyAmount: 10000,
+        executionDay: 1,
+        startDate: '2025-01-01',
+        endDate: null,
+        isActive: true,
+        createdAt: '2025-01-01T00:00:00.000Z',
+      },
+    ];
+
+    const useCase = createRecurringUseCase(
+      createFundRepository(funds),
+      createNavRepository(navs),
+      createRecurringRepository(recurrings),
+      createTransactionRepository([])
+    );
+
+    // 1/1に実行（注文日）
+    const result = useCase.executeRecurringPurchases('2025-01-01');
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.value.executed).toHaveLength(1);
+      const transaction = result.value.executed[0];
+      expect(transaction.date).toBe('2025-01-02'); // 約定日
+      expect(transaction.navValue).toBe(10100); // 1/2のNAV
+      expect(transaction.idempotencyKey).toBe('rec-001_2025-01-01'); // 注文日ベースのキー
+    }
+  });
+
+  it('注文日でない日に実行してもスキップされる', () => {
+    // 前提: executionDay=1（毎月1日に注文）
+    // 事前条件: 1/5, 1/6が営業日
+    // 検証: 1/6に実行してもNOT_TARGET_DATEでスキップされる
+    const funds: Fund[] = [
+      {
+        id: 'fund-001',
+        name: 'テストファンド',
+        rakutenFundId: null,
+        settlementBusinessDays: 1,
+        createdAt: '2024-01-01T00:00:00.000Z',
+      },
+    ];
+    const navs: Nav[] = [
+      {
+        fundId: 'fund-001',
+        date: '2025-01-05',
+        value: 10000,
+        createdAt: '2025-01-05T00:00:00.000Z',
+      },
+      {
+        fundId: 'fund-001',
+        date: '2025-01-06',
+        value: 10100,
+        createdAt: '2025-01-06T00:00:00.000Z',
+      },
+    ];
+    const recurrings: RecurringPurchase[] = [
+      {
+        id: 'rec-001',
+        fundId: 'fund-001',
+        monthlyAmount: 10000,
+        executionDay: 1,
+        startDate: '2025-01-01',
+        endDate: null,
+        isActive: true,
+        createdAt: '2025-01-01T00:00:00.000Z',
+      },
+    ];
+
+    const useCase = createRecurringUseCase(
+      createFundRepository(funds),
+      createNavRepository(navs),
+      createRecurringRepository(recurrings),
+      createTransactionRepository([])
+    );
+
+    // 1/6に実行（注文日ではない）
+    const result = useCase.executeRecurringPurchases('2025-01-06');
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.value.executed).toHaveLength(0);
+      expect(result.value.skipped).toHaveLength(1);
+      expect(result.value.skipped[0].reason).toBe('NOT_TARGET_DATE');
     }
   });
 });
