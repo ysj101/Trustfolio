@@ -99,8 +99,8 @@ describe('RecurringUseCase', () => {
 
   it('積立実行時に成功・スキップ理由が集計される', () => {
     // 前提: 実行対象・非アクティブ・重複・非対象日の積立が混在する
-    // 事前条件: 3/1が営業日で注文日、3/4が約定日
-    // 検証: 成功1件と各スキップ理由が返る
+    // 事前条件: 3/1, 3/4が営業日、executionDay=1で3/1注文→3/4約定
+    // 検証: 3/4に実行すると成功1件と各スキップ理由が返る
     const funds: Fund[] = [
       {
         id: 'fund-001',
@@ -187,7 +187,7 @@ describe('RecurringUseCase', () => {
       createRecurringRepository(recurrings),
       createTransactionRepository(existingTransactions)
     );
-    const result = useCase.executeRecurringPurchases('2024-03-01');
+    const result = useCase.executeRecurringPurchases('2024-03-04');
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.value.executed).toHaveLength(1);
@@ -201,8 +201,8 @@ describe('RecurringUseCase', () => {
     }
   });
 
-  it('実行日が不正な形式の場合はバリデーションエラーになる', () => {
-    // 前提: 実行日がYYYY-MM-DD形式ではない
+  it('約定日が不正な形式の場合はバリデーションエラーになる', () => {
+    // 前提: 約定日がYYYY-MM-DD形式ではない
     // 事前条件: 依存リポジトリは正常応答する
     // 検証: targetDateフィールドのエラーが返る
     const useCase = createRecurringUseCase(
@@ -344,10 +344,10 @@ describe('RecurringUseCase', () => {
     }
   });
 
-  it('毎月1日注文設定で1/1-4が休日の場合、1/5に注文し1/6に約定する', () => {
+  it('毎月1日注文設定で1/1-4が休日の場合、1/6に約定する', () => {
     // 前提: executionDay=1（毎月1日に注文）、settlementBusinessDays=1
     // 事前条件: 1/5が最初の営業日（NAV存在）、1/6にもNAVが存在
-    // 検証: 1/5実行で注文され、Transaction.date=1/6（約定日）となる
+    // 検証: 1/6実行（約定日）で購入処理され、Transaction.date=1/6となる
     const funds: Fund[] = [
       {
         id: 'fund-001',
@@ -391,8 +391,8 @@ describe('RecurringUseCase', () => {
       createTransactionRepository([])
     );
 
-    // 1/5に実行（注文日）
-    const result = useCase.executeRecurringPurchases('2025-01-05');
+    // 1/6に実行（約定日）
+    const result = useCase.executeRecurringPurchases('2025-01-06');
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.value.executed).toHaveLength(1);
@@ -403,10 +403,10 @@ describe('RecurringUseCase', () => {
     }
   });
 
-  it('毎月1日注文設定で1/1が営業日の場合、1/1に注文し1/2に約定する', () => {
+  it('毎月1日注文設定で1/1が営業日の場合、1/2に約定する', () => {
     // 前提: executionDay=1（毎月1日に注文）、settlementBusinessDays=1
     // 事前条件: 1/1が営業日（NAV存在）、1/2にもNAVが存在
-    // 検証: 1/1実行で注文され、Transaction.date=1/2（約定日）となる
+    // 検証: 1/2実行（約定日）で購入処理され、Transaction.date=1/2となる
     const funds: Fund[] = [
       {
         id: 'fund-001',
@@ -450,8 +450,8 @@ describe('RecurringUseCase', () => {
       createTransactionRepository([])
     );
 
-    // 1/1に実行（注文日）
-    const result = useCase.executeRecurringPurchases('2025-01-01');
+    // 1/2に実行（約定日）
+    const result = useCase.executeRecurringPurchases('2025-01-02');
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.value.executed).toHaveLength(1);
@@ -462,10 +462,10 @@ describe('RecurringUseCase', () => {
     }
   });
 
-  it('注文日でない日に実行してもスキップされる', () => {
+  it('約定日でない日に実行してもスキップされる', () => {
     // 前提: executionDay=1（毎月1日に注文）
-    // 事前条件: 1/5, 1/6が営業日
-    // 検証: 1/6に実行してもNOT_TARGET_DATEでスキップされる
+    // 事前条件: 1/5, 1/6, 1/7が営業日
+    // 検証: 1/7に実行してもNOT_TARGET_DATEでスキップされる（約定日は1/6）
     const funds: Fund[] = [
       {
         id: 'fund-001',
@@ -488,6 +488,12 @@ describe('RecurringUseCase', () => {
         value: 10100,
         createdAt: '2025-01-06T00:00:00.000Z',
       },
+      {
+        fundId: 'fund-001',
+        date: '2025-01-07',
+        value: 10200,
+        createdAt: '2025-01-07T00:00:00.000Z',
+      },
     ];
     const recurrings: RecurringPurchase[] = [
       {
@@ -509,8 +515,8 @@ describe('RecurringUseCase', () => {
       createTransactionRepository([])
     );
 
-    // 1/6に実行（注文日ではない）
-    const result = useCase.executeRecurringPurchases('2025-01-06');
+    // 1/7に実行（約定日ではない）
+    const result = useCase.executeRecurringPurchases('2025-01-07');
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.value.executed).toHaveLength(0);

@@ -46,9 +46,9 @@ export type RecurringUseCase = {
    */
   deleteRecurringPurchase: (recurringId: string) => Result<RecurringPurchase>;
   /**
-   * 指定した実行日（注文日候補）に基づいて積立購入を実行する。
-   * targetDateは注文日として扱われ、executionDayと比較して実行すべき積立設定を特定する。
-   * 約定日は注文日 + settlementBusinessDays で計算される。
+   * 指定した約定日に基づいて積立購入を実行する。
+   * targetDateは約定日として扱われ、逆算して注文日を求め、
+   * その注文日がexecutionDayに基づく正しい注文日かを検証する。
    */
   executeRecurringPurchases: (targetDate: string) => Result<ExecuteRecurringResult>;
 };
@@ -192,7 +192,7 @@ export function createRecurringUseCase(
           success: false,
           error: {
             type: 'validation',
-            message: '実行日はYYYY-MM-DD形式で入力してください。',
+            message: '約定日はYYYY-MM-DD形式で入力してください。',
             field: 'targetDate',
           },
         };
@@ -259,8 +259,8 @@ export function createRecurringUseCase(
           return navCalendarResult as Result<ExecuteRecurringResult>;
         }
 
-        // targetDateが注文日として適切かチェックし、約定日を計算
-        const orderAndSettlement = findOrderDateAndSettlementDate(
+        // targetDateを約定日として、逆算して注文日を求める
+        const orderAndSettlement = findOrderDateFromSettlementDate(
           recurring,
           targetDate,
           fund.settlementBusinessDays,
@@ -487,62 +487,68 @@ function getNavCalendar(
 }
 
 /**
- * 実行日（targetDate）が注文日として適切かチェックし、注文日と約定日を返す。
+ * 約定日（targetDate）から注文日を逆算し、その注文日がexecutionDayに基づく正しい注文日かを検証する。
  *
  * 処理の流れ:
- * 1. targetDateが営業日でない場合、その月のexecutionDayに最も近い前後の営業日を注文日候補とする
- * 2. 注文日候補が積立期間内かチェック
- * 3. 注文日から settlementBusinessDays 後の約定日を計算
- * 4. 約定日のNAVが存在するかチェック
+ * 1. targetDate（約定日）から settlementBusinessDays 分戻って注文日を求める
+ * 2. その注文日が属する月のexecutionDayから、実際の注文日を計算
+ * 3. 計算した注文日から約定日を求め、targetDateと一致するか検証
  */
-function findOrderDateAndSettlementDate(
+function findOrderDateFromSettlementDate(
   recurring: RecurringPurchase,
-  targetDate: string,
+  settlementDate: string,
   settlementBusinessDays: number,
   businessDates: string[]
 ): { orderDate: string; settlementDate: string } | null {
-  // targetDateの年月を取得
-  const [yearText, monthText] = targetDate.split('-');
+  // 約定日から逆算して注文日候補を求める
+  const candidateOrderDate = subtractBusinessDays(
+    settlementDate,
+    settlementBusinessDays,
+    businessDates
+  );
+  if (candidateOrderDate === null) {
+    return null;
+  }
+
+  // 注文日候補の年月を取得
+  const [yearText, monthText] = candidateOrderDate.split('-');
   const year = Number(yearText);
   const month = Number(monthText);
 
-  // 今月のexecutionDay（希望注文日）を生成
+  // その月のexecutionDay（希望注文日）を生成
   const desiredOrderDate = formatIsoDate(year, month, recurring.executionDay);
 
   // 希望注文日が営業日かチェック
+  let actualOrderDate: string;
   if (businessDates.includes(desiredOrderDate)) {
-    // 希望注文日が営業日の場合、targetDateと一致する場合のみ実行
-    if (targetDate === desiredOrderDate) {
-      const orderDate = desiredOrderDate;
-      if (!isWithinRecurringPeriod(recurring, orderDate)) {
-        return null;
-      }
-      const settlementDate = addBusinessDays(orderDate, settlementBusinessDays, businessDates);
-      if (settlementDate === null) {
-        return null;
-      }
-      return { orderDate, settlementDate };
+    // 希望注文日が営業日の場合、それを注文日とする
+    actualOrderDate = desiredOrderDate;
+  } else {
+    // 希望注文日が営業日でない場合、翌営業日を注文日とする
+    const nextBD = findNextBusinessDay(desiredOrderDate, businessDates);
+    if (nextBD === null) {
+      return null;
     }
-    return null;
+    actualOrderDate = nextBD;
   }
 
-  // 希望注文日が営業日でない場合、翌営業日を注文日とする
-  const actualOrderDate = findNextBusinessDay(desiredOrderDate, businessDates);
-  if (actualOrderDate === null) {
-    return null;
-  }
-
-  // targetDateと一致する場合のみ実行
-  if (targetDate !== actualOrderDate) {
-    return null;
-  }
-
+  // 注文日が積立期間内かチェック
   if (!isWithinRecurringPeriod(recurring, actualOrderDate)) {
     return null;
   }
 
-  const settlementDate = addBusinessDays(actualOrderDate, settlementBusinessDays, businessDates);
-  if (settlementDate === null) {
+  // 実際の注文日から約定日を計算
+  const calculatedSettlementDate = addBusinessDays(
+    actualOrderDate,
+    settlementBusinessDays,
+    businessDates
+  );
+  if (calculatedSettlementDate === null) {
+    return null;
+  }
+
+  // 計算した約定日がtargetDateと一致するかチェック
+  if (calculatedSettlementDate !== settlementDate) {
     return null;
   }
 
@@ -557,6 +563,31 @@ function findNextBusinessDay(date: string, businessDates: string[]): string | nu
   for (const businessDate of businessDates) {
     if (businessDate > date) {
       return businessDate;
+    }
+  }
+  return null;
+}
+
+/**
+ * 指定した日付より前のN営業日前の日付を返す。
+ * 営業日が不足している場合はnullを返す。
+ */
+function subtractBusinessDays(
+  date: string,
+  businessDays: number,
+  businessDates: string[]
+): string | null {
+  if (businessDays === 0) {
+    return businessDates.includes(date) ? date : null;
+  }
+  let count = 0;
+  for (let i = businessDates.length - 1; i >= 0; i -= 1) {
+    if (businessDates[i] >= date) {
+      continue;
+    }
+    count += 1;
+    if (count === businessDays) {
+      return businessDates[i];
     }
   }
   return null;
