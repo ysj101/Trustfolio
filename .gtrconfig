@@ -1,12 +1,85 @@
-# .gtrconfig - commit this file to share settings with your team
+# .gtrconfig - git-worktree-runner configuration for Trustfolio
+# このファイルをコミットしてチーム全体で設定を共有します
+
+# ─────────────────────────────────────────────────────────
+# [copy] セクション: 各 worktree にコピーするファイルを指定
+# ─────────────────────────────────────────────────────────
 
 [copy]
-    include = **/.env
-    include = *.md
+    # 環境設定ファイル（機密情報を含む）
+    include = .env
+    include = .env.example
+    include = .clasp.json
+    include = .clasp.json.example
+
+    # ビルド・開発設定ファイル
+    include = package.json
+    include = pnpm-lock.yaml
+    include = tsconfig.json
+    include = tsconfig.build.json
+    include = rollup.config.js
+    include = vitest.config.ts
+    include = eslint.config.mjs
+    include = tailwind.config.js
+    include = appsscript.json
+
+    # コード品質設定
+    include = .prettierrc
+    include = .gitignore
+
+    # ドキュメント
+    include = README.md
+    include = AGENTS.md
+    include = docs/**/*.md
+
+    # Git フック（Husky）
+    include = .husky/**
+
+    # Claude 設定
+    include = .claude/**
+
+    # スクリプト
+    include = scripts/**
+
+    # ビルド成果物を除外（各 worktree で独立してビルド）
+    exclude = dist/**
+    exclude = coverage/**
+    exclude = **/*.tsbuildinfo
+
+    # 依存関係を除外（各 worktree で独立して pnpm install）
+    exclude = node_modules/**
+    exclude = .pnpm-store/**
+
+    # ログファイルを除外
+    exclude = **/*.log
+    exclude = **/npm-debug.log*
+    exclude = **/pnpm-debug.log*
+
+    # IDE 設定を除外（個人の設定を優先）
+    exclude = .vscode/**
+    exclude = .idea/**
+    exclude = **/*.swp
+    exclude = **/*.swo
+
+    # OS 固有ファイルを除外
+    exclude = **/.DS_Store
+    exclude = **/Thumbs.db
+
+# ─────────────────────────────────────────────────────────
+# [hooks] セクション: ライフサイクルフックを定義
+# ─────────────────────────────────────────────────────────
 
 [hooks]
+    # worktree 作成後に依存関係をインストール
     postCreate = pnpm install
 
+# ─────────────────────────────────────────────────────────
+# [defaults] セクション: デフォルト設定
+# ─────────────────────────────────────────────────────────
+
 [defaults]
+    # エディタ: VSCode
     editor = code
+
+    # AI アシスタント: Claude
     ai = claude
