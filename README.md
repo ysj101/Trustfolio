@@ -7,6 +7,14 @@
 Trustfolioは、投資信託の銘柄・基準価額・取引・積立・保有情報・ポートフォリオを
 Google Sheets上で管理するGASアプリケーションです。
 
+### 主な機能
+
+- 📊 **銘柄・NAV管理**: 投資信託銘柄の登録と基準価額の記録・自動取得（楽天証券連携）
+- 💰 **取引管理**: スポット購入・積立設定の登録と自動実行
+- 📈 **保有・パフォーマンス分析**: 銘柄ごとの保有状況と時系列パフォーマンスの可視化
+- 📧 **週次レポート**: 投資実績を自動でメール送信
+- 🎨 **モダンなUI**: Tailwind CSSを使用したダークモード対応のWebアプリ
+
 ## 技術スタック
 
 | カテゴリ | 技術 |
@@ -16,6 +24,8 @@ Google Sheets上で管理するGASアプリケーションです。
 | データストア | Google Sheets |
 | ビルド | Rollup + TypeScript |
 | デプロイ | clasp |
+| テスト | Vitest |
+| UI | Tailwind CSS |
 | エラーハンドリング | Result型（オブジェクト） |
 | ID生成 | ULID |
 
@@ -23,37 +33,60 @@ Google Sheets上で管理するGASアプリケーションです。
 
 ```
 .
-├── appsscript.json
-├── rollup.config.js
-├── tsconfig.json
+├── appsscript.json          # GAS マニフェスト
+├── rollup.config.js         # Rollup ビルド設定
+├── tsconfig.json            # TypeScript 設定
+├── vitest.config.ts         # Vitest テスト設定
+├── tailwind.config.js       # Tailwind CSS 設定
 ├── src/
-│   ├── main.ts
-│   ├── Config.ts
-│   ├── utils/
+│   ├── main.ts              # エントリーポイント
+│   ├── Config.ts            # 設定管理
+│   ├── api/                 # APIルーター
+│   ├── domain/              # ドメインロジック（計算、型定義）
+│   ├── repository/          # データアクセス層（Sheets操作）
+│   ├── service/             # 外部サービス連携（楽天証券、メール）
+│   ├── usecase/             # ユースケース層（ビジネスロジック）
+│   ├── ui/                  # HTML/CSS（Webアプリ画面）
+│   ├── utils/               # ユーティリティ（ULID生成など）
+│   ├── scripts/             # スクリプト用型定義
+│   └── integration/         # 統合テスト
+├── tests/                   # テストコード（Vitest）
+│   ├── api/
 │   ├── domain/
 │   ├── repository/
+│   ├── service/
 │   ├── usecase/
-│   ├── api/
-│   └── ui/
-└── dist/
+│   └── utils/
+├── scripts/                 # ビルド・セットアップスクリプト
+│   ├── build-styles.sh      # CSS ビルド
+│   ├── setup-clasp.sh       # clasp 設定生成
+│   ├── sync-env-to-gas.mjs  # 環境変数同期スクリプト
+│   ├── rakuten-integration-test.mjs  # 楽天証券統合テスト
+│   └── nav-fetch-test.mjs   # NAV取得統合テスト
+├── docs/                    # ドキュメント
+└── dist/                    # ビルド出力（GASへデプロイ）
 ```
 
 ## シート構成
 
 | シート名 | 説明 |
 |----------|------|
-| `_funds` | 投資信託マスタ |
-| `_navs` | 基準価額履歴 |
-| `_transactions` | 取引履歴 |
-| `_recurring` | 積立設定 |
+| `_funds` | 投資信託マスタ（銘柄情報） |
+| `_nav_records` | 基準価額（NAV）履歴 |
+| `_recurring` | 積立設定（自動購入設定） |
+| `_tx_{suffix}` | 取引履歴（銘柄ごと、suffixはファンドIDの末尾3文字） |
+| `_performance` | パフォーマンスデータ（全銘柄集計） |
+| `_perf_{suffix}` | パフォーマンスデータ（銘柄ごと、suffixはファンドIDの末尾3文字） |
 
 ## セットアップ
 
 ### 必要環境
 
 - Node.js 20以上
-- pnpm 10以上
+- pnpm 10.27.0以上（`packageManager`で固定）
 - clasp（`pnpm exec clasp login`で認証）
+- Google Apps Scriptプロジェクト
+- Google スプレッドシート
 
 ### インストール
 
@@ -84,8 +117,35 @@ pnpm setup:clasp
 
 ### ビルド
 
+TypeScriptのコンパイル、HTMLのコピー、CSSのビルドを一括実行します。
+
 ```bash
 pnpm build
+```
+
+個別にビルドする場合：
+
+```bash
+pnpm build:js    # TypeScriptのバンドル
+pnpm build:html  # HTMLファイルのコピー
+pnpm build:css   # Tailwind CSSのビルド
+```
+
+### テスト
+
+```bash
+pnpm test              # Vitestでユニットテスト実行
+pnpm test:rakuten     # 楽天証券NAV取得の統合テスト
+pnpm test:nav-fetch   # NAV自動取得の統合テスト
+```
+
+### コード品質チェック
+
+```bash
+pnpm lint             # ESLintでコード検査
+pnpm lint:fix         # ESLintで自動修正
+pnpm format           # Prettierでコード整形
+pnpm format:check     # フォーマットチェックのみ
 ```
 
 ## デプロイ
@@ -125,9 +185,22 @@ GASエディタで既存デプロイメントを更新します（URLが固定�
 
 ## 使い方
 
+### 初期セットアップ
+
 1. スプレッドシートを開き、メニューの`Trustfolio`から`シート初期化`を実行します。
-2. 画面から銘柄・基準価額・スポット購入・積立を登録します。
-3. 保有情報とポートフォリオサマリーを確認します。
+2. 必要なシート（`_funds`、`_nav_records`、`_recurring`など）が自動作成されます。
+
+### Webアプリの使用
+
+Webアプリでは以下の操作が可能です：
+
+- **銘柄管理**: 投資信託銘柄の登録・編集（楽天証券ファンドID連携）
+- **基準価額（NAV）管理**: 手動でのNAV登録・履歴確認
+- **スポット購入**: 単発の購入取引の登録
+- **積立設定**: 定期的な自動購入の設定（月次、実行日指定）
+- **保有情報**: 銘柄ごとの保有口数・評価額の確認
+- **ポートフォリオ**: 全銘柄の投資配分・パフォーマンスの確認
+- **パフォーマンス分析**: 時系列でのパフォーマンス推移の確認
 
 ### NAV自動取得の設定
 
@@ -146,6 +219,19 @@ GASエディタで既存デプロイメントを更新します（URLが固定�
 
 1. Google Apps Scriptエディタの「トリガー」から「+ トリガーを追加」
 2. 関数: `fetchAllNavs`、イベント: `時間主導型`、時刻: `午後9時〜10時`を設定
+
+### 積立購入の自動実行設定
+
+登録した積立設定に基づき、毎日自動で購入を実行するには、以下の手順でトリガーを設定します。
+
+#### トリガーを設定
+
+1. Google Apps Scriptエディタを開く
+2. 関数選択ドロップダウンから`setupRecurringPurchasesTrigger`を選択
+3. 「実行」ボタンをクリック
+4. 初回実行時は権限を承認
+
+これで毎日午前9:00-10:00に積立設定がチェックされ、実行日に該当する場合は自動購入が実行されます。
 
 ### 週次レポートの設定
 
@@ -173,6 +259,23 @@ GASエディタで既存デプロイメントを更新します（URLが固定�
 
 週次レポートの送信を停止したい場合は、`deleteWeeklyReportTrigger`関数を実行してください。
 
+## 開発体制
+
+### CI/CD
+
+GitHub Actionsで以下を自動実行しています：
+
+- **Lint**: ESLintによるコード品質チェック（[.github/workflows/lint.yml](.github/workflows/lint.yml)）
+- **Code Review**: Claudeによる自動コードレビュー（プルリクエスト時）
+
+### コミットフック
+
+Huskyとlint-stagedを使用し、コミット前に以下を自動実行：
+
+- ESLintによる自動修正
+- Prettierによるコード整形
+- 関連するテストの実行
+
 ## コーディング規約
 
 | 項目 | 方針 |
@@ -183,6 +286,17 @@ GASエディタで既存デプロイメントを更新します（URLが固定�
 | try/catch | 腐敗防止層でのみ許可 |
 | any | 禁止 |
 
+### アーキテクチャ
+
+レイヤードアーキテクチャを採用：
+
+- **UI層** ([src/ui/](src/ui/)): HTML/CSS（Webアプリ画面）
+- **API層** ([src/api/](src/api/)): HTTPリクエストのルーティング
+- **UseCase層** ([src/usecase/](src/usecase/)): ビジネスロジック
+- **Domain層** ([src/domain/](src/domain/)): ドメインロジック・型定義
+- **Repository層** ([src/repository/](src/repository/)): データアクセス（Sheets操作）
+- **Service層** ([src/service/](src/service/)): 外部サービス連携（楽天証券、メール）
+
 ## スクリプト一覧
 
 | コマンド | 説明 |
@@ -191,8 +305,14 @@ GASエディタで既存デプロイメントを更新します（URLが固定�
 | `pnpm setup:clasp` | `.env`から`.clasp.json`を生成 |
 | `pnpm sync:env` | `.env`からGASスクリプトプロパティ設定用の関数を出力 |
 | `pnpm build` | GAS用にバンドルして`dist/`へ出力 |
+| `pnpm build:js` | TypeScriptをバンドル |
+| `pnpm build:html` | HTMLファイルを`dist/`へコピー |
+| `pnpm build:css` | Tailwind CSSをビルド |
 | `pnpm lint` | ESLintでコード検査 |
 | `pnpm lint:fix` | ESLintで自動修正 |
+| `pnpm format` | Prettierでコード整形 |
+| `pnpm format:check` | Prettierでフォーマットチェック |
+| `pnpm test` | Vitestでテスト実行 |
 | `pnpm test:rakuten` | 楽天証券NAV取得の統合テスト（1銘柄） |
 | `pnpm test:nav-fetch` | NAV自動取得の統合テスト（複数銘柄） |
 
