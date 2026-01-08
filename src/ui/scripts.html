@@ -413,17 +413,30 @@
     }
 
     recurrings.forEach((recurring) => {
+      const fund = state.funds.find((f) => f.id === recurring.fundId);
+      const fundName = fund ? fund.name : '不明な銘柄';
+
       const item = document.createElement('li');
       item.className = listItemClass;
       const content = document.createElement('div');
       content.className = listContentClass;
+
+      // 銘柄名
+      const fundNameElement = document.createElement('div');
+      fundNameElement.className = 'text-sm font-medium text-slate-100';
+      fundNameElement.textContent = fundName;
+
+      // 積立設定詳細
       const title = document.createElement('strong');
       title.textContent = `${recurring.monthlyAmount.toLocaleString()}円 / 毎月${recurring.executionDay}日注文`;
+
       const detail = document.createElement('span');
       detail.className = 'text-xs text-slate-400';
       const period = recurring.endDate ? `${recurring.startDate}〜${recurring.endDate}` : recurring.startDate;
       const status = recurring.isActive ? 'アクティブ' : '停止中';
       detail.textContent = `${period} / ${status}`;
+
+      content.appendChild(fundNameElement);
       content.appendChild(title);
       content.appendChild(detail);
       item.appendChild(content);
