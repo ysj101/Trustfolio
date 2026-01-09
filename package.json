@@ -5,7 +5,7 @@
   "scripts": {
     "build:css": "bash scripts/build-styles.sh",
     "build:js": "rollup -c",
-    "build:html": "cp src/ui/Index.html dist/ && cp src/ui/Performance.html dist/ && cp src/ui/scripts.html dist/ && cp src/ui/performance-scripts.html dist/ && cp src/ui/favicon.svg dist/",
+    "build:html": "cp src/ui/Index.html dist/ && cp src/ui/Performance.html dist/ && cp src/ui/scripts.html dist/ && cp src/ui/performance-scripts.html dist/ && cp src/ui/styles.html dist/",
     "build": "pnpm build:js && pnpm build:html && pnpm build:css",
     "push": "pnpm lint && pnpm build && clasp push --force",
     "setup:clasp": "scripts/setup-clasp.sh",
