@@ -23,7 +23,7 @@ fi
 
 # .clasp.json を生成
 cat > "$PROJECT_ROOT/.clasp.json" << EOF
-{"scriptId":"${GAS_SCRIPT_ID}","rootDir":"${PROJECT_ROOT}/dist"}
+{"scriptId":"${GAS_SCRIPT_ID}","rootDir":"./dist"}
 EOF
 
 echo ".clasp.json を生成しました。"
