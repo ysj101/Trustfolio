@@ -408,7 +408,10 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
       }
 
       // 週次レポートを生成
-      const weeklyReportUseCase = createWeeklyReportUseCase(portfolioUseCase);
+      const weeklyReportUseCase = createWeeklyReportUseCase(
+        portfolioUseCase,
+        performanceRepository
+      );
       const reportResult = weeklyReportUseCase.generateWeeklyReport();
       if (!reportResult.success) {
         return reportResult;

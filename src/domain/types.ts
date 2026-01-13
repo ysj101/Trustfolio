@@ -160,3 +160,50 @@ export type PortfolioPerformanceHistory = {
   totalGain: number;
   unrealizedGainRate: number;
 };
+
+/**
+ * 前週比情報。
+ * 差分と変化率を保持する。
+ */
+export type WeekOverWeekChange = {
+  /** 差分（現在値 - 前週値）、円単位 */
+  difference: number;
+  /** 変化率（(現在値 - 前週値) / 前週値 × 100）、%単位 */
+  changeRate: number;
+};
+
+/**
+ * 前週比付き保有情報。
+ * Holding型に前週比情報を追加したもの。
+ */
+export type HoldingWithWeekOverWeek = Holding & {
+  /** 残存投資額の前週比 */
+  remainingInvestmentChange: WeekOverWeekChange | null;
+  /** 評価額の前週比 */
+  currentValueChange: WeekOverWeekChange | null;
+  /** 損益の前週比（差分のみ、円単位） */
+  unrealizedGainChange: number | null;
+  /** 損益率の前週比（%ポイント差分のみ） */
+  unrealizedGainRateChange: number | null;
+  /** 前週のデータが存在するか */
+  hasPreviousWeekData: boolean;
+};
+
+/**
+ * 前週比付きポートフォリオ情報。
+ * Portfolio型に前週比情報を追加したもの。
+ */
+export type PortfolioWithWeekOverWeek = Omit<Portfolio, 'holdings'> & {
+  /** 残存投資額の前週比 */
+  remainingInvestmentChange: WeekOverWeekChange | null;
+  /** 評価額の前週比 */
+  totalCurrentValueChange: WeekOverWeekChange | null;
+  /** 損益の前週比（差分のみ、円単位） */
+  totalUnrealizedGainChange: number | null;
+  /** 損益率の前週比（%ポイント差分のみ） */
+  totalUnrealizedGainRateChange: number | null;
+  /** 前週のデータが存在するか */
+  hasPreviousWeekData: boolean;
+  /** 保有銘柄一覧（前週比付き） */
+  holdings: HoldingWithWeekOverWeek[];
+};

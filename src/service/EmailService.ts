@@ -1,4 +1,4 @@
-import type { Result } from '../domain/types';
+import type { Result, WeekOverWeekChange } from '../domain/types';
 import type { WeeklyReport } from '../usecase/WeeklyReportUseCase';
 
 /**
@@ -53,6 +53,54 @@ function formatRate(rate: number): string {
 }
 
 /**
+ * 前週比の差分を符号付きの文字列に変換する。
+ *
+ * @param difference - 差分（円単位）
+ * @returns フォーマット済み文字列（例: "+10,000円"、"-5,000円"）
+ */
+function formatDifference(difference: number): string {
+  const sign = difference >= 0 ? '+' : '';
+  return `${sign}${formatNumber(difference)}円`;
+}
+
+/**
+ * 前週比の変化率を符号付きの文字列に変換する。
+ *
+ * @param changeRate - 変化率（%単位、例: 5.2 = +5.2%）
+ * @returns フォーマット済み文字列（例: "+5.2%"、"-3.1%"）
+ */
+function formatChangeRate(changeRate: number): string {
+  const sign = changeRate >= 0 ? '+' : '';
+  return `${sign}${changeRate.toFixed(1)}%`;
+}
+
+/**
+ * 前週比の差分と変化率を1つの文字列にフォーマットする。
+ *
+ * @param change - 前週比情報
+ * @returns フォーマット済み文字列（例: "+10,000円 (+5.2%)"）
+ */
+function formatWeekOverWeekChange(change: WeekOverWeekChange | null): string {
+  if (change === null) {
+    return '---';
+  }
+  const diffStr = formatDifference(change.difference);
+  const rateStr = formatChangeRate(change.changeRate);
+  return `${diffStr} (${rateStr})`;
+}
+
+/**
+ * 損益率の前週比（%ポイント）を符号付きの文字列に変換する。
+ *
+ * @param changeInPercentagePoints - %ポイント差分（例: 1.5 = +1.5%ポイント）
+ * @returns フォーマット済み文字列（例: "+1.5%pt"、"-0.8%pt"）
+ */
+function formatPercentagePointChange(changeInPercentagePoints: number): string {
+  const sign = changeInPercentagePoints >= 0 ? '+' : '';
+  return `${sign}${changeInPercentagePoints.toFixed(1)}%pt`;
+}
+
+/**
  * 週次レポートのHTMLメール本文を生成する。
  *
  * @param report - 週次レポート
@@ -80,6 +128,33 @@ function generateEmailBody(report: WeeklyReport): string {
         : '#c62828'
       : '#333';
 
+  // 前週比のフォーマット（全体）
+  const totalInvestmentChangeStr = formatWeekOverWeekChange(portfolio.remainingInvestmentChange);
+  const totalValueChangeStr = formatWeekOverWeekChange(portfolio.totalCurrentValueChange);
+  const totalGainChangeStr =
+    portfolio.totalUnrealizedGainChange !== null
+      ? formatDifference(portfolio.totalUnrealizedGainChange)
+      : '---';
+  const totalGainRateChangeStr =
+    portfolio.totalUnrealizedGainRateChange !== null
+      ? formatPercentagePointChange(portfolio.totalUnrealizedGainRateChange)
+      : '---';
+
+  // 前週比の色を決定
+  const getChangeColor = (value: number | null): string => {
+    if (value === null) return '#666';
+    return value >= 0 ? '#1565c0' : '#c62828';
+  };
+
+  const totalInvestmentChangeColor = getChangeColor(
+    portfolio.remainingInvestmentChange?.difference ?? null
+  );
+  const totalValueChangeColor = getChangeColor(
+    portfolio.totalCurrentValueChange?.difference ?? null
+  );
+  const totalGainChangeColor = getChangeColor(portfolio.totalUnrealizedGainChange);
+  const totalGainRateChangeColor = getChangeColor(portfolio.totalUnrealizedGainRateChange);
+
   // 保有銘柄一覧のHTML生成
   let holdingsHtml = '';
   for (const holding of portfolio.holdings) {
@@ -97,6 +172,13 @@ function generateEmailBody(report: WeeklyReport): string {
           : '#c62828'
         : '#333';
 
+    // 前週比のフォーマット（個別銘柄）
+    const holdingGainChangeStr =
+      holding.unrealizedGainChange !== null
+        ? formatDifference(holding.unrealizedGainChange)
+        : '---';
+    const holdingGainChangeColor = getChangeColor(holding.unrealizedGainChange);
+
     holdingsHtml += `
       <tr>
         <td style="padding: 8px; border: 1px solid #ddd;">${holding.fundName}</td>
@@ -104,6 +186,7 @@ function generateEmailBody(report: WeeklyReport): string {
         <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">${valueStr}円</td>
         <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: ${gainColor}; font-weight: bold;">${gainStr}円</td>
         <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: ${gainColor}; font-weight: bold;">${gainRateStr}</td>
+        <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: ${holdingGainChangeColor}; font-weight: bold;">${holdingGainChangeStr}</td>
       </tr>
     `;
   }
@@ -118,26 +201,31 @@ function generateEmailBody(report: WeeklyReport): string {
         <p style="color: #666;">レポート生成日時: ${generatedAt}</p>
 
         <h2 style="color: #333; margin-top: 30px;">ポートフォリオ全体</h2>
-        <table style="border-collapse: collapse; width: 100%; max-width: 600px; margin-bottom: 30px;">
+        <table style="border-collapse: collapse; width: 100%; max-width: 800px; margin-bottom: 30px;">
           <tr style="background-color: #f5f5f5;">
             <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">項目</th>
             <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">金額</th>
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">前週比</th>
           </tr>
           <tr>
             <td style="padding: 8px; border: 1px solid #ddd;">残存投資額</td>
             <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">${totalInvestmentStr}円</td>
+            <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: ${totalInvestmentChangeColor}; font-weight: bold; font-size: 12px;">${totalInvestmentChangeStr}</td>
           </tr>
           <tr>
             <td style="padding: 8px; border: 1px solid #ddd;">評価額</td>
             <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">${totalValueStr}円</td>
+            <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: ${totalValueChangeColor}; font-weight: bold; font-size: 12px;">${totalValueChangeStr}</td>
           </tr>
           <tr>
             <td style="padding: 8px; border: 1px solid #ddd;">損益</td>
             <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: ${totalGainColor}; font-weight: bold;">${totalGainStr}円</td>
+            <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: ${totalGainChangeColor}; font-weight: bold; font-size: 12px;">${totalGainChangeStr}</td>
           </tr>
           <tr>
             <td style="padding: 8px; border: 1px solid #ddd;">損益率</td>
             <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: ${totalGainColor}; font-weight: bold;">${totalGainRateStr}</td>
+            <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: ${totalGainRateChangeColor}; font-weight: bold; font-size: 12px;">${totalGainRateChangeStr}</td>
           </tr>
         </table>
 
@@ -149,6 +237,7 @@ function generateEmailBody(report: WeeklyReport): string {
             <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">評価額</th>
             <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">損益</th>
             <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">損益率</th>
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">前週比（損益）</th>
           </tr>
           ${holdingsHtml}
         </table>
