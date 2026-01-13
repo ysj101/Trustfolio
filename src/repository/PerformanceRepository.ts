@@ -49,6 +49,27 @@ export type PerformanceRepository = {
    * @returns 全体実績の配列（日付昇順）
    */
   listGlobalHistory: () => Result<PerformanceRecord[]>;
+
+  /**
+   * 指定期間の全体実績を取得
+   * @param startDate 開始日（YYYY-MM-DD形式、この日を含む）
+   * @param endDate 終了日（YYYY-MM-DD形式、この日を含む）
+   * @returns 期間内の全体実績の配列（日付昇順）
+   */
+  findGlobalByDateRange: (startDate: string, endDate: string) => Result<PerformanceRecord[]>;
+
+  /**
+   * 指定期間の銘柄別実績を取得
+   * @param fundId ファンドID
+   * @param startDate 開始日（YYYY-MM-DD形式、この日を含む）
+   * @param endDate 終了日（YYYY-MM-DD形式、この日を含む）
+   * @returns 期間内の銘柄別実績の配列（日付昇順）
+   */
+  findByFundAndDateRange: (
+    fundId: string,
+    startDate: string,
+    endDate: string
+  ) => Result<PerformanceRecord[]>;
 };
 
 /**
@@ -203,6 +224,85 @@ export function createPerformanceRepository(
           continue;
         }
         records.push(parsed.value);
+      }
+
+      // 日付昇順でソート
+      records.sort((a, b) => (a.date < b.date ? -1 : 1));
+      return { success: true, value: records };
+    },
+
+    findGlobalByDateRange: (startDate: string, endDate: string): Result<PerformanceRecord[]> => {
+      const rowsResult = sheetRepository.readAllRows(PERFORMANCE_SHEET_NAME as never);
+      if (!rowsResult.success) {
+        return rowsResult as Result<PerformanceRecord[]>;
+      }
+
+      const records: PerformanceRecord[] = [];
+      for (let index = 0; index < rowsResult.value.length; index += 1) {
+        const row = rowsResult.value[index];
+        // 空行をスキップ
+        const isEmpty = row.every((cell) => cell === '' || cell === null || cell === undefined);
+        if (isEmpty) {
+          continue;
+        }
+
+        const parsed = parseRow(row, index);
+        if (!parsed.success) {
+          console.warn(
+            `[PerformanceRepository] Skipping invalid row at index ${String(index)}: ${parsed.error.message}`
+          );
+          continue;
+        }
+
+        // 日付範囲でフィルタリング（startDate以上、endDate以下）
+        if (parsed.value.date >= startDate && parsed.value.date <= endDate) {
+          records.push(parsed.value);
+        }
+      }
+
+      // 日付昇順でソート
+      records.sort((a, b) => (a.date < b.date ? -1 : 1));
+      return { success: true, value: records };
+    },
+
+    findByFundAndDateRange: (
+      fundId: string,
+      startDate: string,
+      endDate: string
+    ): Result<PerformanceRecord[]> => {
+      const sheetName = getPerformanceSheetName(fundId);
+      const rowsResult = sheetRepository.readAllRows(sheetName as never);
+
+      // シートが存在しない場合は空配列を返す（エラーにしない）
+      if (!rowsResult.success) {
+        return { success: true, value: [] };
+      }
+
+      const records: PerformanceRecord[] = [];
+      for (let index = 0; index < rowsResult.value.length; index += 1) {
+        const row = rowsResult.value[index];
+        // 空行をスキップ
+        const isEmpty = row.every((cell) => cell === '' || cell === null || cell === undefined);
+        if (isEmpty) {
+          continue;
+        }
+
+        const parsed = parseRow(row, index);
+        if (!parsed.success) {
+          console.warn(
+            `[PerformanceRepository] Skipping invalid row at index ${String(index)}: ${parsed.error.message}`
+          );
+          continue;
+        }
+
+        // fundIdと日付範囲でフィルタリング
+        if (
+          parsed.value.fundId === fundId &&
+          parsed.value.date >= startDate &&
+          parsed.value.date <= endDate
+        ) {
+          records.push(parsed.value);
+        }
       }
 
       // 日付昇順でソート

@@ -18,6 +18,11 @@ describe('EmailService', () => {
         totalUnrealizedGainRate: 0,
         totalGain: 0,
         totalGainRate: 0,
+        remainingInvestmentChange: null,
+        totalCurrentValueChange: null,
+        totalUnrealizedGainChange: null,
+        totalUnrealizedGainRateChange: null,
+        hasPreviousWeekData: false,
         holdings: [],
       },
       generatedAt: '2024-04-01 09:00:00',
@@ -32,8 +37,8 @@ describe('EmailService', () => {
 
   it('週次レポートメールの件名に損益が含まれる', () => {
     // 前提: 送信先メールアドレスが有効である
-    // 事前条件: ポートフォリオに損益が存在する
-    // 検証: MailApp.sendEmailが損益付き件名で呼ばれる
+    // 事前条件: ポートフォリオに損益が存在し、前週比データもある
+    // 検証: MailApp.sendEmailが損益付き件名で呼ばれ、前週比情報が本文に含まれる
     const report: WeeklyReport = {
       portfolio: {
         totalInvestment: 10000,
@@ -45,6 +50,11 @@ describe('EmailService', () => {
         totalUnrealizedGainRate: 0.2,
         totalGain: 2000,
         totalGainRate: 0.2,
+        remainingInvestmentChange: { difference: 1000, changeRate: 11.11 },
+        totalCurrentValueChange: { difference: 1500, changeRate: 14.29 },
+        totalUnrealizedGainChange: 500,
+        totalUnrealizedGainRateChange: 5.56,
+        hasPreviousWeekData: true,
         holdings: [
           {
             fundId: 'fund-001',
@@ -59,6 +69,11 @@ describe('EmailService', () => {
             currentValue: 12000,
             unrealizedGain: 2000,
             unrealizedGainRate: 0.2,
+            remainingInvestmentChange: { difference: 1000, changeRate: 11.11 },
+            currentValueChange: { difference: 1500, changeRate: 14.29 },
+            unrealizedGainChange: 500,
+            unrealizedGainRateChange: 5.56,
+            hasPreviousWeekData: true,
           },
         ],
       },
@@ -75,6 +90,10 @@ describe('EmailService', () => {
     if (call) {
       expect(call.subject).toContain('+2,000円');
       expect(call.htmlBody).toContain('国内株式');
+      // 前週比情報が含まれることを確認
+      expect(call.htmlBody).toContain('前週比');
+      expect(call.htmlBody).toContain('+1,000円');
+      expect(call.htmlBody).toContain('+500円');
     }
   });
 
