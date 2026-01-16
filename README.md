@@ -268,6 +268,7 @@ GitHub Actionsで以下を自動実行しています：
 - **Lint**: ESLintによるコード品質チェック（[.github/workflows/lint.yml](.github/workflows/lint.yml)）
 - **Test**: Vitestによる単体テスト実行（[.github/workflows/test.yml](.github/workflows/test.yml)）
 - **Code Review**: Claudeによる自動コードレビュー（プルリクエスト時）
+- **Dependabot Auto Merge**: パッチバージョンの自動マージ（[.github/workflows/dependabot-auto-merge.yml](.github/workflows/dependabot-auto-merge.yml)）
 
 ### コミットフック
 
