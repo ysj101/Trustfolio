@@ -379,10 +379,10 @@ export function setupWeeklyReportTrigger(): void {
   ScriptApp.newTrigger('sendWeeklyReport')
     .timeBased()
     .onWeekDay(ScriptApp.WeekDay.SATURDAY)
-    .atHour(9)
+    .atHour(7)
     .create();
 
-  Logger.log('週次レポート送信トリガーを設定しました（毎週土曜日9:00-10:00実行）');
+  Logger.log('週次レポート送信トリガーを設定しました（毎週土曜日7:00-8:00実行）');
 }
 
 /**

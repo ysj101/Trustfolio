@@ -253,7 +253,7 @@ Webアプリでは以下の操作が可能です：
 2. 関数選択ドロップダウンから`setupWeeklyReportTrigger`を選択
 3. 「実行」ボタンをクリック
 
-これで毎週土曜日の9:00-10:00に投資実績レポートが指定したメールアドレスに送信されます。
+これで毎週土曜日の7:00-8:00に投資実績レポートが指定したメールアドレスに送信されます。
 
 #### トリガーの削除
 
@@ -266,6 +266,7 @@ Webアプリでは以下の操作が可能です：
 GitHub Actionsで以下を自動実行しています：
 
 - **Lint**: ESLintによるコード品質チェック（[.github/workflows/lint.yml](.github/workflows/lint.yml)）
+- **Test**: Vitestによる単体テスト実行（[.github/workflows/test.yml](.github/workflows/test.yml)）
 - **Code Review**: Claudeによる自動コードレビュー（プルリクエスト時）
 
 ### コミットフック
