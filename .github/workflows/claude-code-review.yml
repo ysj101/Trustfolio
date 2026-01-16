@@ -12,6 +12,9 @@ on:
 
 jobs:
   claude-review:
+    # Dependabot PRではスキップする（シークレットアクセス制限のため）
+    if: github.actor != 'dependabot[bot]'
+
     # Optional: Filter by PR author
     # if: |
     #   github.event.pull_request.user.login == 'external-contributor' ||
