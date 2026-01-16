@@ -24,8 +24,20 @@ v2.0.0 → v3.0.0 → v4.0.0 と段階的にアップグレード
 
 ### Dependabotによる自動化
 
-- **patch/minorバージョン**: Dependabotが自動的にPRを作成
+- **patchバージョン**: Dependabotが自動的にPRを作成し、CIが成功すれば自動マージ（[dependabot-auto-merge.yml](../.github/workflows/dependabot-auto-merge.yml)）
+- **minorバージョン**: Dependabotが自動的にPRを作成（手動でレビュー・マージ）
 - **majorバージョン**: 手動で段階的にアップグレードを実施
+
+#### 自動マージの条件
+
+パッチバージョンの更新は以下の条件を満たすと自動的にマージされます：
+
+1. Dependabotが作成したPRであること
+2. パッチバージョン（`x.y.z`の`z`部分）の更新であること
+3. Lint（ESLint）が成功すること
+4. Test（Vitest）が成功すること
+
+これにより、セキュリティパッチやバグフィックスが迅速に適用されます。
 
 ## メジャーバージョンアップ手順
 
