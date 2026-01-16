@@ -5,6 +5,10 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+    ignore:
+      # メジャーバージョンアップは段階的に手動で実施する（docs/UPGRADE_STRATEGY.md参照）
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       development:
         dependency-type: "development"
