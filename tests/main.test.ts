@@ -175,7 +175,7 @@ describe('main', () => {
     setupWeeklyReportTrigger();
 
     expect(logMock).toHaveBeenCalledWith(
-      '週次レポート送信トリガーを設定しました（毎週土曜日9:00-10:00実行）'
+      '週次レポート送信トリガーを設定しました（毎週土曜日7:00-8:00実行）'
     );
   });
 
