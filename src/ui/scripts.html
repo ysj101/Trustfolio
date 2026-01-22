@@ -57,6 +57,11 @@
   const refreshButton = document.getElementById('refreshButton');
   const portfolioToggleIcon = document.getElementById('portfolioToggleIcon');
   const portfolioToggleLabel = document.getElementById('portfolioToggleLabel');
+  const lastUpdateTime = document.getElementById('lastUpdateTime');
+  const autoRefreshSettingsButton = document.getElementById('autoRefreshSettingsButton');
+  const autoRefreshSettingsModal = document.getElementById('autoRefreshSettingsModal');
+  const saveAutoRefreshSettings = document.getElementById('saveAutoRefreshSettings');
+  const closeAutoRefreshSettings = document.getElementById('closeAutoRefreshSettings');
 
   const listItemClass =
     'flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-3 text-sm text-slate-100 transition hover:border-slate-700 hover:bg-slate-900/80';
@@ -1119,17 +1124,188 @@
     });
   });
 
+  // ========================================
+  // 自動リフレッシュ機能
+  // ========================================
+
+  // localStorageキー
+  const AUTO_REFRESH_INTERVAL_KEY = 'trustfolio_auto_refresh_interval';
+  const LAST_UPDATE_TIME_KEY = 'trustfolio_last_update_time';
+
+  // 自動リフレッシュの状態
+  let autoRefreshTimer = null;
+  let autoRefreshInterval = 0; // ミリ秒 (0 = 無効)
+
+  /**
+   * 最終更新時刻を表示形式で更新
+   */
+  function updateLastUpdateTimeDisplay() {
+    const lastUpdate = localStorage.getItem(LAST_UPDATE_TIME_KEY);
+    if (lastUpdate) {
+      const date = new Date(lastUpdate);
+      const formatted = `最終更新: ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+      lastUpdateTime.textContent = formatted;
+    } else {
+      lastUpdateTime.textContent = '-';
+    }
+  }
+
+  /**
+   * 最終更新時刻を記録
+   */
+  function recordUpdateTime() {
+    const now = new Date().toISOString();
+    localStorage.setItem(LAST_UPDATE_TIME_KEY, now);
+    updateLastUpdateTimeDisplay();
+  }
+
+  /**
+   * 自動リフレッシュの設定を読み込み
+   */
+  function loadAutoRefreshSettings() {
+    const saved = localStorage.getItem(AUTO_REFRESH_INTERVAL_KEY);
+    if (saved) {
+      autoRefreshInterval = Number(saved);
+    } else {
+      // デフォルトは無効
+      autoRefreshInterval = 0;
+    }
+
+    // ラジオボタンの状態を復元
+    const radio = document.querySelector(`input[name="autoRefreshInterval"][value="${autoRefreshInterval}"]`);
+    if (radio) {
+      radio.checked = true;
+    }
+  }
+
+  /**
+   * 自動リフレッシュタイマーを開始
+   */
+  function startAutoRefreshTimer() {
+    // 既存のタイマーをクリア
+    if (autoRefreshTimer) {
+      clearInterval(autoRefreshTimer);
+      autoRefreshTimer = null;
+    }
+
+    // 無効の場合は何もしない
+    if (autoRefreshInterval <= 0) {
+      return;
+    }
+
+    // タイマーを設定
+    autoRefreshTimer = setInterval(() => {
+      // Page Visibility APIでタブがアクティブかチェック
+      if (!document.hidden) {
+        console.log('[AutoRefresh] Triggering automatic refresh');
+        performRefresh();
+      } else {
+        console.log('[AutoRefresh] Tab is hidden, skipping refresh');
+      }
+    }, autoRefreshInterval);
+
+    console.log(`[AutoRefresh] Timer started with interval: ${autoRefreshInterval}ms`);
+  }
+
+  /**
+   * データを再読み込み
+   */
+  async function performRefresh() {
+    // 現在アクティブなタブを確認
+    const activeTab = document.querySelector('.tab-content:not(.hidden)');
+    const activeTabName = activeTab ? activeTab.getAttribute('data-tab') : 'portfolio';
+
+    if (activeTabName === 'performance') {
+      // パフォーマンスタブの場合、パフォーマンスデータを再読み込み
+      if (typeof window.loadPerformanceData === 'function') {
+        window.loadPerformanceData();
+      }
+    } else {
+      // ポートフォリオタブの場合、ポートフォリオデータを再読み込み
+      setMessage('再読み込み中...', null);
+      setLoading(true);
+      try {
+        await loadFunds();
+        recordUpdateTime();
+        setMessage('最新の情報を取得しました。', 'success');
+      } catch (error) {
+        setMessage(error.message, 'error');
+      } finally {
+        setLoading(false);
+      }
+    }
+  }
+
+  // 自動リフレッシュ設定モーダルの表示/非表示
+  autoRefreshSettingsButton.addEventListener('click', () => {
+    autoRefreshSettingsModal.classList.remove('hidden');
+  });
+
+  closeAutoRefreshSettings.addEventListener('click', () => {
+    autoRefreshSettingsModal.classList.add('hidden');
+  });
+
+  // モーダルの背景クリックで閉じる
+  autoRefreshSettingsModal.addEventListener('click', (event) => {
+    if (event.target === autoRefreshSettingsModal) {
+      autoRefreshSettingsModal.classList.add('hidden');
+    }
+  });
+
+  // 自動リフレッシュ設定の保存
+  saveAutoRefreshSettings.addEventListener('click', () => {
+    const selectedRadio = document.querySelector('input[name="autoRefreshInterval"]:checked');
+    if (selectedRadio) {
+      const newInterval = Number(selectedRadio.value);
+      autoRefreshInterval = newInterval;
+      localStorage.setItem(AUTO_REFRESH_INTERVAL_KEY, String(newInterval));
+
+      // タイマーを再起動
+      startAutoRefreshTimer();
+
+      // モーダルを閉じる
+      autoRefreshSettingsModal.classList.add('hidden');
+
+      // 確認メッセージ
+      if (newInterval === 0) {
+        setMessage('自動リフレッシュを無効にしました。', 'success');
+      } else {
+        const hours = newInterval / 3600000;
+        setMessage(`自動リフレッシュを${hours}時間間隔に設定しました。`, 'success');
+      }
+    }
+  });
+
+  // Page Visibility API: タブがアクティブになった時に更新
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      console.log('[Visibility] Tab became active');
+      // タブがアクティブになったら即座に更新
+      performRefresh();
+    } else {
+      console.log('[Visibility] Tab became hidden');
+    }
+  });
+
+  // 初期化時に自動リフレッシュ設定を読み込む
+  loadAutoRefreshSettings();
+  updateLastUpdateTimeDisplay();
+
   (async () => {
     setMessage('読み込み中...', null);
     setLoading(true);
     try {
       await loadFunds();
+      recordUpdateTime();
       setMessage('準備ができました。', 'success');
     } catch (error) {
       setMessage(error.message, 'error');
     } finally {
       setLoading(false);
     }
+
+    // 初回読み込み後に自動リフレッシュタイマーを開始
+    startAutoRefreshTimer();
   })();
   })(); // Close IIFE
 </script>
