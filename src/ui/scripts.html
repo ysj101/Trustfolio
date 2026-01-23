@@ -57,6 +57,7 @@
   const refreshButton = document.getElementById('refreshButton');
   const portfolioToggleIcon = document.getElementById('portfolioToggleIcon');
   const portfolioToggleLabel = document.getElementById('portfolioToggleLabel');
+  const lastUpdateTime = document.getElementById('lastUpdateTime');
 
   const listItemClass =
     'flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-3 text-sm text-slate-100 transition hover:border-slate-700 hover:bg-slate-900/80';
@@ -1119,11 +1120,112 @@
     });
   });
 
+  // ========================================
+  // 日次自動リフレッシュ機能
+  // ========================================
+
+  // localStorageキー
+  const LAST_REFRESH_DATE_KEY = 'trustfolio_last_refresh_date';
+  const LAST_UPDATE_TIME_KEY = 'trustfolio_last_update_time';
+
+  /**
+   * 最終更新時刻を表示形式で更新
+   */
+  function updateLastUpdateTimeDisplay() {
+    const lastUpdate = localStorage.getItem(LAST_UPDATE_TIME_KEY);
+    if (lastUpdate) {
+      const date = new Date(lastUpdate);
+      const month = date.getMonth() + 1;
+      const day = date.getDate();
+      const hours = date.getHours();
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      const formatted = `最終更新: ${month}/${day} ${hours}:${minutes}`;
+      lastUpdateTime.textContent = formatted;
+    } else {
+      lastUpdateTime.textContent = '-';
+    }
+  }
+
+  /**
+   * 最終更新時刻を記録
+   */
+  function recordUpdateTime() {
+    const now = new Date().toISOString();
+    localStorage.setItem(LAST_UPDATE_TIME_KEY, now);
+    updateLastUpdateTimeDisplay();
+  }
+
+  /**
+   * その日初回のリフレッシュかどうかをチェック
+   * @returns {boolean} リフレッシュが必要な場合はtrue
+   */
+  function shouldRefreshToday() {
+    const today = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD形式（ローカルタイムゾーン）
+    const lastRefreshDate = localStorage.getItem(LAST_REFRESH_DATE_KEY);
+
+    if (lastRefreshDate !== today) {
+      console.log('[DailyRefresh] First load of the day, refresh needed');
+      localStorage.setItem(LAST_REFRESH_DATE_KEY, today);
+      return true;
+    } else {
+      console.log('[DailyRefresh] Already refreshed today');
+      return false;
+    }
+  }
+
+  /**
+   * データを再読み込み
+   */
+  async function performRefresh() {
+    // 現在アクティブなタブを確認
+    const activeTab = document.querySelector('.tab-content:not(.hidden)');
+    const activeTabName = activeTab ? activeTab.getAttribute('data-tab') : 'portfolio';
+
+    if (activeTabName === 'performance') {
+      // パフォーマンスタブの場合、パフォーマンスデータを再読み込み
+      try {
+        if (typeof window.loadPerformanceData === 'function') {
+          window.loadPerformanceData();
+          recordUpdateTime();
+        } else {
+          console.warn('[Refresh] loadPerformanceData function not available');
+        }
+      } catch (error) {
+        console.error('[Refresh] Performance data reload failed:', error);
+        setMessage('パフォーマンスデータの再読み込みに失敗しました。', 'error');
+      }
+    } else {
+      // ポートフォリオタブの場合、ポートフォリオデータを再読み込み
+      setMessage('再読み込み中...', null);
+      setLoading(true);
+      try {
+        await loadFunds();
+        recordUpdateTime();
+        setMessage('最新の情報を取得しました。', 'success');
+      } catch (error) {
+        setMessage(error.message, 'error');
+      } finally {
+        setLoading(false);
+      }
+    }
+  }
+
+  // 初期化時に最終更新時刻を表示
+  updateLastUpdateTimeDisplay();
+
   (async () => {
     setMessage('読み込み中...', null);
     setLoading(true);
+
+    // 日次リフレッシュが必要かチェック
+    const needsRefresh = shouldRefreshToday();
+
     try {
       await loadFunds();
+      // 日次リフレッシュが必要な場合のみ更新時刻を記録
+      if (needsRefresh) {
+        recordUpdateTime();
+      }
       setMessage('準備ができました。', 'success');
     } catch (error) {
       setMessage(error.message, 'error');
