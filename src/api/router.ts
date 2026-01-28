@@ -10,6 +10,9 @@ import {
   getFundIdSuffix,
   type SheetDefinition,
 } from '../Config';
+import { createMarketIndexRepository } from '../repository/MarketIndexRepository';
+import { createMarketIndexService } from '../service/MarketIndexService';
+import { createMarketIndexFetchUseCase } from '../usecase/MarketIndexFetchUseCase';
 import type { Result } from '../domain/types';
 import { createFundRepository } from '../repository/FundRepository';
 import { createNavRepository } from '../repository/NavRepository';
@@ -168,6 +171,10 @@ type GetPortfolioPerformanceHistoryRequest = {
   action: 'getPortfolioPerformanceHistory';
 };
 
+type FetchMarketIndicesRequest = {
+  action: 'fetchMarketIndices';
+};
+
 export type ApiRequest =
   | InitializeSheetsRequest
   | ListFundsRequest
@@ -191,7 +198,8 @@ export type ApiRequest =
   | GetPortfolioSummaryRequest
   | FetchAllNavsRequest
   | SendWeeklyReportRequest
-  | GetPortfolioPerformanceHistoryRequest;
+  | GetPortfolioPerformanceHistoryRequest
+  | FetchMarketIndicesRequest;
 
 /**
  * APIリクエストをハンドリングする。
@@ -428,6 +436,26 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
     }
     case 'getPortfolioPerformanceHistory': {
       return portfolioUseCase.getPortfolioPerformanceHistory();
+    }
+    case 'fetchMarketIndices': {
+      // 市場指数シートの存在確認と初期化
+      const marketIndicesDefinition: SheetDefinition = {
+        name: SHEET_NAMES.MARKET_INDICES,
+        headers: SHEET_HEADERS[SHEET_NAMES.MARKET_INDICES],
+      };
+      const ensureMarketIndicesResult = sheetRepository.ensureSheet(marketIndicesDefinition);
+      if (!ensureMarketIndicesResult.success) {
+        return ensureMarketIndicesResult;
+      }
+
+      // 市場指数取得ユースケースを実行
+      const marketIndexRepository = createMarketIndexRepository(sheetRepository);
+      const marketIndexService = createMarketIndexService();
+      const marketIndexFetchUseCase = createMarketIndexFetchUseCase(
+        marketIndexRepository,
+        marketIndexService
+      );
+      return marketIndexFetchUseCase.fetchAndRecordLatestIndices();
     }
     default:
       return {

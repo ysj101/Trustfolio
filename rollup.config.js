@@ -47,6 +47,15 @@ const footer = [
   '}',
   'function deleteWeeklyReportTrigger() {',
   '  return TrustfolioApp.deleteWeeklyReportTrigger();',
+  '}',
+  'function fetchMarketIndices() {',
+  '  return TrustfolioApp.fetchMarketIndices();',
+  '}',
+  'function setupMarketIndexFetchTrigger() {',
+  '  return TrustfolioApp.setupMarketIndexFetchTrigger();',
+  '}',
+  'function deleteMarketIndexFetchTrigger() {',
+  '  return TrustfolioApp.deleteMarketIndexFetchTrigger();',
   '}'
 ].join('\n');
 

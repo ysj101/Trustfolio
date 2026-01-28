@@ -148,9 +148,16 @@ function ensureHeader(
   const lastRow = sheet.getLastRow();
   const lastColumn = sheet.getLastColumn();
 
-  // 空シートの場合はヘッダーを設定して終了
+  // 空シートの場合はヘッダーを設定し、不要な空白列を削除して終了
   if (lastRow === 0 || lastColumn === 0) {
     sheet.getRange(1, 1, 1, headers.length).setValues([Array.from(headers)]);
+
+    // 不要な空白列を削除する（新規シートはデフォルトで26列あるため）
+    const maxColumns = sheet.getMaxColumns();
+    if (maxColumns > headers.length) {
+      sheet.deleteColumns(headers.length + 1, maxColumns - headers.length);
+    }
+
     return { success: true, value: undefined };
   }
 

@@ -207,3 +207,18 @@ export type PortfolioWithWeekOverWeek = Omit<Portfolio, 'holdings'> & {
   /** 保有銘柄一覧（前週比付き） */
   holdings: HoldingWithWeekOverWeek[];
 };
+
+/**
+ * 市場指数データ。
+ * S&P500およびNASDAQ Compositeの終値を記録する。
+ */
+export type MarketIndex = {
+  /** 記録日付（YYYY-MM-DD形式、米国市場日付） */
+  date: string;
+  /** S&P500指数終値 */
+  sp500: number;
+  /** NASDAQ Composite指数終値 */
+  nasdaq: number;
+  /** レコード作成日時 */
+  createdAt: string;
+};
