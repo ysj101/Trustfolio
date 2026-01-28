@@ -7,6 +7,8 @@ export const SHEET_NAMES = {
   NAV_RECORDS: '_nav_records',
   TRANSACTIONS: '_transactions',
   RECURRING: '_recurring',
+  MARKET_INDICES: '_market_indices',
+  MARKET_DATA_HELPER: '_market_data_helper',
 } as const;
 
 /**
@@ -38,6 +40,7 @@ export const SHEET_HEADERS = {
     'isActive',
     'createdAt',
   ],
+  [SHEET_NAMES.MARKET_INDICES]: ['date', 'sp500', 'nasdaq', 'createdAt'],
 } as const;
 
 export type SheetName = (typeof SHEET_NAMES)[keyof typeof SHEET_NAMES];
@@ -55,6 +58,7 @@ export const SHEET_DEFINITIONS: readonly SheetDefinition[] = [
   { name: SHEET_NAMES.FUNDS, headers: SHEET_HEADERS[SHEET_NAMES.FUNDS] },
   { name: SHEET_NAMES.NAV_RECORDS, headers: SHEET_HEADERS[SHEET_NAMES.NAV_RECORDS] },
   { name: SHEET_NAMES.RECURRING, headers: SHEET_HEADERS[SHEET_NAMES.RECURRING] },
+  { name: SHEET_NAMES.MARKET_INDICES, headers: SHEET_HEADERS[SHEET_NAMES.MARKET_INDICES] },
 ];
 
 /**
@@ -134,3 +138,26 @@ export function getWeeklyReportEmail(): string | null {
   }
   return email;
 }
+
+/**
+ * GOOGLEFINANCE関数で使用する市場指数のティッカーシンボル。
+ * GASからは直接GOOGLEFINANCE関数を呼び出せないため、
+ * ヘルパーシートにGOOGLEFINANCE関数を設定し、セル値を読み取る。
+ */
+export const MARKET_INDEX_TICKERS = {
+  /** S&P500指数のティッカー */
+  SP500: 'INDEXSP:.INX',
+  /** NASDAQ Composite指数のティッカー */
+  NASDAQ: 'INDEXNASDAQ:.IXIC',
+} as const;
+
+/**
+ * ヘルパーシート内のセル配置定義。
+ * GOOGLEFINANCE関数の結果を読み取るためのセル位置を指定する。
+ */
+export const MARKET_DATA_HELPER_CELLS = {
+  /** S&P500終値を取得するセル（A1にGOOGLEFINANCE式を設定） */
+  SP500_PRICE: 'A1',
+  /** NASDAQ終値を取得するセル（B1にGOOGLEFINANCE式を設定） */
+  NASDAQ_PRICE: 'B1',
+} as const;

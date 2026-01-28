@@ -407,3 +407,103 @@ export function deleteWeeklyReportTrigger(): void {
     Logger.log(`${String(deletedCount)}個のトリガーを削除しました。`);
   }
 }
+
+// ============================================
+// 市場指数取得関連の関数
+// ============================================
+
+/**
+ * 市場指数取得結果の型ガード関数。
+ */
+function isMarketIndexFetchResult(
+  value: unknown
+): value is { status: string; date: string; message: string } {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const obj = value as Record<string, unknown>;
+  return (
+    typeof obj.status === 'string' &&
+    typeof obj.date === 'string' &&
+    typeof obj.message === 'string'
+  );
+}
+
+/**
+ * S&P500およびNASDAQ Composite指数の終値を取得し、シートに記録する。
+ * Google Apps Scriptのトリガーから呼び出すための関数。
+ * 毎日7:00-8:00（JST）に実行することを推奨（米国市場閉場後）。
+ */
+export function fetchMarketIndices(): void {
+  const response = handleApiRequest({ action: 'fetchMarketIndices' });
+
+  if (!response.success) {
+    Logger.log(`[fetchMarketIndices] 失敗: ${response.error.message} (${response.error.type})`);
+    sendErrorNotificationEmail(
+      '市場指数取得',
+      `市場指数の取得に失敗しました。\n\nエラー: ${response.error.message}\nタイプ: ${response.error.type}`
+    );
+    return;
+  }
+
+  if (!isMarketIndexFetchResult(response.value)) {
+    Logger.log('[fetchMarketIndices] 失敗: 実行結果の形式が不正です。');
+    sendErrorNotificationEmail('市場指数取得', '市場指数の取得結果の形式が不正です。');
+    return;
+  }
+
+  const result = response.value;
+  Logger.log(`[fetchMarketIndices] ${result.status}: ${result.message}`);
+
+  // 失敗の場合のみメール通知
+  if (result.status === 'failed') {
+    sendErrorNotificationEmail(
+      '市場指数取得（失敗）',
+      `市場指数の取得に失敗しました。\n\n${result.message}`
+    );
+  }
+}
+
+/**
+ * 市場指数取得の時間駆動トリガーを設定する。
+ * この関数を1回だけ手動実行することで、毎日7:00-8:00（JST）に自動実行されるトリガーが設定される。
+ * 既存のトリガーは削除してから新しいトリガーを設定する。
+ */
+export function setupMarketIndexFetchTrigger(): void {
+  const existingTriggers = ScriptApp.getProjectTriggers();
+  for (const trigger of existingTriggers) {
+    if (trigger.getHandlerFunction() === 'fetchMarketIndices') {
+      ScriptApp.deleteTrigger(trigger);
+      Logger.log(`既存のトリガーを削除しました: ${trigger.getUniqueId()}`);
+    }
+  }
+
+  // 毎日7:00-8:00（JST）に実行
+  // 米国市場は日本時間5:00-6:00に閉場（夏時間/冬時間による変動）
+  ScriptApp.newTrigger('fetchMarketIndices').timeBased().everyDays(1).atHour(7).create();
+
+  Logger.log('市場指数取得トリガーを設定しました（毎日7:00-8:00実行）');
+}
+
+/**
+ * 市場指数取得の時間駆動トリガーを削除する。
+ * 自動取得を停止したい場合に実行する。
+ */
+export function deleteMarketIndexFetchTrigger(): void {
+  const triggers = ScriptApp.getProjectTriggers();
+  let deletedCount = 0;
+
+  for (const trigger of triggers) {
+    if (trigger.getHandlerFunction() === 'fetchMarketIndices') {
+      ScriptApp.deleteTrigger(trigger);
+      deletedCount++;
+      Logger.log(`トリガーを削除しました: ${trigger.getUniqueId()}`);
+    }
+  }
+
+  if (deletedCount === 0) {
+    Logger.log('削除対象のトリガーが見つかりませんでした。');
+  } else {
+    Logger.log(`${String(deletedCount)}個のトリガーを削除しました。`);
+  }
+}
