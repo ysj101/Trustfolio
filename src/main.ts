@@ -6,8 +6,11 @@ export type { NavFetchResult } from './usecase/NavFetchUseCase';
 import type { Result } from './domain/types';
 import type { NavFetchResult, NavFetchResultItem } from './usecase/NavFetchUseCase';
 import type { ExecuteRecurringResult } from './usecase/RecurringUseCase';
-import { getWeeklyReportEmail } from './Config';
+import { getWeeklyReportEmail, SHEET_HEADERS, SHEET_NAMES, type SheetDefinition } from './Config';
 import { createEmailService } from './service/EmailService';
+import { createMarketIndexRepository } from './repository/MarketIndexRepository';
+import { openSheetRepository } from './repository/SheetRepository';
+import { createMarketIndexAlertUseCase } from './usecase/MarketIndexAlertUseCase';
 
 /**
  * Webアプリのエントリーポイント（GET）。
@@ -350,6 +353,7 @@ function summarizeSkippedReasons(
  * 週次レポートをメールで送信する。
  * 毎週土曜日にトリガーから自動実行される関数。
  * ポートフォリオの全体サマリーと保有銘柄一覧をメールで送信する。
+ * 週次レポート送信後、-5%ルール判定を行い、条件を満たせばアラートメールを送信する。
  */
 export function sendWeeklyReport(): void {
   const response = handleApiRequest({ action: 'sendWeeklyReport' });
@@ -360,6 +364,113 @@ export function sendWeeklyReport(): void {
   }
 
   Logger.log('[sendWeeklyReport] 週次レポートを送信しました。');
+
+  // -5%ルール判定を実行
+  checkAndSendMarketIndexAlert();
+}
+
+/**
+ * -5%ルールアラートを判定し、条件を満たせばアラートメールを送信する。
+ * S&P500またはNASDAQが前週比-5%以上下落した場合に通知を行う。
+ */
+function checkAndSendMarketIndexAlert(): void {
+  Logger.log('[checkAndSendMarketIndexAlert] -5%ルール判定を開始します。');
+
+  // メールアドレスを取得
+  const recipientEmail = getWeeklyReportEmail();
+  if (recipientEmail === null) {
+    Logger.log(
+      '[checkAndSendMarketIndexAlert] WEEKLY_REPORT_EMAILが設定されていないためスキップします。'
+    );
+    return;
+  }
+
+  // SheetRepositoryを開く
+  const sheetRepositoryResult = openSheetRepository();
+  if (!sheetRepositoryResult.success) {
+    Logger.log(
+      `[checkAndSendMarketIndexAlert] シートリポジトリの取得に失敗: ${sheetRepositoryResult.error.message}`
+    );
+    return;
+  }
+
+  const sheetRepository = sheetRepositoryResult.value;
+
+  // 市場指数シートの存在確認
+  const marketIndicesDefinition: SheetDefinition = {
+    name: SHEET_NAMES.MARKET_INDICES,
+    headers: SHEET_HEADERS[SHEET_NAMES.MARKET_INDICES],
+  };
+  const ensureResult = sheetRepository.ensureSheet(marketIndicesDefinition);
+  if (!ensureResult.success) {
+    Logger.log(
+      `[checkAndSendMarketIndexAlert] 市場指数シートの確認に失敗: ${ensureResult.error.message}`
+    );
+    return;
+  }
+
+  // MarketIndexRepositoryとUseCaseを作成
+  const marketIndexRepository = createMarketIndexRepository(sheetRepository);
+  const marketIndexAlertUseCase = createMarketIndexAlertUseCase(marketIndexRepository);
+
+  // -5%ルール判定を実行
+  const alertResult = marketIndexAlertUseCase.checkAlert();
+  if (!alertResult.success) {
+    Logger.log(`[checkAndSendMarketIndexAlert] アラート判定に失敗: ${alertResult.error.message}`);
+    return;
+  }
+
+  const result = alertResult.value;
+  Logger.log(
+    `[checkAndSendMarketIndexAlert] 判定完了: isAlertTriggered=${String(result.isAlertTriggered)}, ` +
+      `S&P500=${result.sp500?.changeRate.toFixed(2) ?? 'N/A'}%, ` +
+      `NASDAQ=${result.nasdaq?.changeRate.toFixed(2) ?? 'N/A'}%`
+  );
+
+  // アラートがトリガーされていない場合は終了
+  if (!result.isAlertTriggered) {
+    Logger.log('[checkAndSendMarketIndexAlert] アラート条件を満たしていないためスキップします。');
+    return;
+  }
+
+  // アラートメールを送信
+  const emailService = createEmailService();
+  const sendResult = emailService.sendMarketIndexAlert(result, recipientEmail);
+  if (!sendResult.success) {
+    Logger.log(
+      `[checkAndSendMarketIndexAlert] アラートメール送信に失敗: ${sendResult.error.message}`
+    );
+    return;
+  }
+
+  Logger.log('[checkAndSendMarketIndexAlert] アラートメールを送信しました。');
+
+  // -5%以上下落した指数のセルを色付け
+  if (result.sp500?.isTriggered) {
+    const highlightResult = marketIndexRepository.highlightAlertCell(result.alertDate, 'sp500');
+    if (highlightResult.success) {
+      Logger.log(
+        `[checkAndSendMarketIndexAlert] S&P500セルをハイライトしました: ${result.alertDate}`
+      );
+    } else {
+      Logger.log(
+        `[checkAndSendMarketIndexAlert] S&P500セルのハイライトに失敗: ${highlightResult.error.message}`
+      );
+    }
+  }
+
+  if (result.nasdaq?.isTriggered) {
+    const highlightResult = marketIndexRepository.highlightAlertCell(result.alertDate, 'nasdaq');
+    if (highlightResult.success) {
+      Logger.log(
+        `[checkAndSendMarketIndexAlert] NASDAQセルをハイライトしました: ${result.alertDate}`
+      );
+    } else {
+      Logger.log(
+        `[checkAndSendMarketIndexAlert] NASDAQセルのハイライトに失敗: ${highlightResult.error.message}`
+      );
+    }
+  }
 }
 
 /**

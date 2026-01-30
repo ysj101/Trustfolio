@@ -1,4 +1,5 @@
 import type { Result, WeekOverWeekChange } from '../domain/types';
+import type { MarketIndexAlertResult } from '../usecase/MarketIndexAlertUseCase';
 import type { WeeklyReport } from '../usecase/WeeklyReportUseCase';
 
 /**
@@ -28,6 +29,16 @@ export type EmailService = {
     errorMessage: string,
     recipient: string
   ) => Result<void>;
+
+  /**
+   * -5%ルールアラートメールを送信する。
+   * S&P500またはNASDAQが前週比-5%以上下落した場合に、追加投資を促すメールを送信する。
+   *
+   * @param alertResult - アラート判定結果
+   * @param recipient - 送信先メールアドレス
+   * @returns 送信結果
+   */
+  sendMarketIndexAlert: (alertResult: MarketIndexAlertResult, recipient: string) => Result<void>;
 };
 
 /**
@@ -365,5 +376,183 @@ export function createEmailService(): EmailService {
 
       return { success: true, value: undefined };
     },
+
+    sendMarketIndexAlert: (
+      alertResult: MarketIndexAlertResult,
+      recipient: string
+    ): Result<void> => {
+      // メールアドレスのバリデーション
+      if (!recipient || typeof recipient !== 'string' || recipient.trim() === '') {
+        return {
+          success: false,
+          error: {
+            type: 'validation',
+            message: '送信先メールアドレスが指定されていません。',
+            field: 'recipient',
+          },
+        };
+      }
+
+      // アラートがトリガーされていない場合は送信しない
+      if (!alertResult.isAlertTriggered) {
+        return {
+          success: false,
+          error: {
+            type: 'validation',
+            message: 'アラート条件を満たしていないため、メールを送信しません。',
+          },
+        };
+      }
+
+      // メール本文を生成
+      const htmlBody = generateMarketIndexAlertEmailBody(alertResult);
+
+      // 下落率をタイトルに含める
+      const triggeredIndices: string[] = [];
+      if (alertResult.sp500?.isTriggered) {
+        triggeredIndices.push(`S&P500 ${alertResult.sp500.changeRate.toFixed(1)}%`);
+      }
+      if (alertResult.nasdaq?.isTriggered) {
+        triggeredIndices.push(`NASDAQ ${alertResult.nasdaq.changeRate.toFixed(1)}%`);
+      }
+      const subject = `【Trustfolio】-5%ルールアラート: ${triggeredIndices.join(', ')}`;
+
+      // GASのMailAppを使用してメール送信
+      MailApp.sendEmail({
+        to: recipient,
+        subject,
+        htmlBody,
+      });
+
+      Logger.log(`-5%ルールアラートメールを送信しました: ${recipient}`);
+
+      return { success: true, value: undefined };
+    },
   };
+}
+
+/**
+ * -5%ルールアラートのHTMLメール本文を生成する。
+ *
+ * @param alertResult - アラート判定結果
+ * @returns HTMLメール本文
+ */
+function generateMarketIndexAlertEmailBody(alertResult: MarketIndexAlertResult): string {
+  const { sp500, nasdaq, alertDate, comparisonDate } = alertResult;
+
+  // 下落した指数の詳細を生成
+  let triggeredIndicesHtml = '';
+
+  if (sp500?.isTriggered) {
+    triggeredIndicesHtml += `
+      <tr style="background-color: #ffebee;">
+        <td style="padding: 12px; border: 1px solid #ddd; font-weight: bold;">S&P500</td>
+        <td style="padding: 12px; border: 1px solid #ddd; text-align: right;">${sp500.previousValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        <td style="padding: 12px; border: 1px solid #ddd; text-align: right;">${sp500.currentValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        <td style="padding: 12px; border: 1px solid #ddd; text-align: right; color: #c62828; font-weight: bold;">${sp500.changeRate.toFixed(2)}%</td>
+      </tr>
+    `;
+  }
+
+  if (nasdaq?.isTriggered) {
+    triggeredIndicesHtml += `
+      <tr style="background-color: #ffebee;">
+        <td style="padding: 12px; border: 1px solid #ddd; font-weight: bold;">NASDAQ</td>
+        <td style="padding: 12px; border: 1px solid #ddd; text-align: right;">${nasdaq.previousValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        <td style="padding: 12px; border: 1px solid #ddd; text-align: right;">${nasdaq.currentValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        <td style="padding: 12px; border: 1px solid #ddd; text-align: right; color: #c62828; font-weight: bold;">${nasdaq.changeRate.toFixed(2)}%</td>
+      </tr>
+    `;
+  }
+
+  // 下落していない指数も参考情報として表示
+  let referenceIndicesHtml = '';
+
+  if (sp500 && !sp500.isTriggered) {
+    const changeColor = sp500.changeRate >= 0 ? '#1565c0' : '#c62828';
+    const changeSign = sp500.changeRate >= 0 ? '+' : '';
+    referenceIndicesHtml += `
+      <tr>
+        <td style="padding: 12px; border: 1px solid #ddd;">S&P500</td>
+        <td style="padding: 12px; border: 1px solid #ddd; text-align: right;">${sp500.previousValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        <td style="padding: 12px; border: 1px solid #ddd; text-align: right;">${sp500.currentValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        <td style="padding: 12px; border: 1px solid #ddd; text-align: right; color: ${changeColor};">${changeSign}${sp500.changeRate.toFixed(2)}%</td>
+      </tr>
+    `;
+  }
+
+  if (nasdaq && !nasdaq.isTriggered) {
+    const changeColor = nasdaq.changeRate >= 0 ? '#1565c0' : '#c62828';
+    const changeSign = nasdaq.changeRate >= 0 ? '+' : '';
+    referenceIndicesHtml += `
+      <tr>
+        <td style="padding: 12px; border: 1px solid #ddd;">NASDAQ</td>
+        <td style="padding: 12px; border: 1px solid #ddd; text-align: right;">${nasdaq.previousValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        <td style="padding: 12px; border: 1px solid #ddd; text-align: right;">${nasdaq.currentValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        <td style="padding: 12px; border: 1px solid #ddd; text-align: right; color: ${changeColor};">${changeSign}${nasdaq.changeRate.toFixed(2)}%</td>
+      </tr>
+    `;
+  }
+
+  const html = `
+    <html>
+      <head>
+        <meta charset="utf-8">
+      </head>
+      <body style="font-family: 'Hiragino Sans', 'Meiryo', sans-serif; padding: 20px;">
+        <h1 style="color: #c62828;">⚠️ -5%ルールアラート</h1>
+        <p style="color: #666;">比較期間: ${comparisonDate} → ${alertDate}</p>
+
+        <div style="background-color: #fff3e0; border-left: 4px solid #ff9800; padding: 16px; margin: 20px 0;">
+          <p style="margin: 0; font-size: 16px; color: #333;">
+            <strong>市場指数が前週比-5%以上下落しました。</strong><br>
+            追加投資を検討するタイミングかもしれません。
+          </p>
+        </div>
+
+        <h2 style="color: #333; margin-top: 30px;">下落した指数</h2>
+        <table style="border-collapse: collapse; width: 100%; max-width: 600px; margin-bottom: 20px;">
+          <tr style="background-color: #f5f5f5;">
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">指数</th>
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">前週終値</th>
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">今週終値</th>
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">変化率</th>
+          </tr>
+          ${triggeredIndicesHtml}
+        </table>
+
+        ${
+          referenceIndicesHtml
+            ? `
+        <h2 style="color: #333; margin-top: 30px;">参考: その他の指数</h2>
+        <table style="border-collapse: collapse; width: 100%; max-width: 600px; margin-bottom: 20px;">
+          <tr style="background-color: #f5f5f5;">
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">指数</th>
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">前週終値</th>
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">今週終値</th>
+            <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">変化率</th>
+          </tr>
+          ${referenceIndicesHtml}
+        </table>
+        `
+            : ''
+        }
+
+        <div style="background-color: #e3f2fd; border-left: 4px solid #2196f3; padding: 16px; margin: 20px 0;">
+          <p style="margin: 0; font-size: 14px; color: #333;">
+            <strong>-5%ルールとは</strong><br>
+            市場が大きく下落した際に追加投資を行う投資戦略です。<br>
+            長期的な視点で、割安になった資産を購入する機会として活用できます。
+          </p>
+        </div>
+
+        <p style="color: #999; font-size: 12px; margin-top: 40px;">
+          このメールはTrustfolioから自動送信されています。<br>
+          投資は自己責任で行ってください。
+        </p>
+      </body>
+    </html>
+  `;
+
+  return html;
 }

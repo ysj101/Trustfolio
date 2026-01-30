@@ -321,10 +321,15 @@ describe('main', () => {
 
   it('週次レポート送信が成功した場合はログを出力する', async () => {
     // 前提: 週次レポート送信が成功する
-    // 事前条件: handleApiRequestが成功結果を返す
+    // 事前条件: handleApiRequestが成功結果を返す、-5%ルール判定はスキップ（メールアドレス未設定）
     // 検証: 成功ログが出力される
     const { handleApiRequest } = vi.mocked(await import('../src/api/router'));
     handleApiRequest.mockReturnValue({ success: true, value: { message: 'ok' } });
+
+    // -5%ルール判定をスキップするためにメールアドレスをnullに設定
+    const { getWeeklyReportEmail } = vi.mocked(await import('../src/Config'));
+    getWeeklyReportEmail.mockReturnValue(null);
+
     const logMock = vi.spyOn(globalThis.Logger, 'log');
 
     sendWeeklyReport();
