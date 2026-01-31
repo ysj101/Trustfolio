@@ -3,6 +3,12 @@ import type { AppError, MarketIndex, Result } from '../domain/types';
 import type { SheetRepository } from './SheetRepository';
 
 /**
+ * アラート時のセル背景色（赤系）。
+ * Material Designのred-100カラー。
+ */
+const ALERT_CELL_COLOR = '#FFCDD2';
+
+/**
  * 市場指数リポジトリ。
  * _market_indicesシートへのCRUD操作を提供する。
  */
@@ -30,6 +36,16 @@ export type MarketIndexRepository = {
    * @returns 成功時はvoid
    */
   create: (record: MarketIndex) => Result<void>;
+
+  /**
+   * -5%ルールに該当する指数のセルを赤色でハイライトする。
+   * 指定された日付の行で、指定された列（sp500またはnasdaq）のセル背景色を赤色に設定する。
+   *
+   * @param date 日付（YYYY-MM-DD形式）
+   * @param column ハイライトする列（'sp500'または'nasdaq'）
+   * @returns 成功時はvoid
+   */
+  highlightAlertCell: (date: string, column: 'sp500' | 'nasdaq') => Result<void>;
 };
 
 /**
@@ -100,6 +116,55 @@ export function createMarketIndexRepository(
       return sheetRepository.appendRows(SHEET_NAMES.MARKET_INDICES, [
         [record.date, record.sp500, record.nasdaq, record.createdAt],
       ]);
+    },
+
+    highlightAlertCell: (date: string, column: 'sp500' | 'nasdaq'): Result<void> => {
+      // シートを取得
+      const sheetResult = sheetRepository.getRequiredSheet(SHEET_NAMES.MARKET_INDICES);
+      if (!sheetResult.success) {
+        return sheetResult;
+      }
+
+      const sheet = sheetResult.value;
+
+      // 全行を読み取って対象日付の行番号を特定
+      const rowsResult = sheetRepository.readAllRows(SHEET_NAMES.MARKET_INDICES);
+      if (!rowsResult.success) {
+        return rowsResult;
+      }
+
+      // 対象日付の行インデックスを検索（0始まり、データ行基準）
+      let targetRowIndex: number | null = null;
+      for (const [index, row] of rowsResult.value.entries()) {
+        const dateValue = row[0];
+        let rowDate: string | null = null;
+
+        if (dateValue instanceof Date) {
+          rowDate = formatDateToIso(dateValue);
+        } else if (typeof dateValue === 'string') {
+          rowDate = dateValue.trim();
+        }
+
+        if (rowDate === date) {
+          targetRowIndex = index;
+          break;
+        }
+      }
+
+      if (targetRowIndex === null) {
+        return fail('not_found', `指定された日付のデータが見つかりません: ${date}`);
+      }
+
+      // シート上の実際の行番号を計算（ヘッダー行が1行目、データは2行目から）
+      const sheetRowNumber = targetRowIndex + 2;
+
+      // 列番号を決定（date=1, sp500=2, nasdaq=3, createdAt=4）
+      const columnNumber = column === 'sp500' ? 2 : 3;
+
+      // セルの背景色を設定
+      sheet.getRange(sheetRowNumber, columnNumber).setBackground(ALERT_CELL_COLOR);
+
+      return { success: true, value: undefined };
     },
   };
 
