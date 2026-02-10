@@ -1,2 +1,1 @@
-@.claude/CLAUDE.md
-を参照して
+CLAUDE.md
