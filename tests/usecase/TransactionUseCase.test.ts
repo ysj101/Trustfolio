@@ -177,10 +177,10 @@ describe('TransactionUseCase', () => {
     }
   });
 
-  it('売却取引は内部で口数をマイナスに変換して保存する', () => {
+  it('売却取引は口数を正の値で保存する', () => {
     // 前提: 売却口数が保有口数以下である
     // 事前条件: 既存の購入取引がある
-    // 検証: 登録された取引のunitsが負の値になる
+    // 検証: 登録された取引のunitsが正の値で保存される（計算時にtypeで判別して減算）
     const fundRepository = createFundRepository([
       {
         id: 'fund-001',
@@ -214,7 +214,7 @@ describe('TransactionUseCase', () => {
     });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.value.units).toBe(-5000);
+      expect(result.value.units).toBe(5000);
       expect(result.value.amount).toBe(6000);
     }
   });

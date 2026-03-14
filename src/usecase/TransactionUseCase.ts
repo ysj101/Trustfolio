@@ -183,7 +183,7 @@ export function createTransactionUseCase(
         date,
         amount: 0, // 後で計算
         navValue,
-        units: -units,
+        units: units, // 売却口数は正の値で保存（計算時にtypeで判別して減算）
         recurringPurchaseId: null,
         idempotencyKey: null,
         createdAt: new Date().toISOString(),
@@ -206,7 +206,7 @@ export function createTransactionUseCase(
         date,
         amount,
         navValue,
-        units: -units, // 売却口数は負の値で保存
+        units: units, // 売却口数は正の値で保存（計算時にtypeで判別して減算）
         recurringPurchaseId: null,
         idempotencyKey: null,
         createdAt: new Date().toISOString(),
@@ -354,7 +354,7 @@ export function createTransactionUseCase(
         date,
         amount,
         navValue,
-        units: -units,
+        units: units, // 売却口数は正の値で保存（計算時にtypeで判別して減算）
         recurringPurchaseId: null,
         idempotencyKey: null,
         createdAt: existingResult.value.createdAt,
@@ -581,7 +581,12 @@ function validateHoldingsAcrossAllDates(
   // 各時点での累積保有口数を計算し、マイナスにならないことを確認
   let cumulativeUnits = 0;
   for (const transaction of sortedTransactions) {
-    cumulativeUnits += transaction.units;
+    // 購入時は加算、売却時は減算（unitsは常に正の値で保存される）
+    if (transaction.type === 'REDEMPTION') {
+      cumulativeUnits -= transaction.units;
+    } else {
+      cumulativeUnits += transaction.units;
+    }
     if (cumulativeUnits < 0) {
       return {
         success: false,

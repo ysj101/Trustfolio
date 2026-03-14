@@ -215,7 +215,7 @@ describe('PortfolioCalculator', () => {
         date: '2024-03-10',
         amount: 10000,
         navValue: 20000,
-        units: -5000,
+        units: 5000,
         recurringPurchaseId: null,
         idempotencyKey: null,
         createdAt: '2024-03-10T00:00:00.000Z',
