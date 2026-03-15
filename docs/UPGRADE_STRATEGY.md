@@ -28,6 +28,8 @@ v2.0.0 → v3.0.0 → v4.0.0 と段階的にアップグレード
 - **minorバージョン**: Dependabotが自動的にPRを作成（手動でレビュー・マージ）
 - **majorバージョン**: 手動で段階的にアップグレードを実施
 
+依存関係の正本は `pnpm-lock.yaml` です。開発者は `npm` を使わず、`pnpm` と `package.json` の `packageManager` / `engines` に従って作業します。
+
 #### 自動マージの条件
 
 パッチバージョンの更新は以下の条件を満たすと自動的にマージされます：
@@ -60,7 +62,7 @@ pnpm add @google/clasp@3
 
 ```bash
 # ビルドが成功するか確認
-pnpm run build
+pnpm build
 
 # テストが通過するか確認
 pnpm test
@@ -70,10 +72,10 @@ pnpm test
 
 ```bash
 # ステージング環境へデプロイ（存在する場合）
-pnpm run push
+pnpm push
 
 # または本番環境へデプロイ
-pnpm run push
+pnpm push
 ```
 
 **2.4. 主要機能の動作確認チェックリスト**
@@ -98,17 +100,17 @@ git commit -m "chore: upgrade [package-name] from vX to vY"
 **3.1. 即座にロールバック**
 
 ```bash
-# 直前のコミットに戻る
-git reset --hard HEAD~1
+# 直前のコミットへ作業ツリーを戻す
+git checkout HEAD~1 -- package.json pnpm-lock.yaml
 
 # 依存関係を再インストール
-pnpm install
+pnpm install --frozen-lockfile
 
 # ビルド
-pnpm run build
+pnpm build
 
 # GASへ再デプロイ
-pnpm run push
+pnpm push
 ```
 
 **3.2. 問題の調査**
@@ -133,13 +135,13 @@ pnpm run push
 
 ### ローカルテスト
 
-1. **TypeScriptの型チェック**: `pnpm run build`でコンパイルエラーがないか確認
+1. **TypeScriptの型チェック**: `pnpm build`でコンパイルエラーがないか確認
 2. **ユニットテスト**: `pnpm test`で既存のテストが通過するか確認
-3. **Lintチェック**: `pnpm run lint`でコードスタイルの問題がないか確認
+3. **Lintチェック**: `pnpm lint`でコードスタイルの問題がないか確認
 
 ### GAS環境でのテスト
 
-1. **デプロイの成功**: `pnpm run push`が正常に完了するか確認
+1. **デプロイの成功**: `pnpm push`が正常に完了するか確認
 2. **基本機能の動作確認**: スプレッドシートを開いて主要機能が動作するか手動確認
 3. **トリガーの動作確認**: 定期実行トリガーが正常に動作するか確認
 4. **エラー監視**: GASログを確認し、新しいエラーが発生していないか確認

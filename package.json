@@ -2,6 +2,10 @@
   "name": "trustfolio-gas",
   "private": true,
   "version": "0.1.0",
+  "engines": {
+    "node": ">=22 <23",
+    "pnpm": ">=10.30.2 <11"
+  },
   "scripts": {
     "build:css": "bash scripts/build-styles.sh",
     "build:js": "rollup -c",

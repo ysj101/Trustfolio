@@ -82,15 +82,20 @@ Google Sheets上で管理するGASアプリケーションです。
 
 ### 必要環境
 
-- Node.js 20以上
-- pnpm 10.27.0以上（`packageManager`で固定）
+- Node.js 22.x（CIと同じ実行環境）
+- Corepack（Node.js 22に同梱。`corepack enable`で有効化）
+- pnpm 10.30.2（`packageManager`で固定）
 - clasp（`pnpm exec clasp login`で認証）
 - Google Apps Scriptプロジェクト
 - Google スプレッドシート
 
+`package.json`では `engines.node` を `>=22 <23`、`engines.pnpm` を `>=10.30.2 <11` に固定しています。依存関係の追加・更新・実行は `pnpm` だけを使用してください。
+
 ### インストール
 
 ```bash
+corepack enable
+corepack use pnpm@10.30.2
 pnpm install
 ```
 
@@ -267,6 +272,7 @@ GitHub Actionsで以下を自動実行しています：
 
 - **Lint**: ESLintによるコード品質チェック（[.github/workflows/lint.yml](.github/workflows/lint.yml)）
 - **Test**: Vitestによる単体テスト実行（[.github/workflows/test.yml](.github/workflows/test.yml)）
+- **Security Check**: `pnpm audit --audit-level moderate` による依存関係監査（[.github/workflows/security.yml](.github/workflows/security.yml)）
 - **Code Review**: Claudeによる自動コードレビュー（プルリクエスト時）
 - **Dependabot Auto Merge**: パッチバージョンの自動マージ（[.github/workflows/dependabot-auto-merge.yml](.github/workflows/dependabot-auto-merge.yml)）
 
