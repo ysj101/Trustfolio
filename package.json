@@ -14,40 +14,47 @@
     "push": "pnpm lint && pnpm build && clasp push --force",
     "setup:clasp": "scripts/setup-clasp.sh",
     "sync:env": "node scripts/sync-env-to-gas.mjs",
-    "lint": "eslint src/",
-    "lint:fix": "eslint src/ --fix",
-    "format": "prettier --write \"src/**/*.ts\"",
-    "format:check": "prettier --check \"src/**/*.ts\"",
+    "lint": "pnpm lint:oxlint && pnpm lint:architecture && pnpm lint:typescript-rules",
+    "lint:fix": "pnpm lint:oxlint:fix && pnpm format && pnpm lint:architecture && pnpm lint:typescript-rules",
+    "lint:oxlint": "oxlint src scripts vitest.config.ts rollup.config.js --import-plugin --promise-plugin --deny-warnings",
+    "lint:oxlint:fix": "oxlint src scripts vitest.config.ts rollup.config.js --import-plugin --promise-plugin --deny-warnings --fix",
+    "lint:architecture": "node scripts/check-architecture.mjs",
+    "lint:typescript-rules": "node scripts/check-typescript-rules.mjs",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
     "test": "vitest",
     "test:rakuten": "node scripts/rakuten-integration-test.mjs",
     "test:nav-fetch": "node scripts/nav-fetch-test.mjs",
     "prepare": "husky"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.4",
+    "@biomejs/biome": "2.4.7",
     "@google/clasp": "^3.2.0",
     "@rollup/plugin-typescript": "^12.3.0",
     "@types/google-apps-script": "^1.0.83",
     "@vitest/coverage-v8": "^4.0.18",
-    "eslint": "^9.39.4",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-boundaries": "^5.4.0",
-    "eslint-plugin-prettier": "^5.5.5",
     "hono": "^4.12.7",
     "husky": "^9.1.7",
     "lint-staged": "^16.3.2",
-    "prettier": "^3.8.1",
+    "oxlint": "1.56.0",
     "rollup": "^4.59.0",
     "tailwindcss": "^3.4.0",
     "typescript": "^5.5.4",
-    "typescript-eslint": "^8.56.1",
     "vitest": "^4.0.18"
   },
   "lint-staged": {
-    "*.ts": [
-      "eslint --fix",
-      "prettier --write",
+    "*.{ts,js,mjs,cjs,json,css,html}": [
+      "biome format --write"
+    ],
+    "src/**/*.ts": [
+      "oxlint --import-plugin --promise-plugin --deny-warnings --fix",
       "pnpm vitest related --run"
+    ],
+    "scripts/**/*.mjs": [
+      "oxlint --import-plugin --promise-plugin --deny-warnings --fix"
+    ],
+    "{vitest.config.ts,rollup.config.js}": [
+      "oxlint --import-plugin --promise-plugin --deny-warnings --fix"
     ]
   },
   "packageManager": "pnpm@10.30.2+sha512.36cdc707e7b7940a988c9c1ecf88d084f8514b5c3f085f53a2e244c2921d3b2545bc20dd4ebe1fc245feec463bb298aecea7a63ed1f7680b877dc6379d8d0cb4",

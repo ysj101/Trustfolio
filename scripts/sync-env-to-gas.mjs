@@ -13,7 +13,6 @@
  */
 
 import { readFileSync } from 'fs';
-import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -58,41 +57,6 @@ function loadEnvFile(readFile = readFileSync, envPath = join(projectRoot, '.env'
     console.error('エラー: .envファイルの読み込みに失敗しました。');
     console.error(error.message);
     process.exit(1);
-  }
-}
-
-// GASのスクリプトプロパティを設定する
-function setScriptProperty(key, value) {
-  try {
-    // スクリプトIDを取得
-    const claspJson = JSON.parse(readFileSync(join(projectRoot, '.clasp.json'), 'utf-8'));
-    const scriptId = claspJson.scriptId;
-
-    if (!scriptId) {
-      console.error('エラー: .clasp.jsonにscriptIdが設定されていません。');
-      process.exit(1);
-    }
-
-    // Apps Script APIを使用してスクリプトプロパティを設定
-    // clasp run コマンドを使用
-    const script = `
-      function setProperty() {
-        PropertiesService.getScriptProperties().setProperty('${key}', '${value}');
-        return 'OK';
-      }
-    `;
-
-    // 一時的なApps Scriptファイルを作成する代わりに、
-    // claspのコマンドを使用してプロパティを設定
-    console.log(`Setting ${key}=${value}`);
-
-    // Apps Script APIを直接呼び出すために、curlを使用
-    // しかし、これは複雑なので、代わりに説明を出力
-    console.log(`  → GASエディタで手動設定: ${key}=${value}`);
-
-  } catch (error) {
-    console.error(`エラー: ${key}の設定に失敗しました。`);
-    console.error(error.message);
   }
 }
 

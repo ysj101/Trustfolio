@@ -1,7 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/strict-boolean-expressions */
 import { describe, expect, it } from 'vitest';
 import { parseNavFromRakutenHtml, fetchNav } from '../../scripts/nav-fetch-test.mjs';
 import type { FetchNavResult } from '../../scripts/nav-fetch-test.mjs';

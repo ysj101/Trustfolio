@@ -29,7 +29,7 @@ export function parseNavFromRakutenHtml(html) {
   }
   return {
     date: `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`,
-    value
+    value,
   };
 }
 
@@ -39,8 +39,8 @@ export async function run(fetchFn = fetch) {
     headers: {
       'User-Agent': 'Mozilla/5.0 (compatible; TrustfolioLocalTest/1.0)',
       Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8'
-    }
+      'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8',
+    },
   });
 
   const statusCode = response.status;
@@ -53,7 +53,7 @@ export async function run(fetchFn = fetch) {
     fundId,
     statusCode,
     navCandidate,
-    bodySample
+    bodySample,
   };
 
   console.log(JSON.stringify(result, null, 2));

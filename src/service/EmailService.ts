@@ -522,7 +522,7 @@ function generateMarketIndexAlertEmailBody(alertResult: MarketIndexAlertResult):
         </table>
 
         ${
-          referenceIndicesHtml
+          referenceIndicesHtml !== ''
             ? `
         <h2 style="color: #333; margin-top: 30px;">参考: その他の指数</h2>
         <table style="border-collapse: collapse; width: 100%; max-width: 600px; margin-bottom: 20px;">
