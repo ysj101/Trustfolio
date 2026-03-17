@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/naming-convention */
-/* eslint-disable no-restricted-syntax */
 import { vi } from 'vitest';
 
 type ScriptProperties = {

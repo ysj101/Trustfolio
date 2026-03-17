@@ -56,7 +56,7 @@ const footer = [
   '}',
   'function deleteMarketIndexFetchTrigger() {',
   '  return TrustfolioApp.deleteMarketIndexFetchTrigger();',
-  '}'
+  '}',
 ].join('\n');
 
 function copyUiFiles() {
@@ -69,7 +69,7 @@ function copyUiFiles() {
         return;
       }
       copyDirectory(srcDir, distDir, { ignoreNames: new Set(['styles.html']) });
-    }
+    },
   };
 }
 
@@ -83,7 +83,7 @@ function copyManifest() {
         return;
       }
       fs.copyFileSync(srcPath, distPath);
-    }
+    },
   };
 }
 
@@ -113,13 +113,13 @@ module.exports = {
     file: 'dist/Code.js',
     format: 'iife',
     name: 'TrustfolioApp',
-    footer
+    footer,
   },
   plugins: [
     typescript({
-      tsconfig: './tsconfig.build.json'
+      tsconfig: './tsconfig.build.json',
     }),
     copyUiFiles(),
-    copyManifest()
-  ]
+    copyManifest(),
+  ],
 };

@@ -38,7 +38,7 @@ export function parseNavFromRakutenHtml(html) {
   }
   return {
     date: `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`,
-    value
+    value,
   };
 }
 
@@ -51,8 +51,8 @@ export async function fetchNav(fundId, fetchFn = fetch) {
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; TrustfolioLocalTest/1.0)',
         Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8'
-      }
+        'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8',
+      },
     });
 
     const statusCode = response.status;
@@ -65,7 +65,7 @@ export async function fetchNav(fundId, fetchFn = fetch) {
       statusCode,
       nav,
       success: statusCode === 200 && nav !== null,
-      error: null
+      error: null,
     };
   } catch (error) {
     return {
@@ -74,7 +74,7 @@ export async function fetchNav(fundId, fetchFn = fetch) {
       statusCode: null,
       nav: null,
       success: false,
-      error: error.message
+      error: error.message,
     };
   }
 }
@@ -112,7 +112,13 @@ export async function run() {
 
   // 詳細結果（JSON形式）
   console.log('=== 詳細結果（JSON） ===');
-  console.log(JSON.stringify({ results, summary: { total: fundIds.length, success: successCount, failed: failedCount } }, null, 2));
+  console.log(
+    JSON.stringify(
+      { results, summary: { total: fundIds.length, success: successCount, failed: failedCount } },
+      null,
+      2
+    )
+  );
 
   // テスト失敗時は終了コード1を返す
   if (failedCount > 0) {

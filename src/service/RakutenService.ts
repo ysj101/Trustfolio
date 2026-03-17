@@ -104,11 +104,8 @@ export function fetchRakutenQuote(rakutenFundId: string): Result<RakutenQuoteRes
   const response = safeFetch(url, {
     method: 'get',
     headers: {
-      // eslint-disable-next-line @typescript-eslint/naming-convention
       'User-Agent': 'Mozilla/5.0 (compatible; TrustfolioBot/1.0)',
-      // eslint-disable-next-line @typescript-eslint/naming-convention
-      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      // eslint-disable-next-line @typescript-eslint/naming-convention
+      accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8',
     },
     muteHttpExceptions: true,
@@ -156,13 +153,11 @@ function safeFetch(
   url: string,
   options: GoogleAppsScript.URL_Fetch.URLFetchRequestOptions
 ): GoogleAppsScript.URL_Fetch.HTTPResponse | null {
-  /* eslint-disable no-restricted-syntax */
   try {
     return UrlFetchApp.fetch(url, options);
   } catch {
     return null;
   }
-  /* eslint-enable no-restricted-syntax */
 }
 
 /**

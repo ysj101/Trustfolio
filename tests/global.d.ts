@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/naming-convention */
 declare global {
   const Utilities: {
     formatDate: (date: Date, timeZone: string, format: string) => string;

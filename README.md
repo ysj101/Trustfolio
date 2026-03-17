@@ -147,10 +147,10 @@ pnpm test:nav-fetch   # NAV自動取得の統合テスト
 ### コード品質チェック
 
 ```bash
-pnpm lint             # ESLintでコード検査
-pnpm lint:fix         # ESLintで自動修正
-pnpm format           # Prettierでコード整形
-pnpm format:check     # フォーマットチェックのみ
+pnpm lint             # oxlintと専用チェックでコード検査
+pnpm lint:fix         # oxlintの自動修正とBiome整形を実行
+pnpm format           # Biomeでコード整形
+pnpm format:check     # Biomeでフォーマットチェックのみ
 ```
 
 ## デプロイ
@@ -163,7 +163,7 @@ pnpm push
 
 このコマンドで以下が自動実行されます：
 
-1. ESLintによるコードチェック
+1. oxlintと専用チェックによるコードチェック
 2. TypeScriptのビルド
 3. GASへのコードpush（`@HEAD`デプロイメント更新）
 
@@ -270,7 +270,7 @@ Webアプリでは以下の操作が可能です：
 
 GitHub Actionsで以下を自動実行しています：
 
-- **Lint**: ESLintによるコード品質チェック（[.github/workflows/lint.yml](.github/workflows/lint.yml)）
+- **Lint**: oxlintと専用チェック、Biomeフォーマット検証（[.github/workflows/lint.yml](.github/workflows/lint.yml)）
 - **Test**: Vitestによる単体テスト実行（[.github/workflows/test.yml](.github/workflows/test.yml)）
 - **Security Check**: `pnpm audit --audit-level moderate` による依存関係監査（[.github/workflows/security.yml](.github/workflows/security.yml)）
 - **Code Review**: Claudeによる自動コードレビュー（プルリクエスト時）
@@ -280,8 +280,8 @@ GitHub Actionsで以下を自動実行しています：
 
 Huskyとlint-stagedを使用し、コミット前に以下を自動実行：
 
-- ESLintによる自動修正
-- Prettierによるコード整形
+- oxlintによる自動修正
+- Biomeによるコード整形
 - 関連するテストの実行
 
 ## コーディング規約
@@ -316,10 +316,10 @@ Huskyとlint-stagedを使用し、コミット前に以下を自動実行：
 | `pnpm build:js` | TypeScriptをバンドル |
 | `pnpm build:html` | HTMLファイルを`dist/`へコピー |
 | `pnpm build:css` | Tailwind CSSをビルド |
-| `pnpm lint` | ESLintでコード検査 |
-| `pnpm lint:fix` | ESLintで自動修正 |
-| `pnpm format` | Prettierでコード整形 |
-| `pnpm format:check` | Prettierでフォーマットチェック |
+| `pnpm lint` | oxlintと専用チェックでコード検査 |
+| `pnpm lint:fix` | oxlintの自動修正とBiome整形を実行 |
+| `pnpm format` | Biomeでコード整形 |
+| `pnpm format:check` | Biomeでフォーマットチェック |
 | `pnpm test` | Vitestでテスト実行 |
 | `pnpm test:rakuten` | 楽天証券NAV取得の統合テスト（1銘柄） |
 | `pnpm test:nav-fetch` | NAV自動取得の統合テスト（複数銘柄） |

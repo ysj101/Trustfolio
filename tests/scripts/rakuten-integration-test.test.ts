@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
 import { describe, expect, it, beforeEach } from 'vitest';
 import { parseNavFromRakutenHtml, run } from '../../scripts/rakuten-integration-test.mjs';
 
