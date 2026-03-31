@@ -223,4 +223,68 @@ describe('WeeklyReportUseCase', () => {
 
     formatDateMock.mockRestore();
   });
+
+  it('前週が祝日・連休の場合でも、14日前までの範囲で前週データを取得できる', () => {
+    // 前提: 7日前から9日前のデータは存在しないが、10日前のデータが存在する（連休を想定）
+    // 事前条件: findGlobalByDateが10日前のデータのみ返す
+    // 検証: 前週比が計算される
+    const portfolioUseCase: PortfolioUseCase = {
+      getPortfolioSummary: () =>
+        ok({
+          totalInvestment: 10000,
+          totalSaleAmount: 0,
+          realizedGain: 0,
+          remainingInvestment: 10000,
+          totalCurrentValue: 11000,
+          totalUnrealizedGain: 1000,
+          totalUnrealizedGainRate: 0.1,
+          totalGain: 1000,
+          totalGainRate: 0.1,
+          holdings: [],
+        }),
+    };
+
+    let callCount = 0;
+    const previousGlobalRecord: PerformanceRecord = {
+      fundId: '',
+      date: '2024-03-29', // 10日前のデータ
+      totalUnits: 0,
+      remainingInvestment: 9000,
+      currentValue: 9500,
+      totalGain: 500,
+      unrealizedGainRate: 0.0556,
+      createdAt: '2024-03-29T00:00:00.000Z',
+    };
+
+    const performanceRepository: PerformanceRepository = {
+      createPerformance: vi.fn(),
+      createGlobalPerformance: vi.fn(),
+      findByFundAndDate: vi.fn(),
+      findGlobalByDate: () => {
+        callCount += 1;
+        // 最初の7回（7日前、6日前、8日前、5日前、9日前、4日前、10日前）のうち、
+        // 7回目（10日前 = offset -3）でデータを返す
+        return callCount === 7 ? ok(previousGlobalRecord) : ok(null);
+      },
+      findLatestByFundId: vi.fn(),
+      listGlobalHistory: vi.fn(),
+      findGlobalByDateRange: vi.fn(),
+      findByFundAndDateRange: vi.fn(),
+    };
+
+    const formatDateMock = vi
+      .spyOn(globalThis.Utilities, 'formatDate')
+      .mockReturnValue('2024-04-08 09:00:00');
+
+    const useCase = createWeeklyReportUseCase(portfolioUseCase, performanceRepository);
+    const result = useCase.generateWeeklyReport();
+    expect(result.success).toBe(true);
+    if (result.success) {
+      // 10日前のデータが取得できたため、前週比が計算される
+      expect(result.value.portfolio.hasPreviousWeekData).toBe(true);
+      expect(result.value.portfolio.remainingInvestmentChange?.difference).toBe(1000);
+    }
+
+    formatDateMock.mockRestore();
+  });
 });
