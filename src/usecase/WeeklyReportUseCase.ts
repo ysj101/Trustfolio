@@ -52,7 +52,7 @@ export function createWeeklyReportUseCase(
       const previousWeekDate = new Date(now);
       previousWeekDate.setDate(previousWeekDate.getDate() - 7);
 
-      // 前週のデータを取得（±1日の範囲で検索）
+      // 前週のデータを取得（祝日・連休対応: 7日前から14日前まで過去方向に検索）
       const { previousGlobalRecord, previousFundRecordsMap } = getPreviousWeekData(
         performanceRepository,
         previousWeekDate,
@@ -79,7 +79,9 @@ export function createWeeklyReportUseCase(
 
 /**
  * 前週のパフォーマンスデータを取得する。
- * 7日前のデータが存在しない場合、6日前または8日前のデータを検索する（±1日の範囲）。
+ * 7日前のデータが存在しない場合、過去方向に最大14日前まで検索する。
+ * これにより、祝日や連休で7日前のデータが存在しない場合でも、
+ * 比較期間を短縮せずに直近の有効データを前週データとして採用する。
  *
  * @param performanceRepository - パフォーマンスリポジトリ
  * @param targetDate - 基準日（7日前の日付）
@@ -94,8 +96,10 @@ function getPreviousWeekData(
   previousGlobalRecord: PerformanceRecord | null;
   previousFundRecordsMap: Map<string, PerformanceRecord>;
 } {
-  // ±1日の範囲で検索（6日前、7日前、8日前の順）
-  const searchDates = [0, -1, 1].map((offset) => {
+  // 7日前を基準に、より古い日付だけを順番に探索する。
+  // 7日前より新しい日付を採用すると、前週比ではなく直近日次比較になるため許可しない。
+  const searchOffsets = [0, -1, -2, -3, -4, -5, -6, -7];
+  const searchDates = searchOffsets.map((offset) => {
     const date = new Date(targetDate);
     date.setDate(date.getDate() + offset);
     return Utilities.formatDate(date, 'Asia/Tokyo', 'yyyy-MM-dd');
@@ -107,13 +111,16 @@ function getPreviousWeekData(
     const result = performanceRepository.findGlobalByDate(dateStr);
     if (result.success && result.value !== null) {
       previousGlobalRecord = result.value;
+      Logger.log(`[WeeklyReportUseCase] 前週データを取得: ${dateStr}`);
       break;
     }
   }
 
   // 前週データが見つからなかった場合
   if (!previousGlobalRecord) {
-    Logger.log('[WeeklyReportUseCase] 前週の全体実績データが見つかりませんでした。');
+    Logger.log(
+      '[WeeklyReportUseCase] 前週の全体実績データが見つかりませんでした（14日前まで検索）。'
+    );
     return {
       previousGlobalRecord: null,
       previousFundRecordsMap: new Map(),
