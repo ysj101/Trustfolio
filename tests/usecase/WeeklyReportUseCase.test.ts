@@ -1,15 +1,65 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createWeeklyReportUseCase } from '../../src/usecase/WeeklyReportUseCase';
 import type { PortfolioUseCase } from '../../src/usecase/PortfolioUseCase';
 import type { PerformanceRepository } from '../../src/repository/PerformanceRepository';
 import type { PerformanceRecord } from '../../src/domain/types';
 import { ok } from '../fakes';
 
+/**
+ * テスト用にDateをJST文字列へ変換する。
+ * 週次レポートの探索順を実データに近い形で検証するため、
+ * `Utilities.formatDate` が利用する2種類のフォーマットだけを明示的に実装する。
+ *
+ * @param date - 変換対象の日時
+ * @param format - 変換後のフォーマット
+ * @returns JSTで整形した文字列
+ * @throws 未対応のフォーマットが指定された場合
+ */
+function formatDateInJstForTest(date: Date, format: string): string {
+  const jstDate = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+  const year = jstDate.getUTCFullYear();
+  const month = String(jstDate.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(jstDate.getUTCDate()).padStart(2, '0');
+  const hours = String(jstDate.getUTCHours()).padStart(2, '0');
+  const minutes = String(jstDate.getUTCMinutes()).padStart(2, '0');
+  const seconds = String(jstDate.getUTCSeconds()).padStart(2, '0');
+
+  if (format === 'yyyy-MM-dd') {
+    return `${year}-${month}-${day}`;
+  }
+
+  if (format === 'yyyy-MM-dd HH:mm:ss') {
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  }
+
+  throw new Error(`未対応のformatDateフォーマットです: ${format}`);
+}
+
+/**
+ * WeeklyReportUseCase向けに`Utilities.formatDate`を実装どおりにスタブする。
+ * 生成日時と探索日付の両方を同じモックで扱い、探索順検証を成立させる。
+ */
+function mockUtilitiesFormatDate(): void {
+  vi.spyOn(globalThis.Utilities, 'formatDate').mockImplementation((date, _timeZone, format) =>
+    formatDateInJstForTest(date, format)
+  );
+}
+
 describe('WeeklyReportUseCase', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2024-04-08T09:00:00+09:00'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
   it('前週データが存在しない場合、前週比なしのレポートを生成する', () => {
     // 前提: ポートフォリオ取得が成功するが、前週データが存在しない
-    // 事前条件: Utilities.formatDateが固定値を返す
-    // 検証: 生成日時とポートフォリオが返り、前週比情報がnull
+    // 事前条件: 7日前から14日前までの全探索日付でデータが見つからない
+    // 検証: 生成日時とポートフォリオが返り、前週比情報がnullになる
     const portfolioUseCase: PortfolioUseCase = {
       getPortfolioSummary: () =>
         ok({
@@ -26,20 +76,20 @@ describe('WeeklyReportUseCase', () => {
         }),
     };
 
+    const findGlobalByDate = vi.fn(() => ok(null));
+
     const performanceRepository: PerformanceRepository = {
       createPerformance: vi.fn(),
       createGlobalPerformance: vi.fn(),
       findByFundAndDate: vi.fn(),
-      findGlobalByDate: () => ok(null), // 前週データなし
+      findGlobalByDate,
       findLatestByFundId: vi.fn(),
       listGlobalHistory: vi.fn(),
       findGlobalByDateRange: vi.fn(),
       findByFundAndDateRange: vi.fn(),
     };
 
-    const formatDateMock = vi
-      .spyOn(globalThis.Utilities, 'formatDate')
-      .mockReturnValue('2024-04-08 09:00:00');
+    mockUtilitiesFormatDate();
 
     const useCase = createWeeklyReportUseCase(portfolioUseCase, performanceRepository);
     const result = useCase.generateWeeklyReport();
@@ -53,7 +103,16 @@ describe('WeeklyReportUseCase', () => {
       expect(result.value.portfolio.totalCurrentValueChange).toBeNull();
     }
 
-    formatDateMock.mockRestore();
+    expect(findGlobalByDate.mock.calls.map((args) => args[0])).toEqual([
+      '2024-04-01',
+      '2024-03-31',
+      '2024-03-30',
+      '2024-03-29',
+      '2024-03-28',
+      '2024-03-27',
+      '2024-03-26',
+      '2024-03-25',
+    ]);
   });
 
   it('前週データが存在する場合、前週比付きのレポートを生成する', () => {
@@ -113,10 +172,12 @@ describe('WeeklyReportUseCase', () => {
       createdAt: '2024-04-01T00:00:00.000Z',
     };
 
+    const findByFundAndDate = vi.fn(() => ok(previousFundRecord));
+
     const performanceRepository: PerformanceRepository = {
       createPerformance: vi.fn(),
       createGlobalPerformance: vi.fn(),
-      findByFundAndDate: () => ok(previousFundRecord),
+      findByFundAndDate,
       findGlobalByDate: () => ok(previousGlobalRecord),
       findLatestByFundId: vi.fn(),
       listGlobalHistory: vi.fn(),
@@ -124,9 +185,7 @@ describe('WeeklyReportUseCase', () => {
       findByFundAndDateRange: vi.fn(),
     };
 
-    const formatDateMock = vi
-      .spyOn(globalThis.Utilities, 'formatDate')
-      .mockReturnValue('2024-04-08 09:00:00');
+    mockUtilitiesFormatDate();
 
     const useCase = createWeeklyReportUseCase(portfolioUseCase, performanceRepository);
     const result = useCase.generateWeeklyReport();
@@ -158,13 +217,13 @@ describe('WeeklyReportUseCase', () => {
       expect(result.value.portfolio.holdings[0].remainingInvestmentChange?.difference).toBe(1000);
     }
 
-    formatDateMock.mockRestore();
+    expect(findByFundAndDate).toHaveBeenCalledWith('fund-001', '2024-04-01');
   });
 
-  it('前週データが7日前ではなく6日前に存在する場合も取得できる', () => {
-    // 前提: 7日前のデータは存在しないが、6日前のデータが存在する
-    // 事前条件: findGlobalByDateが6日前のデータのみ返す
-    // 検証: 前週比が計算される
+  it('前週データが7日前ではなく8日前に存在する場合も取得できる', () => {
+    // 前提: 7日前のデータは存在しないが、8日前のデータが存在する
+    // 事前条件: 7日前を探索した後に、8日前のデータだけが見つかる
+    // 検証: 過去方向の探索順で8日前のデータが採用され、前週比が計算される
     const portfolioUseCase: PortfolioUseCase = {
       getPortfolioSummary: () =>
         ok({
@@ -181,46 +240,111 @@ describe('WeeklyReportUseCase', () => {
         }),
     };
 
-    let callCount = 0;
     const previousGlobalRecord: PerformanceRecord = {
       fundId: '',
-      date: '2024-04-02',
+      date: '2024-03-31',
       totalUnits: 0,
       remainingInvestment: 9000,
       currentValue: 9500,
       totalGain: 500,
       unrealizedGainRate: 0.0556,
-      createdAt: '2024-04-02T00:00:00.000Z',
+      createdAt: '2024-03-31T00:00:00.000Z',
     };
+
+    const findGlobalByDate = vi.fn((date: string) =>
+      date === '2024-03-31' ? ok(previousGlobalRecord) : ok(null)
+    );
 
     const performanceRepository: PerformanceRepository = {
       createPerformance: vi.fn(),
       createGlobalPerformance: vi.fn(),
       findByFundAndDate: vi.fn(),
-      findGlobalByDate: () => {
-        callCount += 1;
-        // 1回目（7日前）はnull、2回目（6日前）はデータあり
-        return callCount === 1 ? ok(null) : ok(previousGlobalRecord);
-      },
+      findGlobalByDate,
       findLatestByFundId: vi.fn(),
       listGlobalHistory: vi.fn(),
       findGlobalByDateRange: vi.fn(),
       findByFundAndDateRange: vi.fn(),
     };
 
-    const formatDateMock = vi
-      .spyOn(globalThis.Utilities, 'formatDate')
-      .mockReturnValue('2024-04-08 09:00:00');
+    mockUtilitiesFormatDate();
 
     const useCase = createWeeklyReportUseCase(portfolioUseCase, performanceRepository);
     const result = useCase.generateWeeklyReport();
     expect(result.success).toBe(true);
     if (result.success) {
-      // 前週データが取得できたため、前週比が計算される
+      // 8日前のデータが取得できたため、前週比が計算される
       expect(result.value.portfolio.hasPreviousWeekData).toBe(true);
       expect(result.value.portfolio.remainingInvestmentChange?.difference).toBe(1000);
     }
 
-    formatDateMock.mockRestore();
+    expect(findGlobalByDate.mock.calls.map((args) => args[0])).toEqual([
+      '2024-04-01',
+      '2024-03-31',
+    ]);
+  });
+
+  it('前週が祝日・連休の場合でも、14日前までの範囲で前週データを取得できる', () => {
+    // 前提: 7日前から9日前まではデータが存在しないが、10日前のデータは存在する
+    // 事前条件: 過去方向に探索した4件目で、10日前のデータだけが見つかる
+    // 検証: 10日前のデータが採用され、探索順も過去方向のみである
+    const portfolioUseCase: PortfolioUseCase = {
+      getPortfolioSummary: () =>
+        ok({
+          totalInvestment: 10000,
+          totalSaleAmount: 0,
+          realizedGain: 0,
+          remainingInvestment: 10000,
+          totalCurrentValue: 11000,
+          totalUnrealizedGain: 1000,
+          totalUnrealizedGainRate: 0.1,
+          totalGain: 1000,
+          totalGainRate: 0.1,
+          holdings: [],
+        }),
+    };
+
+    const previousGlobalRecord: PerformanceRecord = {
+      fundId: '',
+      date: '2024-03-29',
+      totalUnits: 0,
+      remainingInvestment: 9000,
+      currentValue: 9500,
+      totalGain: 500,
+      unrealizedGainRate: 0.0556,
+      createdAt: '2024-03-29T00:00:00.000Z',
+    };
+
+    const findGlobalByDate = vi.fn((date: string) =>
+      date === '2024-03-29' ? ok(previousGlobalRecord) : ok(null)
+    );
+
+    const performanceRepository: PerformanceRepository = {
+      createPerformance: vi.fn(),
+      createGlobalPerformance: vi.fn(),
+      findByFundAndDate: vi.fn(),
+      findGlobalByDate,
+      findLatestByFundId: vi.fn(),
+      listGlobalHistory: vi.fn(),
+      findGlobalByDateRange: vi.fn(),
+      findByFundAndDateRange: vi.fn(),
+    };
+
+    mockUtilitiesFormatDate();
+
+    const useCase = createWeeklyReportUseCase(portfolioUseCase, performanceRepository);
+    const result = useCase.generateWeeklyReport();
+    expect(result.success).toBe(true);
+    if (result.success) {
+      // 10日前のデータが取得できたため、前週比が計算される
+      expect(result.value.portfolio.hasPreviousWeekData).toBe(true);
+      expect(result.value.portfolio.remainingInvestmentChange?.difference).toBe(1000);
+    }
+
+    expect(findGlobalByDate.mock.calls.map((args) => args[0])).toEqual([
+      '2024-04-01',
+      '2024-03-31',
+      '2024-03-30',
+      '2024-03-29',
+    ]);
   });
 });
