@@ -3,13 +3,15 @@ import type { Fund, Holding, Nav, Transaction } from './types';
 const UNITS_BASE = 10000;
 
 /**
- * 保有情報を計算する。
+ * 保有情報を計算する（移動平均法）。
+ * 取引を日付昇順に処理し、簿価・平均取得単価を逐次更新する。
  * 取引が存在しない場合、または全口数売却済みの場合はnullを返す。
  *
- * 注意事項:
- * - 購入取引（SPOT_PURCHASE, RECURRING_PURCHASE）のみtotalInvestmentに加算
- * - 売却取引（REDEMPTION）はtotalInvestmentに影響しない（平均取得単価を維持）
- * - unitsは購入時は正、売却時は負の値
+ * 移動平均法:
+ * - 購入時: 簿価に購入額を加算、口数を加算
+ * - 売却時: その時点の平均原価で簿価を減算、口数を減算
+ * - 残存投資額 = 最終簿価（保有口数分の取得原価合計）
+ * - 平均取得単価 = 簿価 / 保有口数 × UNITS_BASE
  *
  * 全売却後の動作:
  * - totalUnits <= 0 の場合、nullを返す
@@ -25,20 +27,29 @@ export function calculateHolding(
     return null;
   }
 
-  let totalUnits = 0;
-  let totalInvestment = 0;
-  let totalSaleAmount = 0;
+  // 取引を日付昇順にソート（同日はcreatedAt順）
+  const sorted = [...transactions].sort((a, b) => {
+    if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+    return a.createdAt < b.createdAt ? -1 : 1;
+  });
 
-  transactions.forEach((transaction) => {
-    // 売却時は口数を減らす、購入時は口数を増やす
+  let totalUnits = 0;
+  let bookValue = 0; // 残存簿価（移動平均原価ベース）
+  let totalInvestment = 0; // 累計購入額（情報表示用）
+  let totalSaleAmount = 0; // 売却総額（情報表示用）
+
+  sorted.forEach((transaction) => {
     if (transaction.type === 'REDEMPTION') {
+      // 売却時: その時点の移動平均原価で簿価を減算
+      const avgCostPerUnit = totalUnits > 0 ? bookValue / totalUnits : 0;
+      const costOfSale = transaction.units * avgCostPerUnit;
+      bookValue -= costOfSale;
       totalUnits -= transaction.units;
       totalSaleAmount += Math.abs(transaction.amount);
     } else {
+      // 購入時: 簿価と口数を加算
+      bookValue += transaction.amount;
       totalUnits += transaction.units;
-    }
-    // 購入取引のみ投資額に加算（売却時は平均取得単価を維持するため加算しない）
-    if (transaction.type === 'SPOT_PURCHASE' || transaction.type === 'RECURRING_PURCHASE') {
       totalInvestment += transaction.amount;
     }
   });
@@ -48,15 +59,9 @@ export function calculateHolding(
     return null;
   }
 
-  // 平均取得単価は購入口数のみで計算
-  const totalPurchaseUnits = transactions
-    .filter((t) => t.type === 'SPOT_PURCHASE' || t.type === 'RECURRING_PURCHASE')
-    .reduce((sum, t) => sum + t.units, 0);
-  const averageCost =
-    totalPurchaseUnits > 0 ? Math.round((totalInvestment / totalPurchaseUnits) * UNITS_BASE) : 0;
-
-  // 残存投資額を計算
-  const remainingInvestment = totalInvestment - totalSaleAmount;
+  // 移動平均法による平均取得単価と残存投資額
+  const averageCost = Math.round((bookValue / totalUnits) * UNITS_BASE);
+  const remainingInvestment = Math.round(bookValue);
 
   if (latestNav === null) {
     return {
@@ -76,7 +81,7 @@ export function calculateHolding(
   }
 
   const currentValue = Math.round((totalUnits / UNITS_BASE) * latestNav.value);
-  // 損益は残存投資額（購入金額 - 売却金額）を基準に算出する
+  // 損益は残存投資額（移動平均簿価）を基準に算出する
   const unrealizedGain = currentValue - remainingInvestment;
   const unrealizedGainRate =
     remainingInvestment > 0
@@ -133,7 +138,8 @@ export function calculatePortfolio(
 
   // 実現損益と売却金額の計算
   const { realizedGain, totalSaleAmount } = calculateRealizedGain(allTransactions);
-  const remainingInvestment = totalInvestment - totalSaleAmount;
+  // 各holdingの残存投資額（移動平均簿価）を合算
+  const remainingInvestment = holdings.reduce((sum, h) => sum + h.remainingInvestment, 0);
 
   if (hasMissingValue) {
     return {
@@ -173,44 +179,46 @@ export function calculatePortfolio(
 }
 
 /**
- * 実現損益と売却金額を計算する。
+ * 実現損益と売却金額を計算する（移動平均法）。
  *
- * 実現損益 = Σ(売却金額 - 売却口数 × 平均取得単価)
+ * 取引を日付昇順に処理し、各売却時点の移動平均原価で売却原価を算出する。
+ * 実現損益 = Σ(売却金額 - 売却口数 × その時点の移動平均原価)
  *
- * 簡易計算として、以下の方法を採用:
- * 1. 全購入取引から平均取得単価を計算
- * 2. 各売却取引について、売却金額 - (売却口数 × 平均取得単価) を計算
- * 3. それらの合計が実現損益
- *
- * ※ amountは売却口数×基準価額で既に計算済み
- * ※ 平均取得単価との差額が実現損益となる
+ * 移動平均法により、売却後の再購入がある場合でも正確な実現損益を計算できる。
  */
 function calculateRealizedGain(transactions: readonly Transaction[]): {
   realizedGain: number;
   totalSaleAmount: number;
 } {
-  let totalSaleAmount = 0;
-  let totalPurchaseAmount = 0;
-
-  // FIFO（先入先出）で売却口数に対応する購入額を計算
-  const purchaseTransactions = transactions.filter(
-    (t) => t.type === 'SPOT_PURCHASE' || t.type === 'RECURRING_PURCHASE'
-  );
-  const saleTransactions = transactions.filter((t) => t.type === 'REDEMPTION');
-
-  saleTransactions.forEach((sale) => {
-    const saleUnits = Math.abs(sale.units);
-    totalSaleAmount += Math.abs(sale.amount);
-
-    // この売却に対応する購入原価を計算（簡易版：平均取得単価を使用）
-    const totalPurchaseUnits = purchaseTransactions.reduce((sum: number, t) => sum + t.units, 0);
-    const totalPurchaseValue = purchaseTransactions.reduce((sum: number, t) => sum + t.amount, 0);
-    const averageCost = totalPurchaseUnits > 0 ? totalPurchaseValue / totalPurchaseUnits : 0;
-
-    totalPurchaseAmount += saleUnits * averageCost;
+  // 取引を日付昇順にソート（同日はcreatedAt順）
+  const sorted = [...transactions].sort((a, b) => {
+    if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+    return a.createdAt < b.createdAt ? -1 : 1;
   });
 
-  // 実現損益 = 売却金額 - 売却に対応する購入原価
-  const realizedGain = Math.round(totalSaleAmount - totalPurchaseAmount);
-  return { realizedGain, totalSaleAmount: Math.round(totalSaleAmount) };
+  let units = 0;
+  let bookValue = 0;
+  let realizedGain = 0;
+  let totalSaleAmount = 0;
+
+  sorted.forEach((tx) => {
+    if (tx.type === 'REDEMPTION') {
+      // 売却時: その時点の移動平均原価で売却原価を算出
+      const avgCostPerUnit = units > 0 ? bookValue / units : 0;
+      const costOfSale = tx.units * avgCostPerUnit;
+      realizedGain += Math.abs(tx.amount) - costOfSale;
+      bookValue -= costOfSale;
+      units -= tx.units;
+      totalSaleAmount += Math.abs(tx.amount);
+    } else {
+      // 購入時: 簿価と口数を加算
+      bookValue += tx.amount;
+      units += tx.units;
+    }
+  });
+
+  return {
+    realizedGain: Math.round(realizedGain),
+    totalSaleAmount: Math.round(totalSaleAmount),
+  };
 }
