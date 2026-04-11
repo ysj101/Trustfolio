@@ -112,7 +112,7 @@ export type Portfolio = {
   totalSaleAmount: number;
   /** 実現損益（売却による確定損益） */
   realizedGain: number;
-  /** 残存投資額（購入金額 - 売却金額） */
+  /** 残存投資額（移動平均簿価: 保有口数分の取得原価合計） */
   remainingInvestment: number;
   /** 評価額（現在の保有分） */
   totalCurrentValue: number | null;
@@ -138,7 +138,7 @@ export type PerformanceRecord = {
   date: string;
   /** 保有口数 */
   totalUnits: number;
-  /** 残存投資額（累計投資額 - 売却金額） */
+  /** 残存投資額（移動平均簿価: 保有口数分の取得原価合計） */
   remainingInvestment: number;
   /** 評価額（現在の保有口数 × 基準価格） */
   currentValue: number;

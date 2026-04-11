@@ -119,7 +119,9 @@ describe('TransactionUseCase + HoldingCalculator 統合テスト', () => {
     // 累計投資額と売却額も正しい
     expect(holding?.totalInvestment).toBe(10000);
     expect(holding?.totalSaleAmount).toBe(6000);
-    expect(holding?.remainingInvestment).toBe(4000);
+    // 移動平均法: 購入10,000円/10,000口、売却5,000口の原価=5,000×(10,000/10,000)=5,000
+    // 残存簿価 = 10,000 - 5,000 = 5,000
+    expect(holding?.remainingInvestment).toBe(5000);
   });
 
   it('複数回の売却で保有口数が正しく減少する', () => {
