@@ -327,6 +327,17 @@ describe('HoldingCalculator', () => {
 });
 
 describe('PortfolioCalculator', () => {
+  it('保有情報と取引が空の場合は実現損益0・売却金額0を返す', () => {
+    // 前提: holdingsとallTransactionsが両方とも空
+    // 事前条件: なし
+    // 検証: 境界条件としてrealizedGain=0, totalSaleAmount=0が返る
+    const summary = calculatePortfolio([], []);
+    expect(summary.realizedGain).toBe(0);
+    expect(summary.totalSaleAmount).toBe(0);
+    expect(summary.remainingInvestment).toBe(0);
+    expect(summary.totalInvestment).toBe(0);
+  });
+
   it('評価額が欠損している場合はポートフォリオ評価額をnullで返す', () => {
     // 前提: 保有情報にcurrentValueがnullの銘柄が含まれる
     // 事前条件: 取引履歴は空でも良い

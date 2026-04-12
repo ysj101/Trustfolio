@@ -225,6 +225,11 @@ function calculateRealizedGain(transactions: readonly Transaction[]): {
  *
  * 取引を日付昇順に処理し、各売却時点の移動平均原価で売却原価を算出する。
  * 実現損益 = Σ(売却金額 - 売却口数 × その時点の移動平均原価)
+ *
+ * @param transactions 同一ファンドIDの取引リスト（異なるファンドの取引を混在させてはならない）
+ * @returns 実現損益と売却金額のオブジェクト（いずれも未丸めの浮動小数点値）
+ * @remarks 戻り値は丸め処理前の値。呼び出し元（calculateRealizedGain）で合算後に丸める。
+ *          これにより小計ごとの丸め誤差が累積することを防ぐ。
  */
 function calculateRealizedGainForFund(transactions: readonly Transaction[]): {
   realizedGain: number;
