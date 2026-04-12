@@ -421,4 +421,96 @@ describe('PortfolioCalculator', () => {
     expect(summary.totalGain).toBe(2500);
     expect(summary.totalGainRate).toBe(0.0833);
   });
+
+  it('複数ファンドを保有している場合の実現損益が各ファンド独立で計算される', () => {
+    // 前提: ファンドAを安値、ファンドBを高値で購入後、ファンドAを売却
+    // 事前条件: calculateRealizedGainがファンドIDで取引を分離している
+    // 検証: ファンドAの実現損益にファンドBの高値平均が混入しない
+    //
+    // 取引内容:
+    //   ファンドA: 10,000口 を 10,000円で購入（原価1.0円/口）
+    //   ファンドB: 10,000口 を 20,000円で購入（原価2.0円/口）
+    //   ファンドA: 5,000口 を 7,500円で売却（NAV=15,000）
+    //
+    // ファンドAの実現損益（独立計算）:
+    //   売却原価 = 5,000 × 1.0 = 5,000
+    //   実現損益 = 7,500 - 5,000 = 2,500
+    //
+    // もしファンドID分離がされていないと（混在計算される誤った挙動）:
+    //   混在簿価 = 30,000, 混在口数 = 20,000, 混在平均 = 1.5円/口
+    //   売却原価 = 5,000 × 1.5 = 7,500
+    //   実現損益 = 7,500 - 7,500 = 0
+    const holdings = [
+      {
+        fundId: 'fund-001',
+        fundName: 'ファンドA',
+        totalUnits: 5000,
+        averageCost: 10000,
+        totalInvestment: 10000,
+        totalSaleAmount: 7500,
+        remainingInvestment: 5000,
+        currentNavValue: 15000,
+        currentNavDate: '2024-03-15',
+        currentValue: 7500,
+        unrealizedGain: 2500,
+        unrealizedGainRate: 0.5,
+      },
+      {
+        fundId: 'fund-002',
+        fundName: 'ファンドB',
+        totalUnits: 10000,
+        averageCost: 20000,
+        totalInvestment: 20000,
+        totalSaleAmount: 0,
+        remainingInvestment: 20000,
+        currentNavValue: 20000,
+        currentNavDate: '2024-03-15',
+        currentValue: 20000,
+        unrealizedGain: 0,
+        unrealizedGainRate: 0,
+      },
+    ];
+    const allTransactions: Transaction[] = [
+      {
+        id: 'tx-1',
+        fundId: 'fund-001',
+        type: 'SPOT_PURCHASE',
+        date: '2024-01-10',
+        amount: 10000,
+        navValue: 10000,
+        units: 10000,
+        recurringPurchaseId: null,
+        idempotencyKey: null,
+        createdAt: '2024-01-10T00:00:00.000Z',
+      },
+      {
+        id: 'tx-2',
+        fundId: 'fund-002',
+        type: 'SPOT_PURCHASE',
+        date: '2024-01-15',
+        amount: 20000,
+        navValue: 20000,
+        units: 10000,
+        recurringPurchaseId: null,
+        idempotencyKey: null,
+        createdAt: '2024-01-15T00:00:00.000Z',
+      },
+      {
+        id: 'tx-3',
+        fundId: 'fund-001',
+        type: 'REDEMPTION',
+        date: '2024-02-10',
+        amount: 7500,
+        navValue: 15000,
+        units: 5000,
+        recurringPurchaseId: null,
+        idempotencyKey: null,
+        createdAt: '2024-02-10T00:00:00.000Z',
+      },
+    ];
+    const summary = calculatePortfolio(holdings, allTransactions);
+    // ファンドAの実現損益が2,500円になる（ファンドBの高値平均が混入しない）
+    expect(summary.realizedGain).toBe(2500);
+    expect(summary.totalSaleAmount).toBe(7500);
+  });
 });
