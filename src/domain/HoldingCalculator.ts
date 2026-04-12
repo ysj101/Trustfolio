@@ -181,12 +181,57 @@ export function calculatePortfolio(
 /**
  * 実現損益と売却金額を計算する（移動平均法）。
  *
+ * 取引をファンドIDごとにグループ化し、各ファンドで独立して移動平均法を適用する。
+ * 実現損益 = Σ(売却金額 - 売却口数 × その時点のファンド別移動平均原価)
+ *
+ * ファンドIDで分離する理由:
+ * - 全取引を混在させて計算すると、異なるファンドの口数・簿価が混ざってしまう
+ * - 例: ファンドAを安値購入、ファンドBを高値購入の後にファンドAを売却すると、
+ *   本来より高い平均原価が適用されて実現損益が過小計算される
+ */
+function calculateRealizedGain(transactions: readonly Transaction[]): {
+  realizedGain: number;
+  totalSaleAmount: number;
+} {
+  // ファンドIDごとにグループ化
+  const byFund = new Map<string, Transaction[]>();
+  for (const tx of transactions) {
+    const existing = byFund.get(tx.fundId);
+    if (existing !== undefined) {
+      existing.push(tx);
+    } else {
+      byFund.set(tx.fundId, [tx]);
+    }
+  }
+
+  // 各ファンドで独立して実現損益を計算し合算
+  let totalRealizedGain = 0;
+  let totalSaleAmount = 0;
+
+  for (const fundTransactions of byFund.values()) {
+    const result = calculateRealizedGainForFund(fundTransactions);
+    totalRealizedGain += result.realizedGain;
+    totalSaleAmount += result.totalSaleAmount;
+  }
+
+  return {
+    realizedGain: Math.round(totalRealizedGain),
+    totalSaleAmount: Math.round(totalSaleAmount),
+  };
+}
+
+/**
+ * 単一ファンドの取引から実現損益と売却金額を計算する（移動平均法）。
+ *
  * 取引を日付昇順に処理し、各売却時点の移動平均原価で売却原価を算出する。
  * 実現損益 = Σ(売却金額 - 売却口数 × その時点の移動平均原価)
  *
- * 移動平均法により、売却後の再購入がある場合でも正確な実現損益を計算できる。
+ * @param transactions 同一ファンドIDの取引リスト（異なるファンドの取引を混在させてはならない）
+ * @returns 実現損益と売却金額のオブジェクト（いずれも未丸めの浮動小数点値）
+ * @remarks 戻り値は丸め処理前の値。呼び出し元（calculateRealizedGain）で合算後に丸める。
+ *          これにより小計ごとの丸め誤差が累積することを防ぐ。
  */
-function calculateRealizedGain(transactions: readonly Transaction[]): {
+function calculateRealizedGainForFund(transactions: readonly Transaction[]): {
   realizedGain: number;
   totalSaleAmount: number;
 } {
@@ -218,7 +263,7 @@ function calculateRealizedGain(transactions: readonly Transaction[]): {
   });
 
   return {
-    realizedGain: Math.round(realizedGain),
-    totalSaleAmount: Math.round(totalSaleAmount),
+    realizedGain,
+    totalSaleAmount,
   };
 }
