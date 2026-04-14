@@ -3,6 +3,23 @@ import type { Fund, Holding, Nav, Transaction } from './types';
 const UNITS_BASE = 10000;
 
 /**
+ * 取引を日付昇順にソートする（同日はcreatedAt昇順）。
+ *
+ * 移動平均法の計算は取引の処理順序に依存するため、
+ * 計算の前に必ず日付昇順に並べ替える必要がある。
+ * TransactionRepositoryは日付降順で取引を返すため、この関数で並び替えを行う。
+ *
+ * @param transactions ソート対象の取引リスト
+ * @returns 新しい配列（元の配列は変更しない）。日付昇順、同日はcreatedAt昇順でソート済み
+ */
+function sortTransactionsByDate(transactions: readonly Transaction[]): Transaction[] {
+  return [...transactions].sort((a, b) => {
+    if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+    return a.createdAt < b.createdAt ? -1 : 1;
+  });
+}
+
+/**
  * 保有情報を計算する（移動平均法）。
  * 取引を日付昇順に処理し、簿価・平均取得単価を逐次更新する。
  * 取引が存在しない場合、または全口数売却済みの場合はnullを返す。
@@ -27,11 +44,7 @@ export function calculateHolding(
     return null;
   }
 
-  // 取引を日付昇順にソート（同日はcreatedAt順）
-  const sorted = [...transactions].sort((a, b) => {
-    if (a.date !== b.date) return a.date < b.date ? -1 : 1;
-    return a.createdAt < b.createdAt ? -1 : 1;
-  });
+  const sorted = sortTransactionsByDate(transactions);
 
   let totalUnits = 0;
   let bookValue = 0; // 残存簿価（移動平均原価ベース）
@@ -235,11 +248,7 @@ function calculateRealizedGainForFund(transactions: readonly Transaction[]): {
   realizedGain: number;
   totalSaleAmount: number;
 } {
-  // 取引を日付昇順にソート（同日はcreatedAt順）
-  const sorted = [...transactions].sort((a, b) => {
-    if (a.date !== b.date) return a.date < b.date ? -1 : 1;
-    return a.createdAt < b.createdAt ? -1 : 1;
-  });
+  const sorted = sortTransactionsByDate(transactions);
 
   let units = 0;
   let bookValue = 0;
