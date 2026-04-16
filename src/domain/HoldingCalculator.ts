@@ -30,6 +30,11 @@ function sortTransactionsByDate(transactions: readonly Transaction[]): Transacti
  * - 残存投資額 = 最終簿価（保有口数分の取得原価合計）
  * - 平均取得単価 = 簿価 / 保有口数 × UNITS_BASE
  *
+ * 計算精度:
+ * - 売却時の除算（bookValue / totalUnits）で浮動小数点誤差が発生し、取引数に応じて蓄積する
+ * - 最終値にMath.roundを適用するため、誤差は1円未満に収まる
+ * - 入力値（amount, units）は整数のため、購入のみの場合は誤差なし
+ *
  * 全売却後の動作:
  * - totalUnits <= 0 の場合、nullを返す
  * - これにより、全口数売却済みの銘柄は保有一覧に表示されなくなる
@@ -72,7 +77,7 @@ export function calculateHolding(
     return null;
   }
 
-  // 移動平均法による平均取得単価と残存投資額
+  // 移動平均法による平均取得単価と残存投資額（丸めにより浮動小数点誤差を1円未満に抑制）
   const averageCost = Math.round((bookValue / totalUnits) * UNITS_BASE);
   const remainingInvestment = Math.round(bookValue);
 
@@ -241,8 +246,11 @@ function calculateRealizedGain(transactions: readonly Transaction[]): {
  *
  * @param transactions 同一ファンドIDの取引リスト（異なるファンドの取引を混在させてはならない）
  * @returns 実現損益と売却金額のオブジェクト（いずれも未丸めの浮動小数点値）
- * @remarks 戻り値は丸め処理前の値。呼び出し元（calculateRealizedGain）で合算後に丸める。
- *          これにより小計ごとの丸め誤差が累積することを防ぐ。
+ * @remarks
+ *   - 戻り値は丸め処理前の浮動小数点値。呼び出し元（calculateRealizedGain）で合算後に丸める。
+ *     これにより小計ごとの丸め誤差が累積することを防ぐ。
+ *   - 売却時の除算（bookValue / units）で浮動小数点誤差が発生するが、
+ *     最終的にMath.roundを適用するため誤差は1円未満に収まる。
  */
 function calculateRealizedGainForFund(transactions: readonly Transaction[]): {
   realizedGain: number;
