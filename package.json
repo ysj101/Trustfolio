@@ -1,50 +1,47 @@
 {
   "name": "trustfolio-gas",
-  "private": true,
   "version": "0.1.0",
-  "engines": {
-    "node": ">=22 <23",
-    "pnpm": ">=10.30.2 <11"
-  },
+  "private": true,
   "scripts": {
     "build:css": "bash scripts/build-styles.sh",
-    "build:js": "rollup -c",
+    "build:js": "vite build",
     "build:html": "cp src/ui/Index.html dist/ && cp src/ui/Performance.html dist/ && cp src/ui/scripts.html dist/ && cp src/ui/performance-scripts.html dist/ && cp src/ui/styles.html dist/",
     "build": "pnpm build:js && pnpm build:html && pnpm build:css",
     "push": "pnpm lint && pnpm build && clasp push --force",
     "setup:clasp": "scripts/setup-clasp.sh",
     "sync:env": "node scripts/sync-env-to-gas.mjs",
-    "lint": "pnpm lint:oxlint && pnpm lint:architecture && pnpm lint:typescript-rules",
-    "lint:fix": "pnpm lint:oxlint:fix && pnpm format && pnpm lint:architecture && pnpm lint:typescript-rules",
-    "lint:oxlint": "oxlint src scripts vitest.config.ts rollup.config.js --import-plugin --promise-plugin --deny-warnings",
-    "lint:oxlint:fix": "oxlint src scripts vitest.config.ts rollup.config.js --import-plugin --promise-plugin --deny-warnings --fix",
+    "lint": "pnpm lint:oxlint && pnpm lint:architecture && pnpm typecheck && pnpm lint:typescript-rules",
+    "lint:fix": "pnpm lint:oxlint:fix && pnpm format && pnpm lint:architecture && pnpm typecheck && pnpm lint:typescript-rules",
+    "lint:oxlint": "oxlint src scripts vitest.config.ts vite.config.ts --import-plugin --promise-plugin --deny-warnings",
+    "lint:oxlint:fix": "oxlint src scripts vitest.config.ts vite.config.ts --import-plugin --promise-plugin --deny-warnings --fix",
     "lint:architecture": "node scripts/check-architecture.mjs",
     "lint:typescript-rules": "node scripts/check-typescript-rules.mjs",
-    "format": "biome format --write .",
-    "format:check": "biome format .",
+    "typecheck": "tsc --noEmit -p tsconfig.build.json",
+    "format": "oxfmt src tests scripts vite.config.ts vitest.config.ts package.json",
+    "format:check": "oxfmt --check src tests scripts vite.config.ts vitest.config.ts package.json",
     "test": "vitest",
     "test:rakuten": "node scripts/rakuten-integration-test.mjs",
     "test:nav-fetch": "node scripts/nav-fetch-test.mjs",
     "prepare": "husky"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.15",
     "@google/clasp": "^3.3.0",
-    "@rollup/plugin-typescript": "^12.3.0",
     "@types/google-apps-script": "^1.0.83",
     "@vitest/coverage-v8": "^4.1.6",
     "hono": "^4.12.19",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
+    "oxfmt": "0.51.0",
     "oxlint": "1.65.0",
-    "rollup": "^4.60.4",
     "tailwindcss": "^3.4.0",
     "typescript": "^5.5.4",
+    "vite": "8.0.14",
+    "vite-plus": "0.1.22",
     "vitest": "^4.1.6"
   },
   "lint-staged": {
     "*.{ts,js,mjs,cjs,json,css,html}": [
-      "biome format --write"
+      "oxfmt"
     ],
     "src/**/*.ts": [
       "oxlint --import-plugin --promise-plugin --deny-warnings --fix",
@@ -53,14 +50,18 @@
     "scripts/**/*.mjs": [
       "oxlint --import-plugin --promise-plugin --deny-warnings --fix"
     ],
-    "{vitest.config.ts,rollup.config.js}": [
+    "{vitest.config.ts,vite.config.ts}": [
       "oxlint --import-plugin --promise-plugin --deny-warnings --fix"
     ]
+  },
+  "engines": {
+    "node": ">=22.18 <23",
+    "pnpm": ">=10.30.2 <11"
   },
   "packageManager": "pnpm@10.30.2+sha512.36cdc707e7b7940a988c9c1ecf88d084f8514b5c3f085f53a2e244c2921d3b2545bc20dd4ebe1fc245feec463bb298aecea7a63ed1f7680b877dc6379d8d0cb4",
   "pnpm": {
     "overrides": {
-      "vite": "7.3.2",
+      "vite": "8.0.14",
       "qs": ">=6.14.2",
       "minimatch": ">=10.2.3",
       "express-rate-limit": ">=8.2.2",
@@ -73,9 +74,6 @@
       "fast-uri": "3.1.2",
       "uuid@<14.0.0": ">=14.0.0",
       "postcss@<8.5.10": ">=8.5.10"
-    },
-    "ignoredBuiltDependencies": [
-      "esbuild"
-    ]
+    }
   }
 }

@@ -1,393 +1,478 @@
 <script>
   'use strict';
 
-  (function() {
-  const state = {
-    funds: [],
-    selectedTransactionFundId: null,
-    editingTransactionId: null,
-    editingTransactionType: null, // 'SPOT_PURCHASE' | 'REDEMPTION'
-    editingRecurringId: null
-  };
+  (function () {
+    const state = {
+      funds: [],
+      selectedTransactionFundId: null,
+      editingTransactionId: null,
+      editingTransactionType: null, // 'SPOT_PURCHASE' | 'REDEMPTION'
+      editingRecurringId: null,
+    };
 
-  const app = document.querySelector('.app');
-  const fundForm = document.getElementById('fundForm');
-  const fundNameInput = document.getElementById('fundName');
-  const fundRakutenFundIdInput = document.getElementById('fundRakutenFundId');
-  const fundSettlementBusinessDaysInput = document.getElementById('fundSettlementBusinessDays');
-  const fundList = document.getElementById('fundList');
-  const transactionForm = document.getElementById('transactionForm');
-  const transactionFundSelect = document.getElementById('transactionFundSelect');
-  const transactionDateInput = document.getElementById('transactionDate');
-  const transactionDateLabel = document.getElementById('transactionDateLabel');
-  const transactionAmountInput = document.getElementById('transactionAmount');
-  const transactionUnitsInput = document.getElementById('transactionUnits');
-  const transactionSaleAmountInput = document.getElementById('transactionSaleAmount');
-  const transactionNavValue = document.getElementById('transactionNavValue');
-  const transactionCalculatedLabel = document.getElementById('transactionCalculatedLabel');
-  const transactionCalculatedValue = document.getElementById('transactionCalculatedValue');
-  const transactionList = document.getElementById('transactionList');
-  const transactionSubmitButton = document.getElementById('transactionSubmitButton');
-  const transactionCancelEditButton = document.getElementById('transactionCancelEdit');
-  const purchaseFields = document.getElementById('purchaseFields');
-  const saleFields = document.getElementById('saleFields');
-  const recurringForm = document.getElementById('recurringForm');
-  const recurringFundSelect = document.getElementById('recurringFundSelect');
-  const recurringMonthlyAmountInput = document.getElementById('recurringMonthlyAmount');
-  const recurringExecutionDayInput = document.getElementById('recurringExecutionDay');
-  const recurringStartDateInput = document.getElementById('recurringStartDate');
-  const recurringEndDateInput = document.getElementById('recurringEndDate');
-  const recurringIsActiveInput = document.getElementById('recurringIsActive');
-  const recurringList = document.getElementById('recurringList');
-  const recurringSubmitButton = document.getElementById('recurringSubmitButton');
-  const recurringCancelEditButton = document.getElementById('recurringCancelEdit');
-  const holdingList = document.getElementById('holdingList');
-  const portfolioTotalInvestment = document.getElementById('portfolioTotalInvestment');
-  const portfolioTotalSaleAmount = document.getElementById('portfolioTotalSaleAmount');
-  const portfolioRealizedGain = document.getElementById('portfolioRealizedGain');
-  const portfolioRemainingInvestment = document.getElementById('portfolioRemainingInvestment');
-  const portfolioValue = document.getElementById('portfolioValue');
-  const portfolioUnrealizedGain = document.getElementById('portfolioUnrealizedGain');
-  const portfolioTotalGain = document.getElementById('portfolioTotalGain');
-  const portfolioTotalGainRate = document.getElementById('portfolioTotalGainRate');
-  const portfolioToggleButton = document.getElementById('portfolioToggleButton');
-  const portfolioDetails = document.getElementById('portfolioDetails');
-  const recurringTransactionList = document.getElementById('recurringTransactionList');
-  const message = document.getElementById('message');
-  const refreshButton = document.getElementById('refreshButton');
-  const portfolioToggleIcon = document.getElementById('portfolioToggleIcon');
-  const portfolioToggleLabel = document.getElementById('portfolioToggleLabel');
-  const lastUpdateTime = document.getElementById('lastUpdateTime');
+    const app = document.querySelector('.app');
+    const fundForm = document.getElementById('fundForm');
+    const fundNameInput = document.getElementById('fundName');
+    const fundRakutenFundIdInput = document.getElementById('fundRakutenFundId');
+    const fundSettlementBusinessDaysInput = document.getElementById('fundSettlementBusinessDays');
+    const fundList = document.getElementById('fundList');
+    const transactionForm = document.getElementById('transactionForm');
+    const transactionFundSelect = document.getElementById('transactionFundSelect');
+    const transactionDateInput = document.getElementById('transactionDate');
+    const transactionDateLabel = document.getElementById('transactionDateLabel');
+    const transactionAmountInput = document.getElementById('transactionAmount');
+    const transactionUnitsInput = document.getElementById('transactionUnits');
+    const transactionSaleAmountInput = document.getElementById('transactionSaleAmount');
+    const transactionNavValue = document.getElementById('transactionNavValue');
+    const transactionCalculatedLabel = document.getElementById('transactionCalculatedLabel');
+    const transactionCalculatedValue = document.getElementById('transactionCalculatedValue');
+    const transactionList = document.getElementById('transactionList');
+    const transactionSubmitButton = document.getElementById('transactionSubmitButton');
+    const transactionCancelEditButton = document.getElementById('transactionCancelEdit');
+    const purchaseFields = document.getElementById('purchaseFields');
+    const saleFields = document.getElementById('saleFields');
+    const recurringForm = document.getElementById('recurringForm');
+    const recurringFundSelect = document.getElementById('recurringFundSelect');
+    const recurringMonthlyAmountInput = document.getElementById('recurringMonthlyAmount');
+    const recurringExecutionDayInput = document.getElementById('recurringExecutionDay');
+    const recurringStartDateInput = document.getElementById('recurringStartDate');
+    const recurringEndDateInput = document.getElementById('recurringEndDate');
+    const recurringIsActiveInput = document.getElementById('recurringIsActive');
+    const recurringList = document.getElementById('recurringList');
+    const recurringSubmitButton = document.getElementById('recurringSubmitButton');
+    const recurringCancelEditButton = document.getElementById('recurringCancelEdit');
+    const holdingList = document.getElementById('holdingList');
+    const portfolioTotalInvestment = document.getElementById('portfolioTotalInvestment');
+    const portfolioTotalSaleAmount = document.getElementById('portfolioTotalSaleAmount');
+    const portfolioRealizedGain = document.getElementById('portfolioRealizedGain');
+    const portfolioRemainingInvestment = document.getElementById('portfolioRemainingInvestment');
+    const portfolioValue = document.getElementById('portfolioValue');
+    const portfolioUnrealizedGain = document.getElementById('portfolioUnrealizedGain');
+    const portfolioTotalGain = document.getElementById('portfolioTotalGain');
+    const portfolioTotalGainRate = document.getElementById('portfolioTotalGainRate');
+    const portfolioToggleButton = document.getElementById('portfolioToggleButton');
+    const portfolioDetails = document.getElementById('portfolioDetails');
+    const recurringTransactionList = document.getElementById('recurringTransactionList');
+    const message = document.getElementById('message');
+    const refreshButton = document.getElementById('refreshButton');
+    const portfolioToggleIcon = document.getElementById('portfolioToggleIcon');
+    const portfolioToggleLabel = document.getElementById('portfolioToggleLabel');
+    const lastUpdateTime = document.getElementById('lastUpdateTime');
 
-  const listItemClass =
-    'flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-3 text-sm text-slate-100 transition hover:border-slate-700 hover:bg-slate-900/80';
-  const listContentClass = 'flex flex-col gap-1 text-sm text-slate-300';
-  const listActionsClass = 'flex items-center gap-2';
-  const listMetaClass = 'text-xs text-slate-400 font-mono';
-  const listEmptyClass = 'text-slate-400';
-  const ghostButtonClass =
-    'inline-flex items-center justify-center rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-1.5 text-xs font-semibold text-slate-100 transition hover:bg-slate-800';
-  const summaryValueBaseClass = 'mt-2 text-xl font-semibold font-mono tracking-tight';
-  const summaryValueDefaultClass = `${summaryValueBaseClass} text-slate-100`;
-  const summaryValueMutedClass = `${summaryValueBaseClass} text-slate-500`;
-  const summaryValuePositiveClass = `${summaryValueBaseClass} text-emerald-300`;
-  const summaryValueNegativeClass = `${summaryValueBaseClass} text-rose-300`;
-  const calculatedValueBaseClass =
-    'rounded-md border border-slate-800 bg-slate-950/50 px-3 py-2 font-mono text-sm font-medium';
-  const calculatedValueMutedClass = `${calculatedValueBaseClass} text-slate-400`;
-  const calculatedValueAccentClass = `${calculatedValueBaseClass} text-indigo-200`;
-  const calculatedValueErrorClass = `${calculatedValueBaseClass} text-rose-300`;
-  const badgeBaseClass =
-    'inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em]';
-  const badgeSpotClass = `${badgeBaseClass} bg-indigo-500/20 text-indigo-200`;
-  const badgeRedemptionClass = `${badgeBaseClass} bg-rose-500/20 text-rose-200`;
-  const badgeRecurringClass = `${badgeBaseClass} bg-emerald-500/20 text-emerald-200`;
+    const listItemClass =
+      'flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-3 text-sm text-slate-100 transition hover:border-slate-700 hover:bg-slate-900/80';
+    const listContentClass = 'flex flex-col gap-1 text-sm text-slate-300';
+    const listActionsClass = 'flex items-center gap-2';
+    const listMetaClass = 'text-xs text-slate-400 font-mono';
+    const listEmptyClass = 'text-slate-400';
+    const ghostButtonClass =
+      'inline-flex items-center justify-center rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-1.5 text-xs font-semibold text-slate-100 transition hover:bg-slate-800';
+    const summaryValueBaseClass = 'mt-2 text-xl font-semibold font-mono tracking-tight';
+    const summaryValueDefaultClass = `${summaryValueBaseClass} text-slate-100`;
+    const summaryValueMutedClass = `${summaryValueBaseClass} text-slate-500`;
+    const summaryValuePositiveClass = `${summaryValueBaseClass} text-emerald-300`;
+    const summaryValueNegativeClass = `${summaryValueBaseClass} text-rose-300`;
+    const calculatedValueBaseClass =
+      'rounded-md border border-slate-800 bg-slate-950/50 px-3 py-2 font-mono text-sm font-medium';
+    const calculatedValueMutedClass = `${calculatedValueBaseClass} text-slate-400`;
+    const calculatedValueAccentClass = `${calculatedValueBaseClass} text-indigo-200`;
+    const calculatedValueErrorClass = `${calculatedValueBaseClass} text-rose-300`;
+    const badgeBaseClass =
+      'inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em]';
+    const badgeSpotClass = `${badgeBaseClass} bg-indigo-500/20 text-indigo-200`;
+    const badgeRedemptionClass = `${badgeBaseClass} bg-rose-500/20 text-rose-200`;
+    const badgeRecurringClass = `${badgeBaseClass} bg-emerald-500/20 text-emerald-200`;
 
-  function setLoading(isLoading) {
-    if (isLoading) {
-      app.classList.add('opacity-60', 'pointer-events-none');
-    } else {
-      app.classList.remove('opacity-60', 'pointer-events-none');
-    }
-    document.querySelectorAll('button, input, select').forEach((element) => {
-      element.disabled = isLoading;
-    });
-    refreshButton.disabled = false;
-  }
-
-  function callApi(request) {
-    return new Promise((resolve, reject) => {
-      google.script.run
-        .withSuccessHandler(resolve)
-        .withFailureHandler((error) => {
-          reject(error);
-        })
-        .handleApiRequest(request);
-    });
-  }
-
-  let successMessageTimer = null;
-
-  function setMessage(text, stateValue) {
-    message.textContent = text;
-    if (stateValue) {
-      message.setAttribute('data-state', stateValue);
-    } else {
-      message.removeAttribute('data-state');
-    }
-    if (text) {
-      message.classList.remove('hidden');
-    } else {
-      message.classList.add('hidden');
-    }
-
-    if (successMessageTimer) {
-      clearTimeout(successMessageTimer);
-      successMessageTimer = null;
-    }
-    if (stateValue === 'success') {
-      successMessageTimer = setTimeout(() => {
-        if (message.getAttribute('data-state') === 'success') {
-          message.textContent = '';
-          message.removeAttribute('data-state');
-          message.classList.add('hidden');
-        }
-      }, 10000);
-    }
-  }
-
-  function formatCurrency(value) {
-    return `${value.toLocaleString()}円`;
-  }
-
-  function formatRate(value) {
-    return `${(value * 100).toFixed(2)}%`;
-  }
-
-  function createActionButton(label, className, onClick) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.textContent = label;
-    button.className = className;
-    button.addEventListener('click', onClick);
-    return button;
-  }
-
-  function resetTransactionForm() {
-    transactionDateInput.value = '';
-    transactionAmountInput.value = '';
-    transactionUnitsInput.value = '';
-    transactionNavValue.textContent = '-';
-    transactionNavValue.className = calculatedValueMutedClass;
-    delete transactionNavValue.dataset.value;
-    transactionCalculatedValue.textContent = '-';
-    transactionCalculatedValue.className = calculatedValueMutedClass;
-  }
-
-  function setTransactionEditMode(transaction) {
-    if (!transaction) {
-      state.editingTransactionId = null;
-      state.editingTransactionType = null;
-      const transactionType = document.querySelector('input[name="transactionType"]:checked').value;
-      transactionSubmitButton.textContent = transactionType === 'sale' ? '売却登録' : '購入登録';
-      transactionCancelEditButton.classList.add('hidden');
-      resetTransactionForm();
-      return;
-    }
-
-    state.editingTransactionId = transaction.id;
-    state.editingTransactionType = transaction.type;
-    transactionCancelEditButton.classList.remove('hidden');
-    transactionFundSelect.value = transaction.fundId;
-    state.selectedTransactionFundId = transaction.fundId;
-    transactionDateInput.value = transaction.date;
-
-    // 基準価額を設定
-    transactionNavValue.textContent = `${transaction.navValue.toLocaleString()}円`;
-    transactionNavValue.className = calculatedValueAccentClass;
-    transactionNavValue.dataset.value = String(transaction.navValue);
-
-    if (transaction.type === 'REDEMPTION') {
-      // 売却取引の編集
-      document.querySelector('input[name="transactionType"][value="sale"]').checked = true;
-      document.querySelector('input[name="transactionType"][value="sale"]').dispatchEvent(new Event('change'));
-      transactionUnitsInput.value = String(Math.abs(transaction.units));
-      transactionSaleAmountInput.value = String(transaction.amount);
-      transactionSubmitButton.textContent = '売却内容を更新';
-    } else {
-      // スポット購入の編集
-      document.querySelector('input[name="transactionType"][value="purchase"]').checked = true;
-      document.querySelector('input[name="transactionType"][value="purchase"]').dispatchEvent(new Event('change'));
-      transactionAmountInput.value = String(transaction.amount);
-      transactionSubmitButton.textContent = '購入内容を更新';
-    }
-
-    // 計算値を更新
-    updateCalculatedValue();
-  }
-
-  function resetRecurringForm() {
-    recurringMonthlyAmountInput.value = '';
-    recurringExecutionDayInput.value = '';
-    recurringStartDateInput.value = '';
-    recurringEndDateInput.value = '';
-    recurringIsActiveInput.checked = true;
-  }
-
-  function setRecurringEditMode(recurring) {
-    if (!recurring) {
-      state.editingRecurringId = null;
-      recurringSubmitButton.textContent = '設定を追加';
-      recurringCancelEditButton.classList.add('hidden');
-      resetRecurringForm();
-      return;
-    }
-
-    state.editingRecurringId = recurring.id;
-    recurringSubmitButton.textContent = '設定内容を更新';
-    recurringCancelEditButton.classList.remove('hidden');
-    recurringFundSelect.value = recurring.fundId;
-    recurringMonthlyAmountInput.value = String(recurring.monthlyAmount);
-    recurringExecutionDayInput.value = String(recurring.executionDay);
-    recurringStartDateInput.value = recurring.startDate;
-    recurringEndDateInput.value = recurring.endDate ?? '';
-    recurringIsActiveInput.checked = recurring.isActive;
-  }
-
-  function renderFunds() {
-    fundList.innerHTML = '';
-    if (state.funds.length === 0) {
-      const empty = document.createElement('li');
-      empty.className = `${listItemClass} ${listEmptyClass}`;
-      empty.textContent = '銘柄が登録されていません。';
-      fundList.appendChild(empty);
-      return;
-    }
-
-    state.funds.forEach((fund) => {
-      const item = document.createElement('li');
-      item.className = listItemClass;
-      const name = document.createElement('strong');
-      name.textContent = fund.name;
-      const meta = document.createElement('span');
-      meta.className = listMetaClass;
-      const codeText = fund.rakutenFundId ? ` (${fund.rakutenFundId})` : '';
-      meta.textContent = `${fund.createdAt.split('T')[0]}${codeText}`;
-      item.appendChild(name);
-      item.appendChild(meta);
-      fundList.appendChild(item);
-    });
-  }
-
-  function renderTransactionSelect() {
-    transactionFundSelect.innerHTML = '';
-    if (state.funds.length === 0) {
-      transactionFundSelect.disabled = true;
-      const option = document.createElement('option');
-      option.textContent = '銘柄がありません';
-      option.value = '';
-      transactionFundSelect.appendChild(option);
-      return;
-    }
-
-    transactionFundSelect.disabled = false;
-    state.funds.forEach((fund) => {
-      const option = document.createElement('option');
-      option.value = fund.id;
-      option.textContent = fund.name;
-      transactionFundSelect.appendChild(option);
-    });
-
-    if (
-      !state.selectedTransactionFundId ||
-      !state.funds.find((fund) => fund.id === state.selectedTransactionFundId)
-    ) {
-      state.selectedTransactionFundId = state.funds[0].id;
-    }
-    transactionFundSelect.value = state.selectedTransactionFundId;
-  }
-
-  function renderRecurringSelect() {
-    recurringFundSelect.innerHTML = '';
-    if (state.funds.length === 0) {
-      recurringFundSelect.disabled = true;
-      const option = document.createElement('option');
-      option.textContent = '銘柄がありません';
-      option.value = '';
-      recurringFundSelect.appendChild(option);
-      return;
-    }
-
-    recurringFundSelect.disabled = false;
-    state.funds.forEach((fund) => {
-      const option = document.createElement('option');
-      option.value = fund.id;
-      option.textContent = fund.name;
-      recurringFundSelect.appendChild(option);
-    });
-  }
-
-  function renderTransactions(transactions) {
-    transactionList.innerHTML = '';
-    if (transactions.length === 0) {
-      const empty = document.createElement('li');
-      empty.className = `${listItemClass} ${listEmptyClass}`;
-      empty.textContent = '取引履歴がありません。';
-      transactionList.appendChild(empty);
-      return;
-    }
-
-    // 最新5件のみ表示
-    const recentTransactions = transactions.slice(0, 5);
-
-    recentTransactions.forEach((transaction) => {
-      const item = document.createElement('li');
-      item.className = listItemClass;
-      const content = document.createElement('div');
-      content.className = listContentClass;
-
-      // 日付と取引種別バッジを含むヘッダー行
-      const header = document.createElement('div');
-      header.className = 'flex items-center gap-2 text-sm text-slate-200';
-
-      const date = document.createElement('strong');
-      date.textContent = transaction.date;
-
-      const badge = document.createElement('span');
-      if (transaction.type === 'SPOT_PURCHASE') {
-        badge.className = badgeSpotClass;
-        badge.textContent = 'スポット購入';
-      } else if (transaction.type === 'REDEMPTION') {
-        badge.className = badgeRedemptionClass;
-        badge.textContent = '売却';
+    function setLoading(isLoading) {
+      if (isLoading) {
+        app.classList.add('opacity-60', 'pointer-events-none');
       } else {
-        badge.className = badgeRecurringClass;
-        badge.textContent = '積立購入';
+        app.classList.remove('opacity-60', 'pointer-events-none');
+      }
+      document.querySelectorAll('button, input, select').forEach((element) => {
+        element.disabled = isLoading;
+      });
+      refreshButton.disabled = false;
+    }
+
+    function callApi(request) {
+      return new Promise((resolve, reject) => {
+        google.script.run
+          .withSuccessHandler(resolve)
+          .withFailureHandler((error) => {
+            reject(error);
+          })
+          .handleApiRequest(request);
+      });
+    }
+
+    let successMessageTimer = null;
+
+    function setMessage(text, stateValue) {
+      message.textContent = text;
+      if (stateValue) {
+        message.setAttribute('data-state', stateValue);
+      } else {
+        message.removeAttribute('data-state');
+      }
+      if (text) {
+        message.classList.remove('hidden');
+      } else {
+        message.classList.add('hidden');
       }
 
-      header.appendChild(date);
-      header.appendChild(badge);
+      if (successMessageTimer) {
+        clearTimeout(successMessageTimer);
+        successMessageTimer = null;
+      }
+      if (stateValue === 'success') {
+        successMessageTimer = setTimeout(() => {
+          if (message.getAttribute('data-state') === 'success') {
+            message.textContent = '';
+            message.removeAttribute('data-state');
+            message.classList.add('hidden');
+          }
+        }, 10000);
+      }
+    }
 
-      // 取引詳細行
-      const detail = document.createElement('span');
-      detail.className = 'text-xs text-slate-400';
-      const unitsDisplay = transaction.type === 'REDEMPTION'
-        ? `${Math.abs(transaction.units).toLocaleString()}口`
-        : `${transaction.units.toLocaleString()}口`;
-      const navDisplay = `${transaction.navValue.toLocaleString()}円`;
-      detail.textContent = `${transaction.amount.toLocaleString()}円 / ${unitsDisplay} / 基準価額: ${navDisplay}`;
+    function formatCurrency(value) {
+      return `${value.toLocaleString()}円`;
+    }
 
-      content.appendChild(header);
-      content.appendChild(detail);
-      item.appendChild(content);
+    function formatRate(value) {
+      return `${(value * 100).toFixed(2)}%`;
+    }
 
-      // スポット購入と売却のみ編集・削除可能（積立購入は不可）
-      if (transaction.type === 'SPOT_PURCHASE' || transaction.type === 'REDEMPTION') {
+    function createActionButton(label, className, onClick) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = label;
+      button.className = className;
+      button.addEventListener('click', onClick);
+      return button;
+    }
+
+    function resetTransactionForm() {
+      transactionDateInput.value = '';
+      transactionAmountInput.value = '';
+      transactionUnitsInput.value = '';
+      transactionNavValue.textContent = '-';
+      transactionNavValue.className = calculatedValueMutedClass;
+      delete transactionNavValue.dataset.value;
+      transactionCalculatedValue.textContent = '-';
+      transactionCalculatedValue.className = calculatedValueMutedClass;
+    }
+
+    function setTransactionEditMode(transaction) {
+      if (!transaction) {
+        state.editingTransactionId = null;
+        state.editingTransactionType = null;
+        const transactionType = document.querySelector(
+          'input[name="transactionType"]:checked'
+        ).value;
+        transactionSubmitButton.textContent = transactionType === 'sale' ? '売却登録' : '購入登録';
+        transactionCancelEditButton.classList.add('hidden');
+        resetTransactionForm();
+        return;
+      }
+
+      state.editingTransactionId = transaction.id;
+      state.editingTransactionType = transaction.type;
+      transactionCancelEditButton.classList.remove('hidden');
+      transactionFundSelect.value = transaction.fundId;
+      state.selectedTransactionFundId = transaction.fundId;
+      transactionDateInput.value = transaction.date;
+
+      // 基準価額を設定
+      transactionNavValue.textContent = `${transaction.navValue.toLocaleString()}円`;
+      transactionNavValue.className = calculatedValueAccentClass;
+      transactionNavValue.dataset.value = String(transaction.navValue);
+
+      if (transaction.type === 'REDEMPTION') {
+        // 売却取引の編集
+        document.querySelector('input[name="transactionType"][value="sale"]').checked = true;
+        document
+          .querySelector('input[name="transactionType"][value="sale"]')
+          .dispatchEvent(new Event('change'));
+        transactionUnitsInput.value = String(Math.abs(transaction.units));
+        transactionSaleAmountInput.value = String(transaction.amount);
+        transactionSubmitButton.textContent = '売却内容を更新';
+      } else {
+        // スポット購入の編集
+        document.querySelector('input[name="transactionType"][value="purchase"]').checked = true;
+        document
+          .querySelector('input[name="transactionType"][value="purchase"]')
+          .dispatchEvent(new Event('change'));
+        transactionAmountInput.value = String(transaction.amount);
+        transactionSubmitButton.textContent = '購入内容を更新';
+      }
+
+      // 計算値を更新
+      updateCalculatedValue();
+    }
+
+    function resetRecurringForm() {
+      recurringMonthlyAmountInput.value = '';
+      recurringExecutionDayInput.value = '';
+      recurringStartDateInput.value = '';
+      recurringEndDateInput.value = '';
+      recurringIsActiveInput.checked = true;
+    }
+
+    function setRecurringEditMode(recurring) {
+      if (!recurring) {
+        state.editingRecurringId = null;
+        recurringSubmitButton.textContent = '設定を追加';
+        recurringCancelEditButton.classList.add('hidden');
+        resetRecurringForm();
+        return;
+      }
+
+      state.editingRecurringId = recurring.id;
+      recurringSubmitButton.textContent = '設定内容を更新';
+      recurringCancelEditButton.classList.remove('hidden');
+      recurringFundSelect.value = recurring.fundId;
+      recurringMonthlyAmountInput.value = String(recurring.monthlyAmount);
+      recurringExecutionDayInput.value = String(recurring.executionDay);
+      recurringStartDateInput.value = recurring.startDate;
+      recurringEndDateInput.value = recurring.endDate ?? '';
+      recurringIsActiveInput.checked = recurring.isActive;
+    }
+
+    function renderFunds() {
+      fundList.innerHTML = '';
+      if (state.funds.length === 0) {
+        const empty = document.createElement('li');
+        empty.className = `${listItemClass} ${listEmptyClass}`;
+        empty.textContent = '銘柄が登録されていません。';
+        fundList.appendChild(empty);
+        return;
+      }
+
+      state.funds.forEach((fund) => {
+        const item = document.createElement('li');
+        item.className = listItemClass;
+        const name = document.createElement('strong');
+        name.textContent = fund.name;
+        const meta = document.createElement('span');
+        meta.className = listMetaClass;
+        const codeText = fund.rakutenFundId ? ` (${fund.rakutenFundId})` : '';
+        meta.textContent = `${fund.createdAt.split('T')[0]}${codeText}`;
+        item.appendChild(name);
+        item.appendChild(meta);
+        fundList.appendChild(item);
+      });
+    }
+
+    function renderTransactionSelect() {
+      transactionFundSelect.innerHTML = '';
+      if (state.funds.length === 0) {
+        transactionFundSelect.disabled = true;
+        const option = document.createElement('option');
+        option.textContent = '銘柄がありません';
+        option.value = '';
+        transactionFundSelect.appendChild(option);
+        return;
+      }
+
+      transactionFundSelect.disabled = false;
+      state.funds.forEach((fund) => {
+        const option = document.createElement('option');
+        option.value = fund.id;
+        option.textContent = fund.name;
+        transactionFundSelect.appendChild(option);
+      });
+
+      if (
+        !state.selectedTransactionFundId ||
+        !state.funds.find((fund) => fund.id === state.selectedTransactionFundId)
+      ) {
+        state.selectedTransactionFundId = state.funds[0].id;
+      }
+      transactionFundSelect.value = state.selectedTransactionFundId;
+    }
+
+    function renderRecurringSelect() {
+      recurringFundSelect.innerHTML = '';
+      if (state.funds.length === 0) {
+        recurringFundSelect.disabled = true;
+        const option = document.createElement('option');
+        option.textContent = '銘柄がありません';
+        option.value = '';
+        recurringFundSelect.appendChild(option);
+        return;
+      }
+
+      recurringFundSelect.disabled = false;
+      state.funds.forEach((fund) => {
+        const option = document.createElement('option');
+        option.value = fund.id;
+        option.textContent = fund.name;
+        recurringFundSelect.appendChild(option);
+      });
+    }
+
+    function renderTransactions(transactions) {
+      transactionList.innerHTML = '';
+      if (transactions.length === 0) {
+        const empty = document.createElement('li');
+        empty.className = `${listItemClass} ${listEmptyClass}`;
+        empty.textContent = '取引履歴がありません。';
+        transactionList.appendChild(empty);
+        return;
+      }
+
+      // 最新5件のみ表示
+      const recentTransactions = transactions.slice(0, 5);
+
+      recentTransactions.forEach((transaction) => {
+        const item = document.createElement('li');
+        item.className = listItemClass;
+        const content = document.createElement('div');
+        content.className = listContentClass;
+
+        // 日付と取引種別バッジを含むヘッダー行
+        const header = document.createElement('div');
+        header.className = 'flex items-center gap-2 text-sm text-slate-200';
+
+        const date = document.createElement('strong');
+        date.textContent = transaction.date;
+
+        const badge = document.createElement('span');
+        if (transaction.type === 'SPOT_PURCHASE') {
+          badge.className = badgeSpotClass;
+          badge.textContent = 'スポット購入';
+        } else if (transaction.type === 'REDEMPTION') {
+          badge.className = badgeRedemptionClass;
+          badge.textContent = '売却';
+        } else {
+          badge.className = badgeRecurringClass;
+          badge.textContent = '積立購入';
+        }
+
+        header.appendChild(date);
+        header.appendChild(badge);
+
+        // 取引詳細行
+        const detail = document.createElement('span');
+        detail.className = 'text-xs text-slate-400';
+        const unitsDisplay =
+          transaction.type === 'REDEMPTION'
+            ? `${Math.abs(transaction.units).toLocaleString()}口`
+            : `${transaction.units.toLocaleString()}口`;
+        const navDisplay = `${transaction.navValue.toLocaleString()}円`;
+        detail.textContent = `${transaction.amount.toLocaleString()}円 / ${unitsDisplay} / 基準価額: ${navDisplay}`;
+
+        content.appendChild(header);
+        content.appendChild(detail);
+        item.appendChild(content);
+
+        // スポット購入と売却のみ編集・削除可能（積立購入は不可）
+        if (transaction.type === 'SPOT_PURCHASE' || transaction.type === 'REDEMPTION') {
+          const actions = document.createElement('div');
+          actions.className = listActionsClass;
+          const editButton = createActionButton('編集', ghostButtonClass, () => {
+            setTransactionEditMode(transaction);
+          });
+          const deleteLabel = transaction.type === 'REDEMPTION' ? '売却履歴' : 'スポット購入履歴';
+          const deleteButton = createActionButton('削除', ghostButtonClass, async () => {
+            if (!confirm(`${deleteLabel}を削除します。よろしいですか？`)) {
+              return;
+            }
+            setMessage(`${deleteLabel}を削除中...`, null);
+            setLoading(true);
+            try {
+              const response = await callApi({ action: 'deleteSpotPurchase', id: transaction.id });
+              if (!response.success) {
+                setMessage(response.error.message, 'error');
+                return;
+              }
+              setMessage(`${deleteLabel}を削除しました。`, 'success');
+              if (state.editingTransactionId === transaction.id) {
+                setTransactionEditMode(null);
+              }
+              await loadTransactions(state.selectedTransactionFundId);
+              await loadHoldings();
+              await loadPortfolioSummary();
+            } catch (error) {
+              setMessage(error.message, 'error');
+            } finally {
+              setLoading(false);
+            }
+          });
+          actions.appendChild(editButton);
+          actions.appendChild(deleteButton);
+          item.appendChild(actions);
+        }
+
+        transactionList.appendChild(item);
+      });
+    }
+
+    function renderRecurringList(recurrings) {
+      recurringList.innerHTML = '';
+      if (recurrings.length === 0) {
+        const empty = document.createElement('li');
+        empty.className = `${listItemClass} ${listEmptyClass}`;
+        empty.textContent = '積立設定がありません。';
+        recurringList.appendChild(empty);
+        return;
+      }
+
+      recurrings.forEach((recurring) => {
+        const fund = state.funds.find((f) => f.id === recurring.fundId);
+        const fundName = fund ? fund.name : '不明な銘柄';
+
+        const item = document.createElement('li');
+        item.className = listItemClass;
+        const content = document.createElement('div');
+        content.className = listContentClass;
+
+        // 銘柄名
+        const fundNameElement = document.createElement('div');
+        fundNameElement.className = 'text-sm font-medium text-slate-100';
+        fundNameElement.textContent = fundName;
+
+        // 積立設定詳細
+        const title = document.createElement('strong');
+        title.textContent = `${recurring.monthlyAmount.toLocaleString()}円 / 毎月${recurring.executionDay}日注文`;
+
+        const detail = document.createElement('span');
+        detail.className = 'text-xs text-slate-400';
+        const period = recurring.endDate
+          ? `${recurring.startDate}〜${recurring.endDate}`
+          : recurring.startDate;
+        const status = recurring.isActive ? 'アクティブ' : '停止中';
+        detail.textContent = `${period} / ${status}`;
+
+        content.appendChild(fundNameElement);
+        content.appendChild(title);
+        content.appendChild(detail);
+        item.appendChild(content);
+
         const actions = document.createElement('div');
         actions.className = listActionsClass;
         const editButton = createActionButton('編集', ghostButtonClass, () => {
-          setTransactionEditMode(transaction);
+          setRecurringEditMode(recurring);
         });
-        const deleteLabel = transaction.type === 'REDEMPTION' ? '売却履歴' : 'スポット購入履歴';
         const deleteButton = createActionButton('削除', ghostButtonClass, async () => {
-          if (!confirm(`${deleteLabel}を削除します。よろしいですか？`)) {
+          if (!confirm('積立設定を削除します。よろしいですか？')) {
             return;
           }
-          setMessage(`${deleteLabel}を削除中...`, null);
+          setMessage('積立設定を削除中...', null);
           setLoading(true);
           try {
-            const response = await callApi({ action: 'deleteSpotPurchase', id: transaction.id });
+            const response = await callApi({ action: 'deleteRecurringPurchase', id: recurring.id });
             if (!response.success) {
               setMessage(response.error.message, 'error');
               return;
             }
-            setMessage(`${deleteLabel}を削除しました。`, 'success');
-            if (state.editingTransactionId === transaction.id) {
-              setTransactionEditMode(null);
+            setMessage('積立設定を削除しました。', 'success');
+            if (state.editingRecurringId === recurring.id) {
+              setRecurringEditMode(null);
             }
-            await loadTransactions(state.selectedTransactionFundId);
-            await loadHoldings();
-            await loadPortfolioSummary();
+            await loadRecurringPurchases();
           } catch (error) {
             setMessage(error.message, 'error');
           } finally {
@@ -397,820 +482,749 @@
         actions.appendChild(editButton);
         actions.appendChild(deleteButton);
         item.appendChild(actions);
-      }
-
-      transactionList.appendChild(item);
-    });
-  }
-
-  function renderRecurringList(recurrings) {
-    recurringList.innerHTML = '';
-    if (recurrings.length === 0) {
-      const empty = document.createElement('li');
-      empty.className = `${listItemClass} ${listEmptyClass}`;
-      empty.textContent = '積立設定がありません。';
-      recurringList.appendChild(empty);
-      return;
+        recurringList.appendChild(item);
+      });
     }
 
-    recurrings.forEach((recurring) => {
-      const fund = state.funds.find((f) => f.id === recurring.fundId);
-      const fundName = fund ? fund.name : '不明な銘柄';
+    function renderHoldings(holdings) {
+      holdingList.innerHTML = '';
+      if (holdings.length === 0) {
+        const empty = document.createElement('li');
+        empty.className = `${listItemClass} ${listEmptyClass}`;
+        empty.textContent = '保有情報がありません。';
+        holdingList.appendChild(empty);
+        return;
+      }
 
-      const item = document.createElement('li');
-      item.className = listItemClass;
-      const content = document.createElement('div');
-      content.className = listContentClass;
+      holdings.forEach((holding) => {
+        const item = document.createElement('li');
+        item.className = listItemClass;
+        const title = document.createElement('strong');
+        title.textContent = holding.fundName;
+        const detail = document.createElement('span');
+        detail.className = 'text-right text-sm text-slate-300 min-w-[200px]';
 
-      // 銘柄名
-      const fundNameElement = document.createElement('div');
-      fundNameElement.className = 'text-sm font-medium text-slate-100';
-      fundNameElement.textContent = fundName;
+        if (holding.currentValue === null) {
+          detail.textContent = `${holding.totalUnits.toLocaleString()}口 / NAV未登録`;
+        } else {
+          const valueText = formatCurrency(holding.currentValue);
+          const gainText =
+            holding.unrealizedGain !== null ? formatCurrency(holding.unrealizedGain) : '-';
+          const rateText =
+            holding.unrealizedGainRate !== null ? formatRate(holding.unrealizedGainRate) : '-';
+          const gainClass =
+            holding.unrealizedGain !== null && holding.unrealizedGain >= 0
+              ? 'text-emerald-300'
+              : 'text-rose-300';
+          detail.innerHTML = `${holding.totalUnits.toLocaleString()}口 / ${valueText}<br><span class="${gainClass}">${gainText} (${rateText})</span>`;
+        }
 
-      // 積立設定詳細
-      const title = document.createElement('strong');
-      title.textContent = `${recurring.monthlyAmount.toLocaleString()}円 / 毎月${recurring.executionDay}日注文`;
-
-      const detail = document.createElement('span');
-      detail.className = 'text-xs text-slate-400';
-      const period = recurring.endDate ? `${recurring.startDate}〜${recurring.endDate}` : recurring.startDate;
-      const status = recurring.isActive ? 'アクティブ' : '停止中';
-      detail.textContent = `${period} / ${status}`;
-
-      content.appendChild(fundNameElement);
-      content.appendChild(title);
-      content.appendChild(detail);
-      item.appendChild(content);
-
-      const actions = document.createElement('div');
-      actions.className = listActionsClass;
-      const editButton = createActionButton('編集', ghostButtonClass, () => {
-        setRecurringEditMode(recurring);
+        item.appendChild(title);
+        item.appendChild(detail);
+        holdingList.appendChild(item);
       });
-      const deleteButton = createActionButton('削除', ghostButtonClass, async () => {
-        if (!confirm('積立設定を削除します。よろしいですか？')) {
+    }
+
+    function renderPortfolioSummary(portfolio) {
+      // 残存投資額
+      portfolioRemainingInvestment.textContent = formatCurrency(portfolio.remainingInvestment);
+      portfolioRemainingInvestment.className = summaryValueDefaultClass;
+
+      // 累計投入額
+      portfolioTotalInvestment.textContent = formatCurrency(portfolio.totalInvestment);
+      portfolioTotalInvestment.className = summaryValueDefaultClass;
+
+      // 売却総額
+      portfolioTotalSaleAmount.textContent = formatCurrency(portfolio.totalSaleAmount);
+      portfolioTotalSaleAmount.className = summaryValueDefaultClass;
+
+      // 実現損益
+      portfolioRealizedGain.textContent = formatCurrency(portfolio.realizedGain);
+      portfolioRealizedGain.className =
+        portfolio.realizedGain >= 0 ? summaryValuePositiveClass : summaryValueNegativeClass;
+
+      if (portfolio.totalCurrentValue === null) {
+        portfolioValue.textContent = 'NAV未登録';
+        portfolioValue.className = summaryValueMutedClass;
+        portfolioUnrealizedGain.textContent = '-';
+        portfolioUnrealizedGain.className = summaryValueMutedClass;
+        portfolioTotalGain.textContent = '-';
+        portfolioTotalGain.className = summaryValueMutedClass;
+        portfolioTotalGainRate.textContent = '-';
+        portfolioTotalGainRate.className = summaryValueMutedClass;
+        return;
+      }
+
+      // 評価額
+      portfolioValue.textContent = formatCurrency(portfolio.totalCurrentValue);
+      portfolioValue.className = summaryValueDefaultClass;
+
+      // 損益（損益率）
+      const unrealizedGainText = formatCurrency(portfolio.totalUnrealizedGain);
+      const unrealizedGainRateText = formatRate(portfolio.totalUnrealizedGainRate);
+      portfolioUnrealizedGain.textContent = `${unrealizedGainText} (${unrealizedGainRateText})`;
+      portfolioUnrealizedGain.className =
+        portfolio.totalUnrealizedGain >= 0 ? summaryValuePositiveClass : summaryValueNegativeClass;
+
+      // 総損益
+      portfolioTotalGain.textContent = formatCurrency(portfolio.totalGain);
+      portfolioTotalGain.className =
+        portfolio.totalGain >= 0 ? summaryValuePositiveClass : summaryValueNegativeClass;
+
+      // 総損益率
+      portfolioTotalGainRate.textContent = formatRate(portfolio.totalGainRate);
+      portfolioTotalGainRate.className =
+        portfolio.totalGainRate >= 0 ? summaryValuePositiveClass : summaryValueNegativeClass;
+    }
+
+    async function loadFunds() {
+      const response = await callApi({ action: 'listFunds' });
+      if (!response.success) {
+        throw new Error(response.error.message);
+      }
+      state.funds = response.value;
+      renderFunds();
+      renderTransactionSelect();
+      renderRecurringSelect();
+
+      // 並列API呼び出し
+      const results = await Promise.allSettled([
+        state.selectedTransactionFundId
+          ? loadTransactions(state.selectedTransactionFundId)
+          : Promise.resolve(),
+        loadRecurringPurchases(),
+        loadHoldings(),
+        loadPortfolioSummary(),
+        loadRecurringTransactionHistory(),
+      ]);
+
+      // 失敗したAPIのエラーメッセージを集約
+      const errors = results
+        .filter((r) => r.status === 'rejected')
+        .map((r) => r.reason?.message || '不明なエラー');
+
+      if (errors.length > 0) {
+        setMessage(`一部のデータ取得に失敗しました: ${errors.join(', ')}`, 'error');
+      }
+    }
+
+    async function loadTransactions(fundId) {
+      const response = await callApi({ action: 'getTransactionHistory', fundId });
+      if (!response.success) {
+        throw new Error(response.error.message);
+      }
+      renderTransactions(response.value);
+    }
+
+    async function loadRecurringPurchases() {
+      const response = await callApi({ action: 'listRecurringPurchases' });
+      if (!response.success) {
+        throw new Error(response.error.message);
+      }
+      renderRecurringList(response.value);
+    }
+
+    async function loadHoldings() {
+      const response = await callApi({ action: 'listHoldings' });
+      if (!response.success) {
+        throw new Error(response.error.message);
+      }
+      renderHoldings(response.value);
+    }
+
+    async function loadPortfolioSummary() {
+      const response = await callApi({ action: 'getPortfolioSummary' });
+      if (!response.success) {
+        throw new Error(response.error.message);
+      }
+      renderPortfolioSummary(response.value);
+    }
+
+    async function loadRecurringTransactionHistory() {
+      const response = await callApi({ action: 'listAllTransactions' });
+      if (!response.success) {
+        throw new Error(response.error.message);
+      }
+      renderRecurringTransactionHistory(response.value);
+    }
+
+    function renderRecurringTransactionHistory(allTransactions) {
+      recurringTransactionList.innerHTML = '';
+
+      // 最新10件を取得（全ての取引種別を含む）
+      const recentTransactions = allTransactions.slice(0, 10);
+
+      if (recentTransactions.length === 0) {
+        const emptyItem = document.createElement('li');
+        emptyItem.className = `${listItemClass} ${listEmptyClass}`;
+        emptyItem.textContent = '取引履歴がありません。';
+        recurringTransactionList.appendChild(emptyItem);
+        return;
+      }
+
+      recentTransactions.forEach((transaction) => {
+        const fund = state.funds.find((f) => f.id === transaction.fundId);
+        const fundName = fund ? fund.name : '不明な銘柄';
+
+        const item = document.createElement('li');
+        item.className = listItemClass;
+        const content = document.createElement('div');
+        content.className = listContentClass;
+
+        // 日付と取引種別バッジを含むヘッダー行
+        const header = document.createElement('div');
+        header.className = 'mb-1 flex items-center gap-2 text-sm text-slate-200';
+
+        const date = document.createElement('strong');
+        date.textContent = transaction.date;
+
+        const badge = document.createElement('span');
+        if (transaction.type === 'SPOT_PURCHASE') {
+          badge.className = badgeSpotClass;
+          badge.textContent = 'スポット購入';
+        } else if (transaction.type === 'REDEMPTION') {
+          badge.className = badgeRedemptionClass;
+          badge.textContent = '売却';
+        } else {
+          badge.className = badgeRecurringClass;
+          badge.textContent = '積立購入';
+        }
+
+        header.appendChild(date);
+        header.appendChild(badge);
+
+        // 銘柄名と取引詳細
+        const fundNameDiv = document.createElement('div');
+        fundNameDiv.className = 'text-sm font-medium text-slate-100';
+        fundNameDiv.textContent = fundName;
+
+        const detail = document.createElement('span');
+        detail.className = 'text-xs text-slate-400';
+        const unitsDisplay =
+          transaction.type === 'REDEMPTION'
+            ? `${Math.abs(transaction.units).toLocaleString()}口`
+            : `${transaction.units.toLocaleString()}口`;
+        const navDisplay = `${transaction.navValue.toLocaleString()}円`;
+        detail.textContent = `${transaction.amount.toLocaleString()}円 / ${unitsDisplay} / 基準価額: ${navDisplay}`;
+
+        content.appendChild(header);
+        content.appendChild(fundNameDiv);
+        content.appendChild(detail);
+        item.appendChild(content);
+        recurringTransactionList.appendChild(item);
+      });
+    }
+
+    fundForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const name = fundNameInput.value;
+      const rakutenFundId = fundRakutenFundIdInput.value.trim() || null;
+      const settlementBusinessDaysText = fundSettlementBusinessDaysInput.value.trim();
+      const settlementBusinessDays =
+        settlementBusinessDaysText === '' ? null : Number(settlementBusinessDaysText);
+      setMessage('登録中...', null);
+      setLoading(true);
+      try {
+        const response = await callApi({
+          action: 'createFund',
+          name,
+          rakutenFundId,
+          settlementBusinessDays,
+        });
+        if (!response.success) {
+          setMessage(response.error.message, 'error');
           return;
         }
-        setMessage('積立設定を削除中...', null);
+        fundNameInput.value = '';
+        fundRakutenFundIdInput.value = '';
+        fundSettlementBusinessDaysInput.value = '';
+        setMessage('銘柄を登録しました。', 'success');
+        await loadFunds();
+      } catch (error) {
+        setMessage(error.message, 'error');
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    // 取引種別ラジオボタンの切り替え処理
+    const transactionTypeRadios = document.querySelectorAll('input[name="transactionType"]');
+    transactionTypeRadios.forEach((radio) => {
+      radio.addEventListener('change', (event) => {
+        const transactionType = event.target.value;
+        if (transactionType === 'purchase') {
+          // 購入モード
+          purchaseFields.classList.remove('hidden');
+          saleFields.classList.add('hidden');
+          transactionCalculatedLabel.textContent = '取得口数（自動計算）';
+          transactionCalculatedLabel.parentElement.classList.remove('hidden');
+          transactionSubmitButton.textContent = '購入登録';
+          transactionAmountInput.required = true;
+          transactionUnitsInput.required = false;
+          transactionSaleAmountInput.required = false;
+          transactionUnitsInput.value = '';
+          transactionSaleAmountInput.value = '';
+        } else {
+          // 売却モード
+          purchaseFields.classList.add('hidden');
+          saleFields.classList.remove('hidden');
+          // 売却モードでは自動計算表示を非表示
+          transactionCalculatedLabel.parentElement.classList.add('hidden');
+          transactionSubmitButton.textContent = '売却登録';
+          transactionAmountInput.required = false;
+          transactionUnitsInput.required = true;
+          transactionSaleAmountInput.required = true;
+          transactionAmountInput.value = '';
+        }
+        updateCalculatedValue();
+      });
+    });
+
+    // 基準価額を自動取得する
+    async function fetchNavForDate() {
+      const fundId = transactionFundSelect.value;
+      const date = transactionDateInput.value;
+
+      if (!fundId || !date) {
+        transactionNavValue.textContent = '-';
+        transactionNavValue.className = calculatedValueMutedClass;
+        updateCalculatedValue();
+        return;
+      }
+
+      try {
+        const response = await callApi({
+          action: 'getNavHistory',
+          fundId,
+        });
+
+        if (!response.success) {
+          transactionNavValue.textContent = 'エラー';
+          transactionNavValue.className = calculatedValueErrorClass;
+          updateCalculatedValue();
+          return;
+        }
+
+        // 指定日付の基準価額を探す
+        const nav = response.value.find((n) => n.date === date);
+        if (nav) {
+          transactionNavValue.textContent = `${nav.value.toLocaleString()}円`;
+          transactionNavValue.className = calculatedValueAccentClass;
+          transactionNavValue.dataset.value = String(nav.value);
+        } else {
+          transactionNavValue.textContent = '未記録';
+          transactionNavValue.className = calculatedValueErrorClass;
+          delete transactionNavValue.dataset.value;
+        }
+        updateCalculatedValue();
+      } catch (error) {
+        transactionNavValue.textContent = 'エラー';
+        transactionNavValue.className = calculatedValueErrorClass;
+        delete transactionNavValue.dataset.value;
+        updateCalculatedValue();
+      }
+    }
+
+    // 購入時は口数を計算、売却時は金額を計算
+    function updateCalculatedValue() {
+      const transactionType = document.querySelector('input[name="transactionType"]:checked').value;
+      const navValue = Number(transactionNavValue.dataset.value || 0);
+
+      if (!navValue || navValue <= 0) {
+        transactionCalculatedValue.textContent = '-';
+        transactionCalculatedValue.className = calculatedValueMutedClass;
+        return;
+      }
+
+      if (transactionType === 'purchase') {
+        // 購入金額から口数を計算
+        const amount = Number(transactionAmountInput.value || 0);
+        if (amount > 0) {
+          const units = Math.round((amount / navValue) * 10000);
+          transactionCalculatedValue.textContent = `${units.toLocaleString()}口`;
+          transactionCalculatedValue.className = calculatedValueAccentClass;
+        } else {
+          transactionCalculatedValue.textContent = '-';
+          transactionCalculatedValue.className = calculatedValueMutedClass;
+        }
+      } else {
+        // 売却口数から金額を計算
+        const units = Number(transactionUnitsInput.value || 0);
+        if (units > 0) {
+          const amount = Math.round((units / 10000) * navValue);
+          transactionCalculatedValue.textContent = `${amount.toLocaleString()}円`;
+          transactionCalculatedValue.className = calculatedValueAccentClass;
+        } else {
+          transactionCalculatedValue.textContent = '-';
+          transactionCalculatedValue.className = calculatedValueMutedClass;
+        }
+      }
+    }
+
+    // 日付・銘柄変更時に基準価額を取得
+    transactionFundSelect.addEventListener('change', fetchNavForDate);
+    transactionDateInput.addEventListener('change', fetchNavForDate);
+
+    // 購入金額または売却口数変更時に計算値を更新
+    transactionAmountInput.addEventListener('input', updateCalculatedValue);
+    transactionUnitsInput.addEventListener('input', updateCalculatedValue);
+
+    transactionForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const transactionType = document.querySelector('input[name="transactionType"]:checked').value;
+      const fundId = transactionFundSelect.value;
+      const date = transactionDateInput.value;
+      const navValue = Number(transactionNavValue.dataset.value || 0);
+      const isEditing = Boolean(state.editingTransactionId);
+
+      // 基準価額の検証
+      if (!navValue || navValue <= 0) {
+        setMessage('指定した約定日の基準価額が記録されていません。', 'error');
+        return;
+      }
+
+      if (transactionType === 'purchase') {
+        // 購入金額から取引を実行
+        const amount = Number(transactionAmountInput.value);
+        // 購入処理
+        setMessage(isEditing ? 'スポット購入を更新中...' : '購入登録中...', null);
         setLoading(true);
         try {
-          const response = await callApi({ action: 'deleteRecurringPurchase', id: recurring.id });
+          const response = await callApi(
+            isEditing
+              ? {
+                  action: 'updateSpotPurchase',
+                  id: state.editingTransactionId,
+                  fundId,
+                  date,
+                  amount,
+                  navValue,
+                }
+              : {
+                  action: 'executeSpotPurchase',
+                  fundId,
+                  date,
+                  amount,
+                  navValue,
+                }
+          );
           if (!response.success) {
             setMessage(response.error.message, 'error');
             return;
           }
-          setMessage('積立設定を削除しました。', 'success');
-          if (state.editingRecurringId === recurring.id) {
-            setRecurringEditMode(null);
-          }
-          await loadRecurringPurchases();
+          setMessage(
+            isEditing ? 'スポット購入の内容を更新しました。' : 'スポット購入を登録しました。',
+            'success'
+          );
+          setTransactionEditMode(null);
+          await loadTransactions(fundId);
+          await loadHoldings();
+          await loadPortfolioSummary();
         } catch (error) {
           setMessage(error.message, 'error');
         } finally {
           setLoading(false);
         }
-      });
-      actions.appendChild(editButton);
-      actions.appendChild(deleteButton);
-      item.appendChild(actions);
-      recurringList.appendChild(item);
+      } else {
+        // 売却口数と売却金額から取引を実行
+        const units = Number(transactionUnitsInput.value);
+        const amount = Number(transactionSaleAmountInput.value);
+        setMessage(isEditing ? '売却を更新中...' : '売却登録中...', null);
+        setLoading(true);
+        try {
+          const response = await callApi(
+            isEditing
+              ? {
+                  action: 'updateSaleTransaction',
+                  id: state.editingTransactionId,
+                  fundId,
+                  date,
+                  units,
+                  amount,
+                  navValue,
+                }
+              : {
+                  action: 'executeSale',
+                  fundId,
+                  date,
+                  units,
+                  amount,
+                  navValue,
+                }
+          );
+          if (!response.success) {
+            setMessage(response.error.message, 'error');
+            return;
+          }
+          setMessage(isEditing ? '売却の内容を更新しました。' : '売却を登録しました。', 'success');
+          if (isEditing) {
+            setTransactionEditMode(null);
+          } else {
+            transactionForm.reset();
+            // 購入モードに戻す
+            document.querySelector('input[name="transactionType"][value="purchase"]').checked =
+              true;
+            transactionTypeRadios[0].dispatchEvent(new Event('change'));
+          }
+          await loadTransactions(fundId);
+          await loadHoldings();
+          await loadPortfolioSummary();
+        } catch (error) {
+          setMessage(error.message, 'error');
+        } finally {
+          setLoading(false);
+        }
+      }
     });
-  }
 
-
-  function renderHoldings(holdings) {
-    holdingList.innerHTML = '';
-    if (holdings.length === 0) {
-      const empty = document.createElement('li');
-      empty.className = `${listItemClass} ${listEmptyClass}`;
-      empty.textContent = '保有情報がありません。';
-      holdingList.appendChild(empty);
-      return;
-    }
-
-    holdings.forEach((holding) => {
-      const item = document.createElement('li');
-      item.className = listItemClass;
-      const title = document.createElement('strong');
-      title.textContent = holding.fundName;
-      const detail = document.createElement('span');
-      detail.className = 'text-right text-sm text-slate-300 min-w-[200px]';
-
-      if (holding.currentValue === null) {
-        detail.textContent = `${holding.totalUnits.toLocaleString()}口 / NAV未登録`;
-      } else {
-        const valueText = formatCurrency(holding.currentValue);
-        const gainText = holding.unrealizedGain !== null ? formatCurrency(holding.unrealizedGain) : '-';
-        const rateText = holding.unrealizedGainRate !== null ? formatRate(holding.unrealizedGainRate) : '-';
-        const gainClass =
-          holding.unrealizedGain !== null && holding.unrealizedGain >= 0
-            ? 'text-emerald-300'
-            : 'text-rose-300';
-        detail.innerHTML = `${holding.totalUnits.toLocaleString()}口 / ${valueText}<br><span class="${gainClass}">${gainText} (${rateText})</span>`;
-      }
-
-      item.appendChild(title);
-      item.appendChild(detail);
-      holdingList.appendChild(item);
+    transactionCancelEditButton.addEventListener('click', () => {
+      setTransactionEditMode(null);
     });
-  }
 
-  function renderPortfolioSummary(portfolio) {
-    // 残存投資額
-    portfolioRemainingInvestment.textContent = formatCurrency(portfolio.remainingInvestment);
-    portfolioRemainingInvestment.className = summaryValueDefaultClass;
-
-    // 累計投入額
-    portfolioTotalInvestment.textContent = formatCurrency(portfolio.totalInvestment);
-    portfolioTotalInvestment.className = summaryValueDefaultClass;
-
-    // 売却総額
-    portfolioTotalSaleAmount.textContent = formatCurrency(portfolio.totalSaleAmount);
-    portfolioTotalSaleAmount.className = summaryValueDefaultClass;
-
-    // 実現損益
-    portfolioRealizedGain.textContent = formatCurrency(portfolio.realizedGain);
-    portfolioRealizedGain.className =
-      portfolio.realizedGain >= 0 ? summaryValuePositiveClass : summaryValueNegativeClass;
-
-    if (portfolio.totalCurrentValue === null) {
-      portfolioValue.textContent = 'NAV未登録';
-      portfolioValue.className = summaryValueMutedClass;
-      portfolioUnrealizedGain.textContent = '-';
-      portfolioUnrealizedGain.className = summaryValueMutedClass;
-      portfolioTotalGain.textContent = '-';
-      portfolioTotalGain.className = summaryValueMutedClass;
-      portfolioTotalGainRate.textContent = '-';
-      portfolioTotalGainRate.className = summaryValueMutedClass;
-      return;
-    }
-
-    // 評価額
-    portfolioValue.textContent = formatCurrency(portfolio.totalCurrentValue);
-    portfolioValue.className = summaryValueDefaultClass;
-
-    // 損益（損益率）
-    const unrealizedGainText = formatCurrency(portfolio.totalUnrealizedGain);
-    const unrealizedGainRateText = formatRate(portfolio.totalUnrealizedGainRate);
-    portfolioUnrealizedGain.textContent = `${unrealizedGainText} (${unrealizedGainRateText})`;
-    portfolioUnrealizedGain.className =
-      portfolio.totalUnrealizedGain >= 0 ? summaryValuePositiveClass : summaryValueNegativeClass;
-
-    // 総損益
-    portfolioTotalGain.textContent = formatCurrency(portfolio.totalGain);
-    portfolioTotalGain.className =
-      portfolio.totalGain >= 0 ? summaryValuePositiveClass : summaryValueNegativeClass;
-
-    // 総損益率
-    portfolioTotalGainRate.textContent = formatRate(portfolio.totalGainRate);
-    portfolioTotalGainRate.className =
-      portfolio.totalGainRate >= 0 ? summaryValuePositiveClass : summaryValueNegativeClass;
-  }
-
-  async function loadFunds() {
-    const response = await callApi({ action: 'listFunds' });
-    if (!response.success) {
-      throw new Error(response.error.message);
-    }
-    state.funds = response.value;
-    renderFunds();
-    renderTransactionSelect();
-    renderRecurringSelect();
-
-    // 並列API呼び出し
-    const results = await Promise.allSettled([
-      state.selectedTransactionFundId
-        ? loadTransactions(state.selectedTransactionFundId)
-        : Promise.resolve(),
-      loadRecurringPurchases(),
-      loadHoldings(),
-      loadPortfolioSummary(),
-      loadRecurringTransactionHistory(),
-    ]);
-
-    // 失敗したAPIのエラーメッセージを集約
-    const errors = results
-      .filter((r) => r.status === 'rejected')
-      .map((r) => r.reason?.message || '不明なエラー');
-
-    if (errors.length > 0) {
-      setMessage(`一部のデータ取得に失敗しました: ${errors.join(', ')}`, 'error');
-    }
-  }
-
-  async function loadTransactions(fundId) {
-    const response = await callApi({ action: 'getTransactionHistory', fundId });
-    if (!response.success) {
-      throw new Error(response.error.message);
-    }
-    renderTransactions(response.value);
-  }
-
-  async function loadRecurringPurchases() {
-    const response = await callApi({ action: 'listRecurringPurchases' });
-    if (!response.success) {
-      throw new Error(response.error.message);
-    }
-    renderRecurringList(response.value);
-  }
-
-  async function loadHoldings() {
-    const response = await callApi({ action: 'listHoldings' });
-    if (!response.success) {
-      throw new Error(response.error.message);
-    }
-    renderHoldings(response.value);
-  }
-
-  async function loadPortfolioSummary() {
-    const response = await callApi({ action: 'getPortfolioSummary' });
-    if (!response.success) {
-      throw new Error(response.error.message);
-    }
-    renderPortfolioSummary(response.value);
-  }
-
-  async function loadRecurringTransactionHistory() {
-    const response = await callApi({ action: 'listAllTransactions' });
-    if (!response.success) {
-      throw new Error(response.error.message);
-    }
-    renderRecurringTransactionHistory(response.value);
-  }
-
-  function renderRecurringTransactionHistory(allTransactions) {
-    recurringTransactionList.innerHTML = '';
-
-    // 最新10件を取得（全ての取引種別を含む）
-    const recentTransactions = allTransactions.slice(0, 10);
-
-    if (recentTransactions.length === 0) {
-      const emptyItem = document.createElement('li');
-      emptyItem.className = `${listItemClass} ${listEmptyClass}`;
-      emptyItem.textContent = '取引履歴がありません。';
-      recurringTransactionList.appendChild(emptyItem);
-      return;
-    }
-
-    recentTransactions.forEach((transaction) => {
-      const fund = state.funds.find((f) => f.id === transaction.fundId);
-      const fundName = fund ? fund.name : '不明な銘柄';
-
-      const item = document.createElement('li');
-      item.className = listItemClass;
-      const content = document.createElement('div');
-      content.className = listContentClass;
-
-      // 日付と取引種別バッジを含むヘッダー行
-      const header = document.createElement('div');
-      header.className = 'mb-1 flex items-center gap-2 text-sm text-slate-200';
-
-      const date = document.createElement('strong');
-      date.textContent = transaction.date;
-
-      const badge = document.createElement('span');
-      if (transaction.type === 'SPOT_PURCHASE') {
-        badge.className = badgeSpotClass;
-        badge.textContent = 'スポット購入';
-      } else if (transaction.type === 'REDEMPTION') {
-        badge.className = badgeRedemptionClass;
-        badge.textContent = '売却';
-      } else {
-        badge.className = badgeRecurringClass;
-        badge.textContent = '積立購入';
-      }
-
-      header.appendChild(date);
-      header.appendChild(badge);
-
-      // 銘柄名と取引詳細
-      const fundNameDiv = document.createElement('div');
-      fundNameDiv.className = 'text-sm font-medium text-slate-100';
-      fundNameDiv.textContent = fundName;
-
-      const detail = document.createElement('span');
-      detail.className = 'text-xs text-slate-400';
-      const unitsDisplay = transaction.type === 'REDEMPTION'
-        ? `${Math.abs(transaction.units).toLocaleString()}口`
-        : `${transaction.units.toLocaleString()}口`;
-      const navDisplay = `${transaction.navValue.toLocaleString()}円`;
-      detail.textContent = `${transaction.amount.toLocaleString()}円 / ${unitsDisplay} / 基準価額: ${navDisplay}`;
-
-      content.appendChild(header);
-      content.appendChild(fundNameDiv);
-      content.appendChild(detail);
-      item.appendChild(content);
-      recurringTransactionList.appendChild(item);
-    });
-  }
-
-  fundForm.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const name = fundNameInput.value;
-    const rakutenFundId = fundRakutenFundIdInput.value.trim() || null;
-    const settlementBusinessDaysText = fundSettlementBusinessDaysInput.value.trim();
-    const settlementBusinessDays =
-      settlementBusinessDaysText === '' ? null : Number(settlementBusinessDaysText);
-    setMessage('登録中...', null);
-    setLoading(true);
-    try {
-      const response = await callApi({
-        action: 'createFund',
-        name,
-        rakutenFundId,
-        settlementBusinessDays
-      });
-      if (!response.success) {
-        setMessage(response.error.message, 'error');
-        return;
-      }
-      fundNameInput.value = '';
-      fundRakutenFundIdInput.value = '';
-      fundSettlementBusinessDaysInput.value = '';
-      setMessage('銘柄を登録しました。', 'success');
-      await loadFunds();
-    } catch (error) {
-      setMessage(error.message, 'error');
-    } finally {
-      setLoading(false);
-    }
-  });
-
-  // 取引種別ラジオボタンの切り替え処理
-  const transactionTypeRadios = document.querySelectorAll('input[name="transactionType"]');
-  transactionTypeRadios.forEach((radio) => {
-    radio.addEventListener('change', (event) => {
-      const transactionType = event.target.value;
-      if (transactionType === 'purchase') {
-        // 購入モード
-        purchaseFields.classList.remove('hidden');
-        saleFields.classList.add('hidden');
-        transactionCalculatedLabel.textContent = '取得口数（自動計算）';
-        transactionCalculatedLabel.parentElement.classList.remove('hidden');
-        transactionSubmitButton.textContent = '購入登録';
-        transactionAmountInput.required = true;
-        transactionUnitsInput.required = false;
-        transactionSaleAmountInput.required = false;
-        transactionUnitsInput.value = '';
-        transactionSaleAmountInput.value = '';
-      } else {
-        // 売却モード
-        purchaseFields.classList.add('hidden');
-        saleFields.classList.remove('hidden');
-        // 売却モードでは自動計算表示を非表示
-        transactionCalculatedLabel.parentElement.classList.add('hidden');
-        transactionSubmitButton.textContent = '売却登録';
-        transactionAmountInput.required = false;
-        transactionUnitsInput.required = true;
-        transactionSaleAmountInput.required = true;
-        transactionAmountInput.value = '';
-      }
-      updateCalculatedValue();
-    });
-  });
-
-  // 基準価額を自動取得する
-  async function fetchNavForDate() {
-    const fundId = transactionFundSelect.value;
-    const date = transactionDateInput.value;
-
-    if (!fundId || !date) {
-      transactionNavValue.textContent = '-';
-      transactionNavValue.className = calculatedValueMutedClass;
-      updateCalculatedValue();
-      return;
-    }
-
-    try {
-      const response = await callApi({
-        action: 'getNavHistory',
-        fundId,
-      });
-
-      if (!response.success) {
-        transactionNavValue.textContent = 'エラー';
-        transactionNavValue.className = calculatedValueErrorClass;
-        updateCalculatedValue();
-        return;
-      }
-
-      // 指定日付の基準価額を探す
-      const nav = response.value.find((n) => n.date === date);
-      if (nav) {
-        transactionNavValue.textContent = `${nav.value.toLocaleString()}円`;
-        transactionNavValue.className = calculatedValueAccentClass;
-        transactionNavValue.dataset.value = String(nav.value);
-      } else {
-        transactionNavValue.textContent = '未記録';
-        transactionNavValue.className = calculatedValueErrorClass;
-        delete transactionNavValue.dataset.value;
-      }
-      updateCalculatedValue();
-    } catch (error) {
-      transactionNavValue.textContent = 'エラー';
-      transactionNavValue.className = calculatedValueErrorClass;
-      delete transactionNavValue.dataset.value;
-      updateCalculatedValue();
-    }
-  }
-
-  // 購入時は口数を計算、売却時は金額を計算
-  function updateCalculatedValue() {
-    const transactionType = document.querySelector('input[name="transactionType"]:checked').value;
-    const navValue = Number(transactionNavValue.dataset.value || 0);
-
-    if (!navValue || navValue <= 0) {
-      transactionCalculatedValue.textContent = '-';
-      transactionCalculatedValue.className = calculatedValueMutedClass;
-      return;
-    }
-
-    if (transactionType === 'purchase') {
-      // 購入金額から口数を計算
-      const amount = Number(transactionAmountInput.value || 0);
-      if (amount > 0) {
-        const units = Math.round((amount / navValue) * 10000);
-        transactionCalculatedValue.textContent = `${units.toLocaleString()}口`;
-        transactionCalculatedValue.className = calculatedValueAccentClass;
-      } else {
-        transactionCalculatedValue.textContent = '-';
-        transactionCalculatedValue.className = calculatedValueMutedClass;
-      }
-    } else {
-      // 売却口数から金額を計算
-      const units = Number(transactionUnitsInput.value || 0);
-      if (units > 0) {
-        const amount = Math.round((units / 10000) * navValue);
-        transactionCalculatedValue.textContent = `${amount.toLocaleString()}円`;
-        transactionCalculatedValue.className = calculatedValueAccentClass;
-      } else {
-        transactionCalculatedValue.textContent = '-';
-        transactionCalculatedValue.className = calculatedValueMutedClass;
-      }
-    }
-  }
-
-  // 日付・銘柄変更時に基準価額を取得
-  transactionFundSelect.addEventListener('change', fetchNavForDate);
-  transactionDateInput.addEventListener('change', fetchNavForDate);
-
-  // 購入金額または売却口数変更時に計算値を更新
-  transactionAmountInput.addEventListener('input', updateCalculatedValue);
-  transactionUnitsInput.addEventListener('input', updateCalculatedValue);
-
-  transactionForm.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const transactionType = document.querySelector('input[name="transactionType"]:checked').value;
-    const fundId = transactionFundSelect.value;
-    const date = transactionDateInput.value;
-    const navValue = Number(transactionNavValue.dataset.value || 0);
-    const isEditing = Boolean(state.editingTransactionId);
-
-    // 基準価額の検証
-    if (!navValue || navValue <= 0) {
-      setMessage('指定した約定日の基準価額が記録されていません。', 'error');
-      return;
-    }
-
-    if (transactionType === 'purchase') {
-      // 購入金額から取引を実行
-      const amount = Number(transactionAmountInput.value);
-      // 購入処理
-      setMessage(isEditing ? 'スポット購入を更新中...' : '購入登録中...', null);
+    recurringForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const fundId = recurringFundSelect.value;
+      const monthlyAmount = Number(recurringMonthlyAmountInput.value);
+      const executionDay = Number(recurringExecutionDayInput.value);
+      const startDate = recurringStartDateInput.value;
+      const endDate = recurringEndDateInput.value || null;
+      const isActive = recurringIsActiveInput.checked;
+      const isEditing = Boolean(state.editingRecurringId);
+      setMessage(isEditing ? '積立設定を更新中...' : '積立設定を登録中...', null);
       setLoading(true);
       try {
         const response = await callApi(
           isEditing
             ? {
-                action: 'updateSpotPurchase',
-                id: state.editingTransactionId,
+                action: 'updateRecurringPurchase',
+                id: state.editingRecurringId,
                 fundId,
-                date,
-                amount,
-                navValue
+                monthlyAmount,
+                executionDay,
+                startDate,
+                endDate,
+                isActive,
               }
             : {
-                action: 'executeSpotPurchase',
+                action: 'createRecurringPurchase',
                 fundId,
-                date,
-                amount,
-                navValue
+                monthlyAmount,
+                executionDay,
+                startDate,
+                endDate,
+                isActive,
               }
         );
         if (!response.success) {
           setMessage(response.error.message, 'error');
           return;
         }
-        setMessage(
-          isEditing ? 'スポット購入の内容を更新しました。' : 'スポット購入を登録しました。',
-          'success'
-        );
-        setTransactionEditMode(null);
-        await loadTransactions(fundId);
-        await loadHoldings();
-        await loadPortfolioSummary();
+        setMessage(isEditing ? '積立設定を更新しました。' : '積立設定を追加しました。', 'success');
+        setRecurringEditMode(null);
+        await loadRecurringPurchases();
       } catch (error) {
         setMessage(error.message, 'error');
       } finally {
         setLoading(false);
       }
-    } else {
-      // 売却口数と売却金額から取引を実行
-      const units = Number(transactionUnitsInput.value);
-      const amount = Number(transactionSaleAmountInput.value);
-      setMessage(isEditing ? '売却を更新中...' : '売却登録中...', null);
-      setLoading(true);
-      try {
-        const response = await callApi(
-          isEditing
-            ? {
-                action: 'updateSaleTransaction',
-                id: state.editingTransactionId,
-                fundId,
-                date,
-                units,
-                amount,
-                navValue
-              }
-            : {
-                action: 'executeSale',
-                fundId,
-                date,
-                units,
-                amount,
-                navValue
-              }
-        );
-        if (!response.success) {
-          setMessage(response.error.message, 'error');
-          return;
-        }
-        setMessage(isEditing ? '売却の内容を更新しました。' : '売却を登録しました。', 'success');
-        if (isEditing) {
-          setTransactionEditMode(null);
-        } else {
-          transactionForm.reset();
-          // 購入モードに戻す
-          document.querySelector('input[name="transactionType"][value="purchase"]').checked = true;
-          transactionTypeRadios[0].dispatchEvent(new Event('change'));
-        }
-        await loadTransactions(fundId);
-        await loadHoldings();
-        await loadPortfolioSummary();
-      } catch (error) {
-        setMessage(error.message, 'error');
-      } finally {
-        setLoading(false);
-      }
-    }
-  });
+    });
 
-  transactionCancelEditButton.addEventListener('click', () => {
-    setTransactionEditMode(null);
-  });
-
-  recurringForm.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const fundId = recurringFundSelect.value;
-    const monthlyAmount = Number(recurringMonthlyAmountInput.value);
-    const executionDay = Number(recurringExecutionDayInput.value);
-    const startDate = recurringStartDateInput.value;
-    const endDate = recurringEndDateInput.value || null;
-    const isActive = recurringIsActiveInput.checked;
-    const isEditing = Boolean(state.editingRecurringId);
-    setMessage(isEditing ? '積立設定を更新中...' : '積立設定を登録中...', null);
-    setLoading(true);
-    try {
-      const response = await callApi(
-        isEditing
-          ? {
-              action: 'updateRecurringPurchase',
-              id: state.editingRecurringId,
-              fundId,
-              monthlyAmount,
-              executionDay,
-              startDate,
-              endDate,
-              isActive
-            }
-          : {
-              action: 'createRecurringPurchase',
-              fundId,
-              monthlyAmount,
-              executionDay,
-              startDate,
-              endDate,
-              isActive
-            }
-      );
-      if (!response.success) {
-        setMessage(response.error.message, 'error');
-        return;
-      }
-      setMessage(isEditing ? '積立設定を更新しました。' : '積立設定を追加しました。', 'success');
+    recurringCancelEditButton.addEventListener('click', () => {
       setRecurringEditMode(null);
-      await loadRecurringPurchases();
-    } catch (error) {
-      setMessage(error.message, 'error');
-    } finally {
-      setLoading(false);
-    }
-  });
-
-  recurringCancelEditButton.addEventListener('click', () => {
-    setRecurringEditMode(null);
-  });
-
-  transactionFundSelect.addEventListener('change', async (event) => {
-    const fundId = event.target.value;
-    state.selectedTransactionFundId = fundId;
-    if (!fundId) {
-      renderTransactions([]);
-      return;
-    }
-    try {
-      await loadTransactions(fundId);
-    } catch (error) {
-      setMessage(error.message, 'error');
-    }
-  });
-
-
-  refreshButton.addEventListener('click', async () => {
-    await performRefresh();
-  });
-
-  // ポートフォリオ詳細のトグル
-  portfolioToggleButton.addEventListener('click', () => {
-    const isHidden = portfolioDetails.classList.contains('hidden');
-    if (isHidden) {
-      portfolioDetails.classList.remove('hidden');
-      portfolioToggleIcon.classList.add('rotate-180');
-      portfolioToggleLabel.textContent = '詳細を非表示';
-    } else {
-      portfolioDetails.classList.add('hidden');
-      portfolioToggleIcon.classList.remove('rotate-180');
-      portfolioToggleLabel.textContent = '詳細を表示';
-    }
-  });
-
-  // タブ切り替え
-  const tabButtons = document.querySelectorAll('.tab-button');
-  const tabContents = document.querySelectorAll('.tab-content');
-
-  function switchTab(tabName) {
-    console.log('[Tab] Switching to tab:', tabName);
-    // タブボタンの状態更新
-    tabButtons.forEach((button) => {
-      if (button.getAttribute('data-tab') === tabName) {
-        button.setAttribute('data-active', 'true');
-      } else {
-        button.setAttribute('data-active', 'false');
-      }
     });
 
-    // タブコンテンツの表示/非表示
-    tabContents.forEach((content) => {
-      if (content.getAttribute('data-tab') === tabName) {
-        content.classList.remove('hidden');
-      } else {
-        content.classList.add('hidden');
+    transactionFundSelect.addEventListener('change', async (event) => {
+      const fundId = event.target.value;
+      state.selectedTransactionFundId = fundId;
+      if (!fundId) {
+        renderTransactions([]);
+        return;
       }
-    });
-
-    // パフォーマンスタブに切り替えた時、データ読み込み
-    if (tabName === 'performance') {
-      console.log('[Tab] Performance tab activated');
-      console.log('[Tab] window.loadPerformanceData exists:', typeof window.loadPerformanceData === 'function');
-      if (typeof window.loadPerformanceData === 'function') {
-        console.log('[Tab] Calling window.loadPerformanceData()');
-        window.loadPerformanceData();
-      } else {
-        console.error('[Tab] window.loadPerformanceData is not a function!');
-      }
-    }
-  }
-
-  // タブボタンのクリックイベント
-  tabButtons.forEach((button) => {
-    button.addEventListener('click', () => {
-      const tabName = button.getAttribute('data-tab');
-      switchTab(tabName);
-    });
-  });
-
-  // ========================================
-  // 日次自動リフレッシュ機能
-  // ========================================
-
-  // localStorageキー
-  const LAST_REFRESH_DATE_KEY = 'trustfolio_last_refresh_date';
-  const LAST_UPDATE_TIME_KEY = 'trustfolio_last_update_time';
-
-  /**
-   * 最終更新時刻を表示形式で更新
-   */
-  function updateLastUpdateTimeDisplay() {
-    const lastUpdate = localStorage.getItem(LAST_UPDATE_TIME_KEY);
-    if (lastUpdate) {
-      const date = new Date(lastUpdate);
-      const month = date.getMonth() + 1;
-      const day = date.getDate();
-      const hours = date.getHours();
-      const minutes = String(date.getMinutes()).padStart(2, '0');
-      const formatted = `最終更新: ${month}/${day} ${hours}:${minutes}`;
-      lastUpdateTime.textContent = formatted;
-    } else {
-      lastUpdateTime.textContent = '-';
-    }
-  }
-
-  /**
-   * 最終更新時刻を記録
-   */
-  function recordUpdateTime() {
-    const now = new Date().toISOString();
-    localStorage.setItem(LAST_UPDATE_TIME_KEY, now);
-    updateLastUpdateTimeDisplay();
-  }
-
-  /**
-   * その日初回のリフレッシュかどうかをチェック
-   * @returns {boolean} リフレッシュが必要な場合はtrue
-   */
-  function shouldRefreshToday() {
-    const today = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD形式（ローカルタイムゾーン）
-    const lastRefreshDate = localStorage.getItem(LAST_REFRESH_DATE_KEY);
-
-    if (lastRefreshDate !== today) {
-      console.log('[DailyRefresh] First load of the day, refresh needed');
-      localStorage.setItem(LAST_REFRESH_DATE_KEY, today);
-      return true;
-    } else {
-      console.log('[DailyRefresh] Already refreshed today');
-      return false;
-    }
-  }
-
-  /**
-   * データを再読み込み
-   */
-  async function performRefresh() {
-    // 現在アクティブなタブを確認
-    const activeTab = document.querySelector('.tab-content:not(.hidden)');
-    const activeTabName = activeTab ? activeTab.getAttribute('data-tab') : 'portfolio';
-
-    if (activeTabName === 'performance') {
-      // パフォーマンスタブの場合、パフォーマンスデータを再読み込み
       try {
-        if (typeof window.loadPerformanceData === 'function') {
-          window.loadPerformanceData();
-          recordUpdateTime();
-        } else {
-          console.warn('[Refresh] loadPerformanceData function not available');
-        }
+        await loadTransactions(fundId);
       } catch (error) {
-        console.error('[Refresh] Performance data reload failed:', error);
-        setMessage('パフォーマンスデータの再読み込みに失敗しました。', 'error');
+        setMessage(error.message, 'error');
       }
-    } else {
-      // ポートフォリオタブの場合、ポートフォリオデータを再読み込み
-      setMessage('再読み込み中...', null);
+    });
+
+    refreshButton.addEventListener('click', async () => {
+      await performRefresh();
+    });
+
+    // ポートフォリオ詳細のトグル
+    portfolioToggleButton.addEventListener('click', () => {
+      const isHidden = portfolioDetails.classList.contains('hidden');
+      if (isHidden) {
+        portfolioDetails.classList.remove('hidden');
+        portfolioToggleIcon.classList.add('rotate-180');
+        portfolioToggleLabel.textContent = '詳細を非表示';
+      } else {
+        portfolioDetails.classList.add('hidden');
+        portfolioToggleIcon.classList.remove('rotate-180');
+        portfolioToggleLabel.textContent = '詳細を表示';
+      }
+    });
+
+    // タブ切り替え
+    const tabButtons = document.querySelectorAll('.tab-button');
+    const tabContents = document.querySelectorAll('.tab-content');
+
+    function switchTab(tabName) {
+      console.log('[Tab] Switching to tab:', tabName);
+      // タブボタンの状態更新
+      tabButtons.forEach((button) => {
+        if (button.getAttribute('data-tab') === tabName) {
+          button.setAttribute('data-active', 'true');
+        } else {
+          button.setAttribute('data-active', 'false');
+        }
+      });
+
+      // タブコンテンツの表示/非表示
+      tabContents.forEach((content) => {
+        if (content.getAttribute('data-tab') === tabName) {
+          content.classList.remove('hidden');
+        } else {
+          content.classList.add('hidden');
+        }
+      });
+
+      // パフォーマンスタブに切り替えた時、データ読み込み
+      if (tabName === 'performance') {
+        console.log('[Tab] Performance tab activated');
+        console.log(
+          '[Tab] window.loadPerformanceData exists:',
+          typeof window.loadPerformanceData === 'function'
+        );
+        if (typeof window.loadPerformanceData === 'function') {
+          console.log('[Tab] Calling window.loadPerformanceData()');
+          window.loadPerformanceData();
+        } else {
+          console.error('[Tab] window.loadPerformanceData is not a function!');
+        }
+      }
+    }
+
+    // タブボタンのクリックイベント
+    tabButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const tabName = button.getAttribute('data-tab');
+        switchTab(tabName);
+      });
+    });
+
+    // ========================================
+    // 日次自動リフレッシュ機能
+    // ========================================
+
+    // localStorageキー
+    const LAST_REFRESH_DATE_KEY = 'trustfolio_last_refresh_date';
+    const LAST_UPDATE_TIME_KEY = 'trustfolio_last_update_time';
+
+    /**
+     * 最終更新時刻を表示形式で更新
+     */
+    function updateLastUpdateTimeDisplay() {
+      const lastUpdate = localStorage.getItem(LAST_UPDATE_TIME_KEY);
+      if (lastUpdate) {
+        const date = new Date(lastUpdate);
+        const month = date.getMonth() + 1;
+        const day = date.getDate();
+        const hours = date.getHours();
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const formatted = `最終更新: ${month}/${day} ${hours}:${minutes}`;
+        lastUpdateTime.textContent = formatted;
+      } else {
+        lastUpdateTime.textContent = '-';
+      }
+    }
+
+    /**
+     * 最終更新時刻を記録
+     */
+    function recordUpdateTime() {
+      const now = new Date().toISOString();
+      localStorage.setItem(LAST_UPDATE_TIME_KEY, now);
+      updateLastUpdateTimeDisplay();
+    }
+
+    /**
+     * その日初回のリフレッシュかどうかをチェック
+     * @returns {boolean} リフレッシュが必要な場合はtrue
+     */
+    function shouldRefreshToday() {
+      const today = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD形式（ローカルタイムゾーン）
+      const lastRefreshDate = localStorage.getItem(LAST_REFRESH_DATE_KEY);
+
+      if (lastRefreshDate !== today) {
+        console.log('[DailyRefresh] First load of the day, refresh needed');
+        localStorage.setItem(LAST_REFRESH_DATE_KEY, today);
+        return true;
+      } else {
+        console.log('[DailyRefresh] Already refreshed today');
+        return false;
+      }
+    }
+
+    /**
+     * データを再読み込み
+     */
+    async function performRefresh() {
+      // 現在アクティブなタブを確認
+      const activeTab = document.querySelector('.tab-content:not(.hidden)');
+      const activeTabName = activeTab ? activeTab.getAttribute('data-tab') : 'portfolio';
+
+      if (activeTabName === 'performance') {
+        // パフォーマンスタブの場合、パフォーマンスデータを再読み込み
+        try {
+          if (typeof window.loadPerformanceData === 'function') {
+            window.loadPerformanceData();
+            recordUpdateTime();
+          } else {
+            console.warn('[Refresh] loadPerformanceData function not available');
+          }
+        } catch (error) {
+          console.error('[Refresh] Performance data reload failed:', error);
+          setMessage('パフォーマンスデータの再読み込みに失敗しました。', 'error');
+        }
+      } else {
+        // ポートフォリオタブの場合、ポートフォリオデータを再読み込み
+        setMessage('再読み込み中...', null);
+        setLoading(true);
+        try {
+          await loadFunds();
+          recordUpdateTime();
+          setMessage('最新の情報を取得しました。', 'success');
+        } catch (error) {
+          setMessage(error.message, 'error');
+        } finally {
+          setLoading(false);
+        }
+      }
+    }
+
+    // 初期化時に最終更新時刻を表示
+    updateLastUpdateTimeDisplay();
+
+    (async () => {
+      setMessage('読み込み中...', null);
       setLoading(true);
+
+      // 日次リフレッシュが必要かチェック
+      const needsRefresh = shouldRefreshToday();
+
       try {
         await loadFunds();
-        recordUpdateTime();
-        setMessage('最新の情報を取得しました。', 'success');
+        // 日次リフレッシュが必要な場合のみ更新時刻を記録
+        if (needsRefresh) {
+          recordUpdateTime();
+        }
+        setMessage('準備ができました。', 'success');
       } catch (error) {
         setMessage(error.message, 'error');
       } finally {
         setLoading(false);
       }
-    }
-  }
-
-  // 初期化時に最終更新時刻を表示
-  updateLastUpdateTimeDisplay();
-
-  (async () => {
-    setMessage('読み込み中...', null);
-    setLoading(true);
-
-    // 日次リフレッシュが必要かチェック
-    const needsRefresh = shouldRefreshToday();
-
-    try {
-      await loadFunds();
-      // 日次リフレッシュが必要な場合のみ更新時刻を記録
-      if (needsRefresh) {
-        recordUpdateTime();
-      }
-      setMessage('準備ができました。', 'success');
-    } catch (error) {
-      setMessage(error.message, 'error');
-    } finally {
-      setLoading(false);
-    }
-  })();
+    })();
   })(); // Close IIFE
 </script>
