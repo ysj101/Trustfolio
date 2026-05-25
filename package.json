@@ -5,8 +5,7 @@
   "scripts": {
     "build:css": "bash scripts/build-styles.sh",
     "build:js": "vite build",
-    "build:html": "cp src/ui/Index.html dist/ && cp src/ui/Performance.html dist/ && cp src/ui/scripts.html dist/ && cp src/ui/performance-scripts.html dist/ && cp src/ui/styles.html dist/",
-    "build": "pnpm build:js && pnpm build:html && pnpm build:css",
+    "build": "pnpm build:js && pnpm build:css",
     "push": "pnpm lint && pnpm build && clasp push --force",
     "setup:clasp": "scripts/setup-clasp.sh",
     "sync:env": "node scripts/sync-env-to-gas.mjs",
