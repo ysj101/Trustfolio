@@ -82,20 +82,27 @@ Google Sheets上で管理するGASアプリケーションです。
 
 ### 必要環境
 
-- Node.js 22.x（CIと同じ実行環境）
-- Corepack（Node.js 22に同梱。`corepack enable`で有効化）
-- pnpm 10.30.2（`packageManager`で固定）
+- [mise](https://mise.jdx.dev/)（Node.js / pnpm のバージョン管理）
 - clasp（`pnpm exec clasp login`で認証）
 - Google Apps Scriptプロジェクト
 - Google スプレッドシート
 
-`package.json`では `engines.node` を `>=22 <23`、`engines.pnpm` を `>=10.30.2 <11` に固定しています。依存関係の追加・更新・実行は `pnpm` だけを使用してください。
+`mise.toml` で Node.js `22.22` 系（patch は自動追従）、pnpm `10.30.2` を固定しています。これは `package.json` の `engines.node` (`>=22.18 <23`)、`engines.pnpm` (`>=10.30.2 <11`)、および `packageManager` (`pnpm@10.30.2`) と整合しています。依存関係の追加・更新・実行は `pnpm` だけを使用してください。
 
 ### インストール
 
+mise が未導入であれば、まず Homebrew 等でインストールし、シェルへの activate を済ませてください（zsh の場合は `~/.zshrc` に `eval "$(mise activate zsh)"` を追加）。
+
 ```bash
-corepack enable
-corepack use pnpm@10.30.2
+brew install mise
+# ~/.zshrc に: eval "$(mise activate zsh)"
+exec zsh
+```
+
+プロジェクトルートで以下を実行します。
+
+```bash
+mise install   # mise.toml に従って Node.js 22.22.x / pnpm 10.30.2 をインストール
 pnpm install
 ```
 
