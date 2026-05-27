@@ -92,10 +92,15 @@ Google Sheets上で管理するGASアプリケーションです。
 
 ### インストール
 
-mise が未導入であれば、まず Homebrew 等でインストールし、シェルへの activate を済ませてください（zsh の場合は `~/.zshrc` に `eval "$(mise activate zsh)"` を追加）。
+mise が未導入であれば、まずインストールし、シェルへの activate を済ませてください（zsh の場合は `~/.zshrc` に `eval "$(mise activate zsh)"` を追加）。
 
 ```bash
+# macOS（Homebrew）
 brew install mise
+
+# Linux または macOS の代替
+curl https://mise.run | sh
+
 # ~/.zshrc に: eval "$(mise activate zsh)"
 exec zsh
 ```
@@ -103,10 +108,10 @@ exec zsh
 プロジェクトルートで以下を実行します。
 
 ```bash
-mise install                    # mise.toml に従って Node.js 22.22.x をインストール
-corepack enable                 # Corepack を有効化（Node 22 LTS に同梱）
-corepack use pnpm@10.30.2       # package.json の packageManager と整合する pnpm を取得
-pnpm install
+mise install     # mise.toml に従って Node.js 22.22.x をインストール
+corepack enable  # Corepack を有効化（Node 22 LTS に同梱）
+pnpm install     # Corepack が package.json の packageManager フィールドから
+                 # pnpm@10.30.2 を SHA 検証付きで自動解決
 ```
 
 ### 環境変数の設定
