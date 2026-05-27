@@ -82,21 +82,36 @@ Google Sheets上で管理するGASアプリケーションです。
 
 ### 必要環境
 
-- Node.js 22.x（CIと同じ実行環境）
-- Corepack（Node.js 22に同梱。`corepack enable`で有効化）
-- pnpm 10.30.2（`packageManager`で固定）
+- [mise](https://mise.jdx.dev/)（Node.js のバージョン管理）
+- Corepack（Node.js 22 LTS に同梱。pnpm の取得・SHA 検証に利用）
 - clasp（`pnpm exec clasp login`で認証）
 - Google Apps Scriptプロジェクト
 - Google スプレッドシート
 
-`package.json`では `engines.node` を `>=22 <23`、`engines.pnpm` を `>=10.30.2 <11` に固定しています。依存関係の追加・更新・実行は `pnpm` だけを使用してください。
+`mise.toml` で Node.js `22.22` 系（patch は自動追従）を固定しています。pnpm は `package.json` の `packageManager` (`pnpm@10.30.2+sha512...`) を Corepack が SHA まで検証してインストールするため、バージョン定義を 1 箇所に集約しています。これらは `engines.node` (`>=22.18 <23`)、`engines.pnpm` (`>=10.30.2 <11`) と整合しています。依存関係の追加・更新・実行は `pnpm` だけを使用してください。
 
 ### インストール
 
+mise が未導入であれば、まずインストールし、シェルへの activate を済ませてください（zsh の場合は `~/.zshrc` に `eval "$(mise activate zsh)"` を追加）。
+
 ```bash
-corepack enable
-corepack use pnpm@10.30.2
-pnpm install
+# macOS（Homebrew）
+brew install mise
+
+# Linux または macOS の代替
+curl https://mise.run | sh
+
+# ~/.zshrc に: eval "$(mise activate zsh)"
+exec zsh
+```
+
+プロジェクトルートで以下を実行します。
+
+```bash
+mise install     # mise.toml に従って Node.js 22.22.x をインストール
+corepack enable  # Corepack を有効化（Node 22 LTS に同梱）
+pnpm install     # Corepack が package.json の packageManager フィールドから
+                 # pnpm@10.30.2 を SHA 検証付きで自動解決
 ```
 
 ### 環境変数の設定
