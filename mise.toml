@@ -1,0 +1,16 @@
+# mise tool versions
+# https://mise.jdx.dev/
+#
+# プロジェクトで利用するランタイムのバージョンを固定する。
+# `mise install` でこのファイルに記載されたバージョンが自動的にインストールされ、
+# `mise activate` 済みのシェルではディレクトリ移動時に自動切り替えされる。
+#
+# - node: `package.json` の `engines.node` (`>=22.18 <23`) を満たす最新 minor 系。
+#         minor を固定し、patch は mise が自動追従する。
+#
+# pnpm は本ファイルでは管理せず、Node.js 22 LTS に同梱される Corepack 経由で
+# `package.json` の `packageManager` フィールド (`pnpm@10.30.2+sha512...`) から
+# SHA 検証付きでインストールする。バージョン定義を 1 箇所に集約することで
+# mise.toml と packageManager の食い違いを構造的に防ぐ。
+[tools]
+node = "22.22"
