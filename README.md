@@ -82,12 +82,13 @@ Google Sheets上で管理するGASアプリケーションです。
 
 ### 必要環境
 
-- [mise](https://mise.jdx.dev/)（Node.js / pnpm のバージョン管理）
+- [mise](https://mise.jdx.dev/)（Node.js のバージョン管理）
+- Corepack（Node.js 22 LTS に同梱。pnpm の取得・SHA 検証に利用）
 - clasp（`pnpm exec clasp login`で認証）
 - Google Apps Scriptプロジェクト
 - Google スプレッドシート
 
-`mise.toml` で Node.js `22.22` 系（patch は自動追従）、pnpm `10.30.2` を固定しています。これは `package.json` の `engines.node` (`>=22.18 <23`)、`engines.pnpm` (`>=10.30.2 <11`)、および `packageManager` (`pnpm@10.30.2`) と整合しています。依存関係の追加・更新・実行は `pnpm` だけを使用してください。
+`mise.toml` で Node.js `22.22` 系（patch は自動追従）を固定しています。pnpm は `package.json` の `packageManager` (`pnpm@10.30.2+sha512...`) を Corepack が SHA まで検証してインストールするため、バージョン定義を 1 箇所に集約しています。これらは `engines.node` (`>=22.18 <23`)、`engines.pnpm` (`>=10.30.2 <11`) と整合しています。依存関係の追加・更新・実行は `pnpm` だけを使用してください。
 
 ### インストール
 
@@ -102,7 +103,9 @@ exec zsh
 プロジェクトルートで以下を実行します。
 
 ```bash
-mise install   # mise.toml に従って Node.js 22.22.x / pnpm 10.30.2 をインストール
+mise install                    # mise.toml に従って Node.js 22.22.x をインストール
+corepack enable                 # Corepack を有効化（Node 22 LTS に同梱）
+corepack use pnpm@10.30.2       # package.json の packageManager と整合する pnpm を取得
 pnpm install
 ```
 
