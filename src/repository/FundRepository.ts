@@ -1,5 +1,6 @@
 import { SHEET_NAMES } from '../Config';
-import type { AppError, Fund, Result } from '../domain/types';
+import { fail } from '../domain/result';
+import type { Fund, Result } from '../domain/types';
 import type { SheetRepository } from './SheetRepository';
 
 export type FundRepository = {
@@ -116,10 +117,6 @@ function parseRow(row: unknown[], index: number): Result<Fund> {
       createdAt,
     },
   };
-}
-
-function fail<T>(type: AppError['type'], message: string): Result<T> {
-  return { success: false, error: { type, message } };
 }
 
 function parseSettlementBusinessDays(value: unknown, index: number): Result<number | null> {
