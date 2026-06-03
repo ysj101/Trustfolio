@@ -2,6 +2,7 @@ import { SHEET_NAMES } from '../Config';
 import { formatDateToIso } from '../domain/dateFormat';
 import { fail } from '../domain/result';
 import type { MarketIndex, Result } from '../domain/types';
+import { findRowByPredicate, parseAllRows, parseSheetDate } from './SheetMapping';
 import type { SheetRepository } from './SheetRepository';
 
 /**
@@ -66,24 +67,16 @@ export function createMarketIndexRepository(
         return rowsResult;
       }
 
-      for (const [index, row] of rowsResult.value.entries()) {
-        // 空行はスキップ
-        const isEmpty = row.every((cell) => cell === '' || cell === null || cell === undefined);
-        if (isEmpty) {
-          continue;
-        }
-
-        const parsed = parseRow(row, index);
-        if (!parsed.success) {
-          return parsed;
-        }
-
-        if (parsed.value.date === date) {
-          return { success: true, value: parsed.value };
-        }
+      const found = findRowByPredicate(
+        rowsResult.value,
+        parseRow,
+        (record) => record.date === date
+      );
+      if (!found.success) {
+        return found;
       }
 
-      return { success: true, value: null };
+      return { success: true, value: found.value?.entity ?? null };
     },
 
     listAll: (): Result<MarketIndex[]> => {
@@ -92,23 +85,13 @@ export function createMarketIndexRepository(
         return rowsResult;
       }
 
-      const records: MarketIndex[] = [];
-      for (const [index, row] of rowsResult.value.entries()) {
-        // 空行はスキップ
-        const isEmpty = row.every((cell) => cell === '' || cell === null || cell === undefined);
-        if (isEmpty) {
-          continue;
-        }
-
-        const parsed = parseRow(row, index);
-        if (!parsed.success) {
-          return parsed;
-        }
-
-        records.push(parsed.value);
+      const parsedResult = parseAllRows(rowsResult.value, parseRow);
+      if (!parsedResult.success) {
+        return parsedResult;
       }
 
       // 日付の降順でソート
+      const records = parsedResult.value;
       records.sort((a, b) => (a.date < b.date ? 1 : -1));
 
       return { success: true, value: records };
@@ -184,23 +167,17 @@ function parseRow(row: unknown[], index: number): Result<MarketIndex> {
   const [dateValue, sp500Value, nasdaqValue, createdAtValue] = row;
 
   // dateの検証とパース
-  let date: string;
-  if (dateValue instanceof Date) {
-    if (Number.isNaN(dateValue.getTime())) {
-      return fail(
-        'unexpected',
-        `_market_indicesの${String(index + 2)}行目のdateが無効な日付です。値: ${String(dateValue)}`
-      );
-    }
-    date = formatDateToIso(dateValue);
-  } else if (typeof dateValue === 'string' && dateValue.trim() !== '') {
-    date = dateValue.trim();
-  } else {
-    return fail(
-      'unexpected',
-      `_market_indicesの${String(index + 2)}行目のdateが不正です。型: ${typeof dateValue}, 値: "${String(dateValue)}"`
-    );
+  const dateResult = parseSheetDate(dateValue, {
+    sheetLabel: '_market_indices',
+    fieldName: 'date',
+    index,
+    trim: true,
+    quoteInvalidValue: true,
+  });
+  if (!dateResult.success) {
+    return dateResult;
   }
+  const date = dateResult.value;
 
   // sp500の検証
   if (typeof sp500Value !== 'number' || Number.isNaN(sp500Value)) {

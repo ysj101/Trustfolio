@@ -4,9 +4,9 @@ import {
   getTransactionSheetName,
   type SheetDefinition,
 } from '../Config';
-import { formatDateToIso } from '../domain/dateFormat';
 import { fail } from '../domain/result';
 import type { Result, Transaction } from '../domain/types';
+import { findRowByPredicate, parseAllRows, parseSheetDate } from './SheetMapping';
 import type { SheetRepository } from './SheetRepository';
 
 export type TransactionRepository = {
@@ -34,21 +34,12 @@ export function createTransactionRepository(
         return rowsResult;
       }
 
-      const transactions: Transaction[] = [];
-      for (const [index, row] of rowsResult.value.entries()) {
-        // 空行はスキップ
-        const isEmpty = row.every((cell) => cell === '' || cell === null || cell === undefined);
-        if (isEmpty) {
-          continue;
-        }
-
-        const parsed = parseRow(row, index);
-        if (!parsed.success) {
-          return parsed;
-        }
-        transactions.push(parsed.value);
+      const parsedResult = parseAllRows(rowsResult.value, parseRow);
+      if (!parsedResult.success) {
+        return parsedResult;
       }
 
+      const transactions = parsedResult.value;
       transactions.sort((a, b) => (a.date < b.date ? 1 : -1));
 
       return { success: true, value: transactions };
@@ -65,19 +56,11 @@ export function createTransactionRepository(
           continue;
         }
 
-        for (const [index, row] of rowsResult.value.entries()) {
-          // 空行はスキップ
-          const isEmpty = row.every((cell) => cell === '' || cell === null || cell === undefined);
-          if (isEmpty) {
-            continue;
-          }
-
-          const parsed = parseRow(row, index);
-          if (!parsed.success) {
-            return parsed;
-          }
-          allTransactions.push(parsed.value);
+        const parsedResult = parseAllRows(rowsResult.value, parseRow);
+        if (!parsedResult.success) {
+          return parsedResult;
         }
+        allTransactions.push(...parsedResult.value);
       }
 
       allTransactions.sort((a, b) => (a.date < b.date ? 1 : -1));
@@ -103,23 +86,13 @@ export function createTransactionRepository(
           continue;
         }
 
-        const transactions: Transaction[] = [];
-
-        for (const [index, row] of rowsResult.value.entries()) {
-          // 空行はスキップ
-          const isEmpty = row.every((cell) => cell === '' || cell === null || cell === undefined);
-          if (isEmpty) {
-            continue;
-          }
-
-          const parsed = parseRow(row, index);
-          if (!parsed.success) {
-            return parsed;
-          }
-          transactions.push(parsed.value);
+        const parsedResult = parseAllRows(rowsResult.value, parseRow);
+        if (!parsedResult.success) {
+          return parsedResult;
         }
 
         // 日付でソート（降順）
+        const transactions = parsedResult.value;
         transactions.sort((a, b) => (a.date < b.date ? 1 : -1));
 
         // Mapに格納
@@ -134,20 +107,7 @@ export function createTransactionRepository(
         return sheetNameResult;
       }
 
-      return sheetRepository.appendRows(sheetNameResult.value as never, [
-        [
-          transaction.id,
-          transaction.fundId,
-          transaction.type,
-          transaction.date,
-          transaction.amount,
-          transaction.navValue,
-          transaction.units,
-          transaction.recurringPurchaseId ?? '',
-          transaction.idempotencyKey ?? '',
-          transaction.createdAt,
-        ],
-      ]);
+      return sheetRepository.appendRows(sheetNameResult.value as never, [toRow(transaction)]);
     },
     findByIdempotencyKey: (
       idempotencyKey: string,
@@ -162,21 +122,16 @@ export function createTransactionRepository(
           continue;
         }
 
-        for (let index = 0; index < rowsResult.value.length; index += 1) {
-          const row = rowsResult.value[index];
-          // 空行はスキップ
-          const isEmpty = row.every((cell) => cell === '' || cell === null || cell === undefined);
-          if (isEmpty) {
-            continue;
-          }
-
-          const parsed = parseRow(row, index);
-          if (!parsed.success) {
-            return parsed;
-          }
-          if (parsed.value.idempotencyKey === idempotencyKey) {
-            return { success: true, value: parsed.value };
-          }
+        const found = findRowByPredicate(
+          rowsResult.value,
+          parseRow,
+          (transaction) => transaction.idempotencyKey === idempotencyKey
+        );
+        if (!found.success) {
+          return found;
+        }
+        if (found.value !== null) {
+          return { success: true, value: found.value.entity };
         }
       }
 
@@ -199,18 +154,11 @@ export function createTransactionRepository(
       }
 
       const sheetName = getTransactionSheetName(transaction.fundId);
-      return sheetRepository.updateRow(sheetName as never, findResult.value.rowIndex, [
-        transaction.id,
-        transaction.fundId,
-        transaction.type,
-        transaction.date,
-        transaction.amount,
-        transaction.navValue,
-        transaction.units,
-        transaction.recurringPurchaseId ?? '',
-        transaction.idempotencyKey ?? '',
-        transaction.createdAt,
-      ]);
+      return sheetRepository.updateRow(
+        sheetName as never,
+        findResult.value.rowIndex,
+        toRow(transaction)
+      );
     },
     deleteTransaction: (transactionId: string, fundId: string): Result<void> => {
       const findResult = findTransactionRow(sheetRepository, transactionId, fundId);
@@ -227,6 +175,25 @@ export function createTransactionRepository(
   };
 
   return repository;
+}
+
+/**
+ * 取引をシートの行配列へ変換する。
+ * 登録（appendRows）と更新（updateRow）で同一の列順を用いるため共通化している。
+ */
+function toRow(transaction: Transaction): unknown[] {
+  return [
+    transaction.id,
+    transaction.fundId,
+    transaction.type,
+    transaction.date,
+    transaction.amount,
+    transaction.navValue,
+    transaction.units,
+    transaction.recurringPurchaseId ?? '',
+    transaction.idempotencyKey ?? '',
+    transaction.createdAt,
+  ];
 }
 
 /**
@@ -268,24 +235,22 @@ function findTransactionRow(
     return rowsResult;
   }
 
-  for (let index = 0; index < rowsResult.value.length; index += 1) {
-    const row = rowsResult.value[index];
-    // 空行はスキップ
-    const isEmpty = row.every((cell) => cell === '' || cell === null || cell === undefined);
-    if (isEmpty) {
-      continue;
-    }
-
-    const parsed = parseRow(row, index);
-    if (!parsed.success) {
-      return parsed;
-    }
-    if (parsed.value.id === transactionId) {
-      return { success: true, value: { rowIndex: index, transaction: parsed.value } };
-    }
+  const found = findRowByPredicate(
+    rowsResult.value,
+    parseRow,
+    (transaction) => transaction.id === transactionId
+  );
+  if (!found.success) {
+    return found;
+  }
+  if (found.value === null) {
+    return { success: true, value: null };
   }
 
-  return { success: true, value: null };
+  return {
+    success: true,
+    value: { rowIndex: found.value.rowIndex, transaction: found.value.entity },
+  };
 }
 
 function parseRow(row: unknown[], index: number): Result<Transaction> {
@@ -313,24 +278,18 @@ function parseRow(row: unknown[], index: number): Result<Transaction> {
   }
 
   // dateはスプレッドシートからDateオブジェクトとして返される可能性があるため、文字列に変換
-  let dateStr: string;
-  if (date instanceof Date) {
-    // Dateオブジェクトが無効な日付でないかチェック
-    if (Number.isNaN(date.getTime())) {
-      return fail(
-        'unexpected',
-        `transactionsの${String(index + 2)}行目のdateが無効な日付です。値: ${String(date)}`
-      );
-    }
-    dateStr = formatDateToIso(date);
-  } else if (typeof date === 'string' && date !== '') {
-    dateStr = date;
-  } else {
-    return fail(
-      'unexpected',
-      `transactionsの${String(index + 2)}行目のdateが不正です。型: ${typeof date}, 値: ${String(date)}`
-    );
+  const dateResult = parseSheetDate(date, {
+    sheetLabel: 'transactions',
+    fieldName: 'date',
+    index,
+    trim: false,
+    quoteInvalidValue: false,
+  });
+  if (!dateResult.success) {
+    return dateResult;
   }
+  const dateStr = dateResult.value;
+
   if (typeof amount !== 'number' || Number.isNaN(amount)) {
     return fail('unexpected', `transactionsの${String(index + 2)}行目のamountが不正です。`);
   }
