@@ -4,7 +4,9 @@ import {
   getPerformanceSheetName,
   type SheetDefinition,
 } from '../Config';
-import type { AppError, PerformanceRecord, Result } from '../domain/types';
+import { formatDateToIso } from '../domain/dateFormat';
+import { fail } from '../domain/result';
+import type { PerformanceRecord, Result } from '../domain/types';
 import type { SheetRepository } from './SheetRepository';
 
 export type PerformanceRepository = {
@@ -434,19 +436,4 @@ function parseRow(row: unknown[], index: number): Result<PerformanceRecord> {
       createdAt,
     },
   };
-}
-
-function fail<T>(type: AppError['type'], message: string): Result<T> {
-  return { success: false, error: { type, message } };
-}
-
-/**
- * DateオブジェクトをYYYY-MM-DD形式の文字列に変換する。
- * タイムゾーンに依存せず、Dateオブジェクトのローカル日付を使用する。
- */
-function formatDateToIso(date: Date): string {
-  const year = String(date.getFullYear());
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
 }

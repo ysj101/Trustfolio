@@ -1,5 +1,6 @@
 import type { SheetDefinition } from '../Config';
-import type { AppError, Result } from '../domain/types';
+import { fail } from '../domain/result';
+import type { Result } from '../domain/types';
 
 export type SheetRepository = {
   ensureSheet: (definition: SheetDefinition) => Result<GoogleAppsScript.Spreadsheet.Sheet>;
@@ -272,8 +273,4 @@ function ensureHeader(
   }
 
   return { success: true, value: undefined };
-}
-
-function fail<T>(type: AppError['type'], message: string, field?: string): Result<T> {
-  return { success: false, error: { type, message, field } };
 }

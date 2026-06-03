@@ -1,5 +1,6 @@
 import type { Fund, Nav, RecurringPurchase, Result, Transaction } from '../domain/types';
 import { calculateUnits } from '../domain/PurchaseCalculator';
+import { isValidIsoDate } from '../domain/validators';
 import type { FundRepository } from '../repository/FundRepository';
 import type { NavRepository } from '../repository/NavRepository';
 import type { RecurringPurchaseRepository } from '../repository/RecurringPurchaseRepository';
@@ -642,17 +643,6 @@ function addBusinessDays(
     }
   }
   return null;
-}
-
-function isValidIsoDate(value: string): boolean {
-  if (typeof value !== 'string') {
-    return false;
-  }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return false;
-  }
-  const date = new Date(`${value}T00:00:00Z`);
-  return !Number.isNaN(date.getTime());
 }
 
 function parseIsoDate(value: string): Date {

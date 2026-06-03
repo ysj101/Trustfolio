@@ -1,5 +1,7 @@
 import { SHEET_NAMES } from '../Config';
-import type { AppError, Nav, Result } from '../domain/types';
+import { formatDateToIso } from '../domain/dateFormat';
+import { fail } from '../domain/result';
+import type { Nav, Result } from '../domain/types';
 import type { SheetRepository } from './SheetRepository';
 
 export type NavRepository = {
@@ -168,19 +170,4 @@ function parseRow(row: unknown[], index: number): Result<Nav> {
   }
 
   return { success: true, value: { fundId, date: dateStr, value, createdAt } };
-}
-
-function fail<T>(type: AppError['type'], message: string): Result<T> {
-  return { success: false, error: { type, message } };
-}
-
-/**
- * DateオブジェクトをYYYY-MM-DD形式の文字列に変換する。
- * タイムゾーンに依存せず、Dateオブジェクトのローカル日付を使用する。
- */
-function formatDateToIso(date: Date): string {
-  const year = String(date.getFullYear());
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
 }
