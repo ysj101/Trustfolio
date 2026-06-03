@@ -1,7 +1,7 @@
 import { SHEET_NAMES } from '../Config';
-import { formatDateToIso } from '../domain/dateFormat';
 import { fail } from '../domain/result';
 import type { Nav, Result } from '../domain/types';
+import { findRowByPredicate, parseAllRows, parseSheetDate } from './SheetMapping';
 import type { SheetRepository } from './SheetRepository';
 
 export type NavRepository = {
@@ -23,23 +23,12 @@ export function createNavRepository(sheetRepository: SheetRepository): NavReposi
         return rowsResult;
       }
 
-      const navs: Nav[] = [];
-      for (const [index, row] of rowsResult.value.entries()) {
-        // 空行はスキップ（すべてのセルが空文字列、null、undefinedの場合）
-        const isEmpty = row.every((cell) => cell === '' || cell === null || cell === undefined);
-        if (isEmpty) {
-          continue;
-        }
-
-        const parsed = parseRow(row, index);
-        if (!parsed.success) {
-          return parsed;
-        }
-        if (parsed.value.fundId === fundId) {
-          navs.push(parsed.value);
-        }
+      const parsedResult = parseAllRows(rowsResult.value, parseRow);
+      if (!parsedResult.success) {
+        return parsedResult;
       }
 
+      const navs = parsedResult.value.filter((nav) => nav.fundId === fundId);
       navs.sort((a, b) => (a.date < b.date ? 1 : -1));
 
       return { success: true, value: navs };
@@ -50,24 +39,16 @@ export function createNavRepository(sheetRepository: SheetRepository): NavReposi
         return rowsResult;
       }
 
-      for (let index = 0; index < rowsResult.value.length; index += 1) {
-        const row = rowsResult.value[index];
-        // 空行はスキップ
-        const isEmpty = row.every((cell) => cell === '' || cell === null || cell === undefined);
-        if (isEmpty) {
-          continue;
-        }
-
-        const parsed = parseRow(row, index);
-        if (!parsed.success) {
-          return parsed;
-        }
-        if (parsed.value.fundId === fundId && parsed.value.date === date) {
-          return { success: true, value: parsed.value };
-        }
+      const found = findRowByPredicate(
+        rowsResult.value,
+        parseRow,
+        (nav) => nav.fundId === fundId && nav.date === date
+      );
+      if (!found.success) {
+        return found;
       }
 
-      return { success: true, value: null };
+      return { success: true, value: found.value?.entity ?? null };
     },
     findLatestByFundId: (fundId: string): Result<Nav | null> => {
       const listResult = repository.listByFundId(fundId);
@@ -84,6 +65,11 @@ export function createNavRepository(sheetRepository: SheetRepository): NavReposi
         return rowsResult;
       }
 
+      const parsedResult = parseAllRows(rowsResult.value, parseRow);
+      if (!parsedResult.success) {
+        return parsedResult;
+      }
+
       // 各ファンドIDに対する最新NAVを保持するMap
       const latestNavMap = new Map<string, Nav | null>();
 
@@ -92,21 +78,8 @@ export function createNavRepository(sheetRepository: SheetRepository): NavReposi
         latestNavMap.set(fundId, null);
       }
 
-      // 全行を走査して、各ファンドの最新NAVを特定
-      for (const [index, row] of rowsResult.value.entries()) {
-        // 空行はスキップ
-        const isEmpty = row.every((cell) => cell === '' || cell === null || cell === undefined);
-        if (isEmpty) {
-          continue;
-        }
-
-        const parsed = parseRow(row, index);
-        if (!parsed.success) {
-          return parsed;
-        }
-
-        const nav = parsed.value;
-
+      // 各ファンドの最新NAVを特定
+      for (const nav of parsedResult.value) {
         // 対象のファンドIDでない場合はスキップ
         if (!fundIds.includes(nav.fundId)) {
           continue;
@@ -143,24 +116,17 @@ function parseRow(row: unknown[], index: number): Result<Nav> {
   }
 
   // dateはスプレッドシートからDateオブジェクトとして返される可能性があるため、文字列に変換
-  let dateStr: string;
-  if (date instanceof Date) {
-    // Dateオブジェクトが無効な日付でないかチェック
-    if (Number.isNaN(date.getTime())) {
-      return fail(
-        'unexpected',
-        `navsの${String(index + 2)}行目のdateが無効な日付です。値: ${String(date)}`
-      );
-    }
-    dateStr = formatDateToIso(date);
-  } else if (typeof date === 'string' && date.trim() !== '') {
-    dateStr = date.trim();
-  } else {
-    return fail(
-      'unexpected',
-      `navsの${String(index + 2)}行目のdateが不正です。型: ${typeof date}, 値: "${String(date)}"`
-    );
+  const dateResult = parseSheetDate(date, {
+    sheetLabel: 'navs',
+    fieldName: 'date',
+    index,
+    trim: true,
+    quoteInvalidValue: true,
+  });
+  if (!dateResult.success) {
+    return dateResult;
   }
+  const dateStr = dateResult.value;
 
   if (typeof value !== 'number' || Number.isNaN(value)) {
     return fail('unexpected', `navsの${String(index + 2)}行目のvalueが不正です。`);
