@@ -1,5 +1,6 @@
 import type { Result, Transaction } from '../domain/types';
 import { calculateUnits } from '../domain/PurchaseCalculator';
+import { isValidIsoDate } from '../domain/validators';
 import type { FundRepository } from '../repository/FundRepository';
 import type { TransactionRepository } from '../repository/TransactionRepository';
 import { generateUlid } from '../utils/ulid';
@@ -600,15 +601,4 @@ function validateHoldingsAcrossAllDates(
   }
 
   return { success: true, value: undefined };
-}
-
-function isValidIsoDate(value: string): boolean {
-  if (typeof value !== 'string') {
-    return false;
-  }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return false;
-  }
-  const date = new Date(`${value}T00:00:00Z`);
-  return !Number.isNaN(date.getTime());
 }
