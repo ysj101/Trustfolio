@@ -2,6 +2,7 @@ import { SHEET_NAMES } from '../Config';
 import { formatDateToIso } from '../domain/dateFormat';
 import { fail } from '../domain/result';
 import type { RecurringPurchase, Result } from '../domain/types';
+import { findRowByPredicate, parseAllRows, parseSheetDate } from './SheetMapping';
 import type { SheetRepository } from './SheetRepository';
 
 export type RecurringPurchaseRepository = {
@@ -26,22 +27,7 @@ export function createRecurringPurchaseRepository(
         return rowsResult;
       }
 
-      const recurrings: RecurringPurchase[] = [];
-      for (const [index, row] of rowsResult.value.entries()) {
-        // 空行はスキップ
-        const isEmpty = row.every((cell) => cell === '' || cell === null || cell === undefined);
-        if (isEmpty) {
-          continue;
-        }
-
-        const parsed = parseRow(row, index);
-        if (!parsed.success) {
-          return parsed;
-        }
-        recurrings.push(parsed.value);
-      }
-
-      return { success: true, value: recurrings };
+      return parseAllRows(rowsResult.value, parseRow);
     },
     listActive: (): Result<RecurringPurchase[]> => {
       const listResult = repository.listAll();
@@ -52,18 +38,7 @@ export function createRecurringPurchaseRepository(
       return { success: true, value: listResult.value.filter((item) => item.isActive) };
     },
     createRecurringPurchase: (recurring: RecurringPurchase): Result<void> => {
-      return sheetRepository.appendRows(SHEET_NAMES.RECURRING, [
-        [
-          recurring.id,
-          recurring.fundId,
-          recurring.monthlyAmount,
-          recurring.executionDay,
-          recurring.startDate,
-          recurring.endDate ?? '',
-          recurring.isActive,
-          recurring.createdAt,
-        ],
-      ]);
+      return sheetRepository.appendRows(SHEET_NAMES.RECURRING, [toRow(recurring)]);
     },
     findById: (recurringId: string): Result<RecurringPurchase | null> => {
       const findResult = findRecurringRow(sheetRepository, recurringId);
@@ -81,16 +56,11 @@ export function createRecurringPurchaseRepository(
         return fail('not_found', `対象の積立設定が見つかりません: id=${recurring.id}`);
       }
 
-      return sheetRepository.updateRow(SHEET_NAMES.RECURRING, findResult.value.rowIndex, [
-        recurring.id,
-        recurring.fundId,
-        recurring.monthlyAmount,
-        recurring.executionDay,
-        recurring.startDate,
-        recurring.endDate ?? '',
-        recurring.isActive,
-        recurring.createdAt,
-      ]);
+      return sheetRepository.updateRow(
+        SHEET_NAMES.RECURRING,
+        findResult.value.rowIndex,
+        toRow(recurring)
+      );
     },
     deleteRecurringPurchase: (recurringId: string): Result<void> => {
       const findResult = findRecurringRow(sheetRepository, recurringId);
@@ -109,6 +79,23 @@ export function createRecurringPurchaseRepository(
 }
 
 /**
+ * 積立設定をシートの行配列へ変換する。
+ * 登録（appendRows）と更新（updateRow）で同一の列順を用いるため共通化している。
+ */
+function toRow(recurring: RecurringPurchase): unknown[] {
+  return [
+    recurring.id,
+    recurring.fundId,
+    recurring.monthlyAmount,
+    recurring.executionDay,
+    recurring.startDate,
+    recurring.endDate ?? '',
+    recurring.isActive,
+    recurring.createdAt,
+  ];
+}
+
+/**
  * 積立設定IDから該当行を検索する。
  */
 function findRecurringRow(
@@ -120,24 +107,18 @@ function findRecurringRow(
     return rowsResult;
   }
 
-  for (let index = 0; index < rowsResult.value.length; index += 1) {
-    const row = rowsResult.value[index];
-    // 空行はスキップ
-    const isEmpty = row.every((cell) => cell === '' || cell === null || cell === undefined);
-    if (isEmpty) {
-      continue;
-    }
-
-    const parsed = parseRow(row, index);
-    if (!parsed.success) {
-      return parsed;
-    }
-    if (parsed.value.id === recurringId) {
-      return { success: true, value: { rowIndex: index, recurring: parsed.value } };
-    }
+  const found = findRowByPredicate(rowsResult.value, parseRow, (item) => item.id === recurringId);
+  if (!found.success) {
+    return found;
+  }
+  if (found.value === null) {
+    return { success: true, value: null };
   }
 
-  return { success: true, value: null };
+  return {
+    success: true,
+    value: { rowIndex: found.value.rowIndex, recurring: found.value.entity },
+  };
 }
 
 function parseRow(row: unknown[], index: number): Result<RecurringPurchase> {
@@ -157,26 +138,20 @@ function parseRow(row: unknown[], index: number): Result<RecurringPurchase> {
   }
 
   // startDateはスプレッドシートからDateオブジェクトとして返される可能性があるため、文字列に変換
-  let startDateStr: string;
-  if (startDate instanceof Date) {
-    // Dateオブジェクトが無効な日付でないかチェック
-    if (Number.isNaN(startDate.getTime())) {
-      return fail(
-        'unexpected',
-        `recurringの${String(index + 2)}行目のstartDateが無効な日付です。値: ${String(startDate)}`
-      );
-    }
-    startDateStr = formatDateToIso(startDate);
-  } else if (typeof startDate === 'string' && startDate !== '') {
-    startDateStr = startDate;
-  } else {
-    return fail(
-      'unexpected',
-      `recurringの${String(index + 2)}行目のstartDateが不正です。型: ${typeof startDate}, 値: ${String(startDate)}`
-    );
+  const startDateResult = parseSheetDate(startDate, {
+    sheetLabel: 'recurring',
+    fieldName: 'startDate',
+    index,
+    trim: false,
+    quoteInvalidValue: false,
+  });
+  if (!startDateResult.success) {
+    return startDateResult;
   }
+  const startDateStr = startDateResult.value;
 
   // endDateはスプレッドシートからDateオブジェクトとして返される可能性があるため、文字列に変換
+  // 任意項目のため、空欄はnullに正規化する（必須のstartDateとは扱いが異なる）
   let endDateStr: string | null;
   if (endDate instanceof Date) {
     // Dateオブジェクトが無効な日付でないかチェック
