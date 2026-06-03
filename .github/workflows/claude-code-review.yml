@@ -56,9 +56,19 @@ jobs:
 
             Use the repository's CLAUDE.md for guidance on style and conventions. Be constructive and helpful in your feedback.
 
-            Use `gh pr comment` with your Bash tool to leave your review as a comment on the PR.
+            HOW TO POST YOUR REVIEW (strict rules — follow exactly):
+            - Post your review as EXACTLY ONE pull request comment. Never post more than once per run.
+            - NEVER post placeholder, test, scratch, or debugging comments (e.g. "test", "line1").
+              Only post the single final, complete review.
+            - Do NOT pass the comment body inline with `-b` / `--body`. Inline bodies break on
+              backticks, code blocks, and newlines, which leads to repeated trial-and-error comments.
+            - Instead, write the full review text to a file with the Write tool (e.g. /tmp/review.md),
+              then post it exactly once with:
+              `gh pr comment "$PR_NUMBER" --body-file /tmp/review.md`
 
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
-          claude_args: '--allowed-tools "Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*)"'
+          # Write tool is allowed so the review body can be written to a file and posted via
+          # `gh pr comment --body-file`, avoiding shell-escaping issues with backticks/newlines.
+          claude_args: '--allowed-tools "Write,Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*)"'
 
