@@ -1,11 +1,18 @@
 import type { Fund, Nav, RecurringPurchase, Result, Transaction } from '../domain/types';
 import { calculateUnits } from '../domain/PurchaseCalculator';
-import { isValidIsoDate } from '../domain/validators';
+import { fail } from '../domain/result';
+import {
+  isValidIsoDate,
+  validateNonEmptyString,
+  validatePositiveNumber,
+} from '../domain/validators';
 import type { FundRepository } from '../repository/FundRepository';
 import type { NavRepository } from '../repository/NavRepository';
 import type { RecurringPurchaseRepository } from '../repository/RecurringPurchaseRepository';
 import type { TransactionRepository } from '../repository/TransactionRepository';
 import { generateUlid } from '../utils/ulid';
+import { assertFundExists } from './fundGuard';
+import { buildTransaction } from './transactionFactory';
 
 export type SkipReason = 'ALREADY_EXECUTED' | 'NO_NAV' | 'INACTIVE' | 'NOT_TARGET_DATE';
 
@@ -17,6 +24,34 @@ export type ExecuteRecurringResult = {
 type NavCalendar = {
   businessDates: string[];
   byDate: Map<string, Nav>;
+};
+
+/**
+ * 1件の積立設定を処理した結果の判別共用体。
+ * - `executed`: 取引を生成・登録した。
+ * - `skipped`: 約定対象外・重複などの理由で登録しなかった。
+ */
+type RecurringOutcome =
+  | { kind: 'executed'; transaction: Transaction }
+  | { kind: 'skipped'; reason: SkipReason };
+
+/**
+ * 積立実行（{@link RecurringUseCase.executeRecurringPurchases}）の1件処理で共有する依存・状態。
+ *
+ * - `targetDate`: 約定日（YYYY-MM-DD）。逆算して注文日を求める基準日。
+ * - `fundMap`: 銘柄IDから {@link Fund} を引く索引。
+ * - `fundIds`: 全銘柄ID。冪等チェック（横断検索）に用いる。
+ * - `navRepository`: 基準価額の取得元。
+ * - `navCache`: 銘柄IDごとの営業日カレンダーのキャッシュ。
+ * - `transactionRepository`: 取引の重複確認・登録先。
+ */
+type RecurringExecutionContext = {
+  targetDate: string;
+  fundMap: Map<string, Fund>;
+  fundIds: string[];
+  navRepository: NavRepository;
+  navCache: Map<string, NavCalendar>;
+  transactionRepository: TransactionRepository;
 };
 
 export type RecurringUseCase = {
@@ -70,21 +105,15 @@ export function createRecurringUseCase(
     createRecurringPurchase: (input): Result<RecurringPurchase> => {
       const validateResult = validateRecurringInput(input);
       if (!validateResult.success) {
-        return validateResult as Result<RecurringPurchase>;
+        return validateResult;
       }
 
       const { fundId, monthlyAmount, executionDay, startDate, endDate, isActive } =
         validateResult.value;
 
-      const fundResult = fundRepository.findById(fundId);
+      const fundResult = assertFundExists(fundRepository, fundId);
       if (!fundResult.success) {
         return fundResult as Result<RecurringPurchase>;
-      }
-      if (!fundResult.value) {
-        return {
-          success: false,
-          error: { type: 'not_found', message: '対象の銘柄が存在しません。', field: 'fundId' },
-        };
       }
 
       const recurring: RecurringPurchase = {
@@ -106,16 +135,14 @@ export function createRecurringUseCase(
       return { success: true, value: recurring };
     },
     updateRecurringPurchase: (input): Result<RecurringPurchase> => {
-      if (typeof input.id !== 'string' || input.id.trim() === '') {
-        return {
-          success: false,
-          error: { type: 'validation', message: '積立設定IDが不正です。', field: 'id' },
-        };
+      const idResult = validateNonEmptyString(input.id, '積立設定IDが不正です。', 'id');
+      if (!idResult.success) {
+        return idResult;
       }
 
       const validateResult = validateRecurringInput(input);
       if (!validateResult.success) {
-        return validateResult as Result<RecurringPurchase>;
+        return validateResult;
       }
 
       const { fundId, monthlyAmount, executionDay, startDate, endDate, isActive } =
@@ -132,15 +159,9 @@ export function createRecurringUseCase(
         };
       }
 
-      const fundResult = fundRepository.findById(fundId);
+      const fundResult = assertFundExists(fundRepository, fundId);
       if (!fundResult.success) {
         return fundResult as Result<RecurringPurchase>;
-      }
-      if (!fundResult.value) {
-        return {
-          success: false,
-          error: { type: 'not_found', message: '対象の銘柄が存在しません。', field: 'fundId' },
-        };
       }
 
       const recurring: RecurringPurchase = {
@@ -162,11 +183,9 @@ export function createRecurringUseCase(
       return { success: true, value: recurring };
     },
     deleteRecurringPurchase: (recurringId: string): Result<RecurringPurchase> => {
-      if (typeof recurringId !== 'string' || recurringId.trim() === '') {
-        return {
-          success: false,
-          error: { type: 'validation', message: '積立設定IDが不正です。', field: 'id' },
-        };
+      const idResult = validateNonEmptyString(recurringId, '積立設定IDが不正です。', 'id');
+      if (!idResult.success) {
+        return idResult;
       }
 
       const existingResult = recurringRepository.findById(recurringId);
@@ -189,14 +208,7 @@ export function createRecurringUseCase(
     },
     executeRecurringPurchases: (targetDate: string): Result<ExecuteRecurringResult> => {
       if (!isValidIsoDate(targetDate)) {
-        return {
-          success: false,
-          error: {
-            type: 'validation',
-            message: '約定日はYYYY-MM-DD形式で入力してください。',
-            field: 'targetDate',
-          },
-        };
+        return fail('validation', '約定日はYYYY-MM-DD形式で入力してください。', 'targetDate');
       }
 
       const listResult = recurringRepository.listAll();
@@ -204,143 +216,224 @@ export function createRecurringUseCase(
         return listResult as Result<ExecuteRecurringResult>;
       }
 
-      const fundListResult = fundRepository.listFunds();
-      if (!fundListResult.success) {
-        return fundListResult as Result<ExecuteRecurringResult>;
+      const fundIndexResult = buildFundIndex(fundRepository);
+      if (!fundIndexResult.success) {
+        return fundIndexResult as Result<ExecuteRecurringResult>;
       }
+      const { fundMap, fundIds } = fundIndexResult.value;
 
-      const fundMap = new Map<string, Fund>();
-      fundListResult.value.forEach((fund) => {
-        fundMap.set(fund.id, fund);
-      });
+      const context: RecurringExecutionContext = {
+        targetDate,
+        fundMap,
+        fundIds,
+        navRepository,
+        navCache: new Map<string, NavCalendar>(),
+        transactionRepository,
+      };
 
-      const navCache = new Map<string, NavCalendar>();
       const executed: Transaction[] = [];
       const skipped: { recurringPurchaseId: string; reason: SkipReason }[] = [];
 
       for (const recurring of listResult.value) {
-        if (!recurring.isActive) {
-          skipped.push({ recurringPurchaseId: recurring.id, reason: 'INACTIVE' });
-          continue;
+        const outcomeResult = processRecurringPurchase(recurring, context);
+        if (!outcomeResult.success) {
+          return outcomeResult as Result<ExecuteRecurringResult>;
         }
 
-        const fund = fundMap.get(recurring.fundId);
-        if (!fund) {
-          return {
-            success: false,
-            error: {
-              type: 'not_found',
-              message: `積立対象の銘柄が存在しません: fundId=${recurring.fundId}`,
-            },
-          };
+        const outcome = outcomeResult.value;
+        if (outcome.kind === 'executed') {
+          executed.push(outcome.transaction);
+        } else {
+          skipped.push({ recurringPurchaseId: recurring.id, reason: outcome.reason });
         }
-        if (fund.settlementBusinessDays === null) {
-          return {
-            success: false,
-            error: {
-              type: 'validation',
-              message: `約定までの営業日数が未設定です: fundId=${fund.id}, fundName=${fund.name}`,
-              field: 'settlementBusinessDays',
-            },
-          };
-        }
-        if (!Number.isInteger(fund.settlementBusinessDays) || fund.settlementBusinessDays < 0) {
-          return {
-            success: false,
-            error: {
-              type: 'validation',
-              message: `約定までの営業日数が不正です: fundId=${fund.id}, fundName=${fund.name}`,
-              field: 'settlementBusinessDays',
-            },
-          };
-        }
-
-        const navCalendarResult = getNavCalendar(navRepository, navCache, fund.id);
-        if (!navCalendarResult.success) {
-          return navCalendarResult as Result<ExecuteRecurringResult>;
-        }
-
-        // targetDateを約定日として、逆算して注文日を求める
-        const orderAndSettlement = findOrderDateFromSettlementDate(
-          recurring,
-          targetDate,
-          fund.settlementBusinessDays,
-          navCalendarResult.value.businessDates
-        );
-        if (!orderAndSettlement) {
-          skipped.push({ recurringPurchaseId: recurring.id, reason: 'NOT_TARGET_DATE' });
-          continue;
-        }
-
-        const { orderDate, settlementDate } = orderAndSettlement;
-        const idempotencyKey = `${recurring.id}_${orderDate}`;
-        const allFundsResult = fundRepository.listFunds();
-        if (!allFundsResult.success) {
-          return {
-            success: false,
-            error: {
-              type: 'unexpected',
-              message: `ファンド一覧の取得に失敗しました: ${allFundsResult.error.message}`,
-            },
-          };
-        }
-        const fundIds = allFundsResult.value.map((f) => f.id);
-        const existingResult = transactionRepository.findByIdempotencyKey(idempotencyKey, fundIds);
-        if (!existingResult.success) {
-          return {
-            success: false,
-            error: {
-              type: 'unexpected',
-              message: `重複チェックに失敗しました: ${existingResult.error.message}`,
-            },
-          };
-        }
-        if (existingResult.value) {
-          skipped.push({ recurringPurchaseId: recurring.id, reason: 'ALREADY_EXECUTED' });
-          continue;
-        }
-
-        const navValue = navCalendarResult.value.byDate.get(settlementDate);
-        if (!navValue) {
-          skipped.push({ recurringPurchaseId: recurring.id, reason: 'NO_NAV' });
-          continue;
-        }
-
-        const unitsResult = calculateUnits(recurring.monthlyAmount, navValue.value);
-        if (!unitsResult.success) {
-          skipped.push({ recurringPurchaseId: recurring.id, reason: 'NO_NAV' });
-          continue;
-        }
-
-        const transaction: Transaction = {
-          id: generateUlid(),
-          fundId: recurring.fundId,
-          type: 'RECURRING_PURCHASE',
-          date: settlementDate,
-          amount: recurring.monthlyAmount,
-          navValue: navValue.value,
-          units: unitsResult.value,
-          recurringPurchaseId: recurring.id,
-          idempotencyKey,
-          createdAt: new Date().toISOString(),
-        };
-
-        const createResult = transactionRepository.createTransaction(transaction);
-        if (!createResult.success) {
-          return {
-            success: false,
-            error: {
-              type: 'unexpected',
-              message: `取引の作成に失敗しました: ${createResult.error.message}`,
-            },
-          };
-        }
-
-        executed.push(transaction);
       }
 
       return { success: true, value: { executed, skipped } };
     },
+  };
+}
+
+/**
+ * 全銘柄を取得し、ID索引（`fundMap`）と全ID一覧（`fundIds`）を構築する。
+ *
+ * 約定処理では「銘柄の参照」と「冪等チェックの横断検索」の双方で銘柄情報が必要となるため、
+ * 銘柄一覧の取得を1回に集約し、その結果から両者を導出する。
+ *
+ * @param fundRepository 銘柄マスタへのアクセスを担うリポジトリ。
+ * @returns 取得に成功すれば索引と全ID一覧を持つ {@link Result}。
+ */
+function buildFundIndex(
+  fundRepository: FundRepository
+): Result<{ fundMap: Map<string, Fund>; fundIds: string[] }> {
+  const fundListResult = fundRepository.listFunds();
+  if (!fundListResult.success) {
+    return fundListResult as Result<{ fundMap: Map<string, Fund>; fundIds: string[] }>;
+  }
+
+  const fundMap = new Map<string, Fund>();
+  for (const fund of fundListResult.value) {
+    fundMap.set(fund.id, fund);
+  }
+  const fundIds = fundListResult.value.map((fund) => fund.id);
+
+  return { success: true, value: { fundMap, fundIds } };
+}
+
+/**
+ * 1件の積立設定を処理し、取引の生成・登録または各種スキップ判定を行う。
+ *
+ * 処理の流れ:
+ * 1. 非アクティブなら `INACTIVE` でスキップ。
+ * 2. 銘柄の存在と約定営業日数の妥当性を確認（不正時はユースケース全体を失敗させる）。
+ * 3. 営業日カレンダーを構築し、約定日（targetDate）から注文日を逆算（対象外なら `NOT_TARGET_DATE`）。
+ * 4. 冪等キーで重複確認（既存なら `ALREADY_EXECUTED`）。
+ * 5. 約定日の基準価額が無い、または口数計算に失敗したら `NO_NAV` でスキップ。
+ * 6. 取引を生成・登録し、`executed` として返す。
+ *
+ * @param recurring 処理対象の積立設定。
+ * @param context 約定処理で共有する依存・状態。
+ * @returns 処理結果（{@link RecurringOutcome}）。取得・登録失敗時は失敗 {@link Result}。
+ */
+function processRecurringPurchase(
+  recurring: RecurringPurchase,
+  context: RecurringExecutionContext
+): Result<RecurringOutcome> {
+  if (!recurring.isActive) {
+    return { success: true, value: { kind: 'skipped', reason: 'INACTIVE' } };
+  }
+
+  const fundResult = resolveRecurringFund(recurring, context.fundMap);
+  if (!fundResult.success) {
+    return fundResult as Result<RecurringOutcome>;
+  }
+  const { fund, settlementBusinessDays } = fundResult.value;
+
+  const navCalendarResult = getNavCalendar(context.navRepository, context.navCache, fund.id);
+  if (!navCalendarResult.success) {
+    return navCalendarResult as Result<RecurringOutcome>;
+  }
+  const navCalendar = navCalendarResult.value;
+
+  // targetDateを約定日として、逆算して注文日を求める
+  const orderAndSettlement = findOrderDateFromSettlementDate(
+    recurring,
+    context.targetDate,
+    settlementBusinessDays,
+    navCalendar.businessDates
+  );
+  if (!orderAndSettlement) {
+    return { success: true, value: { kind: 'skipped', reason: 'NOT_TARGET_DATE' } };
+  }
+
+  const { orderDate, settlementDate } = orderAndSettlement;
+
+  const idempotencyResult = checkRecurringIdempotency(
+    context.transactionRepository,
+    recurring,
+    orderDate,
+    context.fundIds
+  );
+  if (!idempotencyResult.success) {
+    return idempotencyResult as Result<RecurringOutcome>;
+  }
+  if (idempotencyResult.value.alreadyExecuted) {
+    return { success: true, value: { kind: 'skipped', reason: 'ALREADY_EXECUTED' } };
+  }
+  const { idempotencyKey } = idempotencyResult.value;
+
+  const navValue = navCalendar.byDate.get(settlementDate);
+  if (!navValue) {
+    return { success: true, value: { kind: 'skipped', reason: 'NO_NAV' } };
+  }
+
+  const unitsResult = calculateUnits(recurring.monthlyAmount, navValue.value);
+  if (!unitsResult.success) {
+    return { success: true, value: { kind: 'skipped', reason: 'NO_NAV' } };
+  }
+
+  const transaction = buildTransaction({
+    type: 'RECURRING_PURCHASE',
+    fundId: recurring.fundId,
+    date: settlementDate,
+    amount: recurring.monthlyAmount,
+    navValue: navValue.value,
+    units: unitsResult.value,
+    recurringPurchaseId: recurring.id,
+    idempotencyKey,
+  });
+
+  const createResult = context.transactionRepository.createTransaction(transaction);
+  if (!createResult.success) {
+    return fail('unexpected', `取引の作成に失敗しました: ${createResult.error.message}`);
+  }
+
+  return { success: true, value: { kind: 'executed', transaction } };
+}
+
+/**
+ * 積立対象の銘柄を索引から取得し、約定営業日数の妥当性を検証する。
+ *
+ * - 銘柄が索引に存在しない場合は `not_found`。
+ * - 約定営業日数が未設定（null）の場合は `validation`。
+ * - 約定営業日数が非整数または負の場合は `validation`。
+ *
+ * いずれの失敗もユースケース全体を中断させる（既存挙動を維持する）。
+ *
+ * @param recurring 処理対象の積立設定。
+ * @param fundMap 銘柄IDから {@link Fund} を引く索引。
+ * @returns 検証に成功すれば、銘柄と確定済みの約定営業日数を持つ {@link Result}。
+ */
+function resolveRecurringFund(
+  recurring: RecurringPurchase,
+  fundMap: Map<string, Fund>
+): Result<{ fund: Fund; settlementBusinessDays: number }> {
+  const fund = fundMap.get(recurring.fundId);
+  if (!fund) {
+    return fail('not_found', `積立対象の銘柄が存在しません: fundId=${recurring.fundId}`);
+  }
+  if (fund.settlementBusinessDays === null) {
+    return fail(
+      'validation',
+      `約定までの営業日数が未設定です: fundId=${fund.id}, fundName=${fund.name}`,
+      'settlementBusinessDays'
+    );
+  }
+  const settlementBusinessDays = fund.settlementBusinessDays;
+  if (!Number.isInteger(settlementBusinessDays) || settlementBusinessDays < 0) {
+    return fail(
+      'validation',
+      `約定までの営業日数が不正です: fundId=${fund.id}, fundName=${fund.name}`,
+      'settlementBusinessDays'
+    );
+  }
+
+  return { success: true, value: { fund, settlementBusinessDays } };
+}
+
+/**
+ * 冪等キーを用いて、同一注文日に対する取引が既に登録済みかを確認する。
+ *
+ * @param transactionRepository 取引リポジトリ。
+ * @param recurring 処理対象の積立設定。
+ * @param orderDate 逆算で求めた注文日（YYYY-MM-DD）。
+ * @param fundIds 横断検索対象の全銘柄ID。
+ * @returns 既存有無と冪等キーを持つ {@link Result}。検索失敗時は `unexpected` の失敗 {@link Result}。
+ */
+function checkRecurringIdempotency(
+  transactionRepository: TransactionRepository,
+  recurring: RecurringPurchase,
+  orderDate: string,
+  fundIds: string[]
+): Result<{ alreadyExecuted: boolean; idempotencyKey: string }> {
+  const idempotencyKey = `${recurring.id}_${orderDate}`;
+  const existingResult = transactionRepository.findByIdempotencyKey(idempotencyKey, fundIds);
+  if (!existingResult.success) {
+    return fail('unexpected', `重複チェックに失敗しました: ${existingResult.error.message}`);
+  }
+
+  return {
+    success: true,
+    value: { alreadyExecuted: existingResult.value !== null, idempotencyKey },
   };
 }
 
@@ -364,81 +457,36 @@ function validateRecurringInput(input: {
 }> {
   const { fundId, monthlyAmount, executionDay, startDate, endDate, isActive } = input;
 
-  if (typeof fundId !== 'string' || fundId.trim() === '') {
-    return {
-      success: false,
-      error: { type: 'validation', message: '銘柄を選択してください。', field: 'fundId' },
-    };
+  const fundIdResult = validateNonEmptyString(fundId, '銘柄を選択してください。', 'fundId');
+  if (!fundIdResult.success) {
+    return fundIdResult;
   }
-  if (typeof monthlyAmount !== 'number' || Number.isNaN(monthlyAmount) || monthlyAmount <= 0) {
-    return {
-      success: false,
-      error: {
-        type: 'validation',
-        message: '月額購入金額は0より大きい数値で入力してください。',
-        field: 'monthlyAmount',
-      },
-    };
+  const monthlyAmountResult = validatePositiveNumber(
+    monthlyAmount,
+    '月額購入金額は0より大きい数値で入力してください。',
+    'monthlyAmount'
+  );
+  if (!monthlyAmountResult.success) {
+    return monthlyAmountResult;
   }
+  // executionDayは「1〜28の整数」という固有の範囲制約があるため、共通バリデータではなく個別に検証する。
   if (typeof executionDay !== 'number' || Number.isNaN(executionDay)) {
-    return {
-      success: false,
-      error: {
-        type: 'validation',
-        message: '注文日は1〜28の範囲で入力してください。',
-        field: 'executionDay',
-      },
-    };
+    return fail('validation', '注文日は1〜28の範囲で入力してください。', 'executionDay');
   }
   if (executionDay < 1 || executionDay > 28) {
-    return {
-      success: false,
-      error: {
-        type: 'validation',
-        message: '注文日は1〜28の範囲で入力してください。',
-        field: 'executionDay',
-      },
-    };
+    return fail('validation', '注文日は1〜28の範囲で入力してください。', 'executionDay');
   }
   if (!isValidIsoDate(startDate)) {
-    return {
-      success: false,
-      error: {
-        type: 'validation',
-        message: '開始日はYYYY-MM-DD形式で入力してください。',
-        field: 'startDate',
-      },
-    };
+    return fail('validation', '開始日はYYYY-MM-DD形式で入力してください。', 'startDate');
   }
   if (endDate !== null && endDate !== '' && !isValidIsoDate(endDate)) {
-    return {
-      success: false,
-      error: {
-        type: 'validation',
-        message: '終了日はYYYY-MM-DD形式で入力してください。',
-        field: 'endDate',
-      },
-    };
+    return fail('validation', '終了日はYYYY-MM-DD形式で入力してください。', 'endDate');
   }
   if (endDate !== null && endDate !== '' && parseIsoDate(endDate) < parseIsoDate(startDate)) {
-    return {
-      success: false,
-      error: {
-        type: 'validation',
-        message: '終了日は開始日以降である必要があります。',
-        field: 'endDate',
-      },
-    };
+    return fail('validation', '終了日は開始日以降である必要があります。', 'endDate');
   }
   if (typeof isActive !== 'boolean') {
-    return {
-      success: false,
-      error: {
-        type: 'validation',
-        message: 'アクティブ設定が不正です。',
-        field: 'isActive',
-      },
-    };
+    return fail('validation', 'アクティブ設定が不正です。', 'isActive');
   }
 
   return {
