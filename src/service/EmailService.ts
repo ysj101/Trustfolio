@@ -1,4 +1,4 @@
-import type { Result, WeekOverWeekChange } from '../domain/types';
+import type { HoldingWithWeekOverWeek, Result, WeekOverWeekChange } from '../domain/types';
 import type { MarketIndexAlertResult } from '../usecase/MarketIndexAlertUseCase';
 import type { WeeklyReport } from '../usecase/WeeklyReportUseCase';
 
@@ -40,6 +40,78 @@ export type EmailService = {
    */
   sendMarketIndexAlert: (alertResult: MarketIndexAlertResult, recipient: string) => Result<void>;
 };
+
+/**
+ * HTMLメールのテーブルセルで繰り返し用いるインラインスタイル定数。
+ *
+ * 目的:
+ * - 各メール本文に大量に重複していた `padding: ...; border: 1px solid #ddd; ...`
+ *   というスタイル文字列を一元化する。
+ *
+ * 注意:
+ * - 各値は元の文字列と完全に一致させており、`${STYLE.x} color: ...;` のように
+ *   末尾へ追記する形でも、既存のHTML出力が1バイトも変わらないようにしている。
+ */
+const STYLE = {
+  /** 8px パディングの通常セル。 */
+  td: 'padding: 8px; border: 1px solid #ddd;',
+  /** 8px パディングの右寄せセル。 */
+  tdRight: 'padding: 8px; border: 1px solid #ddd; text-align: right;',
+  /** 12px パディングの通常セル。 */
+  cell: 'padding: 12px; border: 1px solid #ddd;',
+  /** 12px パディングの左寄せセル（テーブル見出し用）。 */
+  cellLeft: 'padding: 12px; border: 1px solid #ddd; text-align: left;',
+  /** 12px パディングの右寄せセル（テーブル見出し・数値セル用）。 */
+  cellRight: 'padding: 12px; border: 1px solid #ddd; text-align: right;',
+} as const;
+
+/**
+ * 週次レポート・市場指数アラートで共通のHTML外枠（html/head/body）でラップする。
+ *
+ * 目的:
+ * - 2種類のメールで完全に一致していた外枠テンプレートを一本化する。
+ *
+ * 注意:
+ * - エラー通知メール（{@link createEmailService} 内）は歴史的にインデントが異なり、
+ *   この関数を使うと出力バイト列が変わってしまうため、あえて本関数を共有しない。
+ *
+ * @param innerHtml - `<body>` 直下に挿入する本文HTML。先頭に改行とインデントを含む。
+ * @returns 外枠で包んだ完全なHTML文字列。
+ */
+function wrapEmailBody(innerHtml: string): string {
+  return `
+    <html>
+      <head>
+        <meta charset="utf-8">
+      </head>
+      <body style="font-family: 'Hiragino Sans', 'Meiryo', sans-serif; padding: 20px;">${innerHtml}
+      </body>
+    </html>
+  `;
+}
+
+/**
+ * 送信先メールアドレスが指定されているかを検証する。
+ *
+ * 目的:
+ * - 各送信メソッドで重複していた送信先バリデーションを一本化する。
+ *
+ * @param recipient - 送信先メールアドレス。
+ * @returns 妥当ならvoidの成功、未指定ならvalidationエラー。
+ */
+function validateRecipient(recipient: string): Result<void> {
+  if (!recipient || typeof recipient !== 'string' || recipient.trim() === '') {
+    return {
+      success: false,
+      error: {
+        type: 'validation',
+        message: '送信先メールアドレスが指定されていません。',
+        field: 'recipient',
+      },
+    };
+  }
+  return { success: true, value: undefined };
+}
 
 /**
  * 数値を3桁区切りの文字列に変換する。
@@ -112,6 +184,63 @@ function formatPercentagePointChange(changeInPercentagePoints: number): string {
 }
 
 /**
+ * 前週比の差分（円・%ポイント）に応じた文字色を返す。
+ *
+ * @param value - 差分値。nullの場合はデータなし。
+ * @returns CSSの色コード。
+ */
+function getChangeColor(value: number | null): string {
+  if (value === null) {
+    return '#666';
+  }
+  return value >= 0 ? '#1565c0' : '#c62828';
+}
+
+/**
+ * 保有銘柄一覧テーブルの各行（tr）HTMLを生成する。
+ *
+ * @param holdings - 前週比付き保有銘柄の配列
+ * @returns 連結済みの行HTML
+ */
+function buildHoldingsRows(holdings: HoldingWithWeekOverWeek[]): string {
+  let holdingsHtml = '';
+  for (const holding of holdings) {
+    const investmentStr = formatNumber(holding.remainingInvestment);
+    const valueStr = holding.currentValue !== null ? formatNumber(holding.currentValue) : '---';
+    const gainStr = holding.unrealizedGain !== null ? formatNumber(holding.unrealizedGain) : '---';
+    const gainRateStr =
+      holding.unrealizedGainRate !== null ? formatRate(holding.unrealizedGainRate) : '---';
+
+    // 損益の色を決定（個別銘柄）
+    const gainColor =
+      holding.unrealizedGain !== null
+        ? holding.unrealizedGain >= 0
+          ? '#1565c0'
+          : '#c62828'
+        : '#333';
+
+    // 前週比のフォーマット（個別銘柄）
+    const holdingGainChangeStr =
+      holding.unrealizedGainChange !== null
+        ? formatDifference(holding.unrealizedGainChange)
+        : '---';
+    const holdingGainChangeColor = getChangeColor(holding.unrealizedGainChange);
+
+    holdingsHtml += `
+      <tr>
+        <td style="${STYLE.td}">${holding.fundName}</td>
+        <td style="${STYLE.tdRight}">${investmentStr}円</td>
+        <td style="${STYLE.tdRight}">${valueStr}円</td>
+        <td style="${STYLE.tdRight} color: ${gainColor}; font-weight: bold;">${gainStr}円</td>
+        <td style="${STYLE.tdRight} color: ${gainColor}; font-weight: bold;">${gainRateStr}</td>
+        <td style="${STYLE.tdRight} color: ${holdingGainChangeColor}; font-weight: bold;">${holdingGainChangeStr}</td>
+      </tr>
+    `;
+  }
+  return holdingsHtml;
+}
+
+/**
  * 週次レポートのHTMLメール本文を生成する。
  *
  * @param report - 週次レポート
@@ -152,11 +281,6 @@ function generateEmailBody(report: WeeklyReport): string {
       : '---';
 
   // 前週比の色を決定
-  const getChangeColor = (value: number | null): string => {
-    if (value === null) return '#666';
-    return value >= 0 ? '#1565c0' : '#c62828';
-  };
-
   const totalInvestmentChangeColor = getChangeColor(
     portfolio.remainingInvestmentChange?.difference ?? null
   );
@@ -167,100 +291,59 @@ function generateEmailBody(report: WeeklyReport): string {
   const totalGainRateChangeColor = getChangeColor(portfolio.totalUnrealizedGainRateChange);
 
   // 保有銘柄一覧のHTML生成
-  let holdingsHtml = '';
-  for (const holding of portfolio.holdings) {
-    const investmentStr = formatNumber(holding.remainingInvestment);
-    const valueStr = holding.currentValue !== null ? formatNumber(holding.currentValue) : '---';
-    const gainStr = holding.unrealizedGain !== null ? formatNumber(holding.unrealizedGain) : '---';
-    const gainRateStr =
-      holding.unrealizedGainRate !== null ? formatRate(holding.unrealizedGainRate) : '---';
+  const holdingsHtml = buildHoldingsRows(portfolio.holdings);
 
-    // 損益の色を決定（個別銘柄）
-    const gainColor =
-      holding.unrealizedGain !== null
-        ? holding.unrealizedGain >= 0
-          ? '#1565c0'
-          : '#c62828'
-        : '#333';
-
-    // 前週比のフォーマット（個別銘柄）
-    const holdingGainChangeStr =
-      holding.unrealizedGainChange !== null
-        ? formatDifference(holding.unrealizedGainChange)
-        : '---';
-    const holdingGainChangeColor = getChangeColor(holding.unrealizedGainChange);
-
-    holdingsHtml += `
-      <tr>
-        <td style="padding: 8px; border: 1px solid #ddd;">${holding.fundName}</td>
-        <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">${investmentStr}円</td>
-        <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">${valueStr}円</td>
-        <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: ${gainColor}; font-weight: bold;">${gainStr}円</td>
-        <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: ${gainColor}; font-weight: bold;">${gainRateStr}</td>
-        <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: ${holdingGainChangeColor}; font-weight: bold;">${holdingGainChangeStr}</td>
-      </tr>
-    `;
-  }
-
-  const html = `
-    <html>
-      <head>
-        <meta charset="utf-8">
-      </head>
-      <body style="font-family: 'Hiragino Sans', 'Meiryo', sans-serif; padding: 20px;">
+  const inner = `
         <h1 style="color: #333;">Trustfolio 週次レポート</h1>
         <p style="color: #666;">レポート生成日時: ${generatedAt}</p>
 
         <h2 style="color: #333; margin-top: 30px;">ポートフォリオ全体</h2>
         <table style="border-collapse: collapse; width: 100%; max-width: 800px; margin-bottom: 30px;">
           <tr style="background-color: #f5f5f5;">
-            <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">項目</th>
-            <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">金額</th>
-            <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">前週比</th>
+            <th style="${STYLE.cellLeft}">項目</th>
+            <th style="${STYLE.cellRight}">金額</th>
+            <th style="${STYLE.cellRight}">前週比</th>
           </tr>
           <tr>
-            <td style="padding: 8px; border: 1px solid #ddd;">残存投資額</td>
-            <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">${totalInvestmentStr}円</td>
-            <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: ${totalInvestmentChangeColor}; font-weight: bold; font-size: 12px;">${totalInvestmentChangeStr}</td>
+            <td style="${STYLE.td}">残存投資額</td>
+            <td style="${STYLE.tdRight}">${totalInvestmentStr}円</td>
+            <td style="${STYLE.tdRight} color: ${totalInvestmentChangeColor}; font-weight: bold; font-size: 12px;">${totalInvestmentChangeStr}</td>
           </tr>
           <tr>
-            <td style="padding: 8px; border: 1px solid #ddd;">評価額</td>
-            <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">${totalValueStr}円</td>
-            <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: ${totalValueChangeColor}; font-weight: bold; font-size: 12px;">${totalValueChangeStr}</td>
+            <td style="${STYLE.td}">評価額</td>
+            <td style="${STYLE.tdRight}">${totalValueStr}円</td>
+            <td style="${STYLE.tdRight} color: ${totalValueChangeColor}; font-weight: bold; font-size: 12px;">${totalValueChangeStr}</td>
           </tr>
           <tr>
-            <td style="padding: 8px; border: 1px solid #ddd;">損益</td>
-            <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: ${totalGainColor}; font-weight: bold;">${totalGainStr}円</td>
-            <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: ${totalGainChangeColor}; font-weight: bold; font-size: 12px;">${totalGainChangeStr}</td>
+            <td style="${STYLE.td}">損益</td>
+            <td style="${STYLE.tdRight} color: ${totalGainColor}; font-weight: bold;">${totalGainStr}円</td>
+            <td style="${STYLE.tdRight} color: ${totalGainChangeColor}; font-weight: bold; font-size: 12px;">${totalGainChangeStr}</td>
           </tr>
           <tr>
-            <td style="padding: 8px; border: 1px solid #ddd;">損益率</td>
-            <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: ${totalGainColor}; font-weight: bold;">${totalGainRateStr}</td>
-            <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: ${totalGainRateChangeColor}; font-weight: bold; font-size: 12px;">${totalGainRateChangeStr}</td>
+            <td style="${STYLE.td}">損益率</td>
+            <td style="${STYLE.tdRight} color: ${totalGainColor}; font-weight: bold;">${totalGainRateStr}</td>
+            <td style="${STYLE.tdRight} color: ${totalGainRateChangeColor}; font-weight: bold; font-size: 12px;">${totalGainRateChangeStr}</td>
           </tr>
         </table>
 
         <h2 style="color: #333; margin-top: 30px;">保有銘柄一覧</h2>
         <table style="border-collapse: collapse; width: 100%; margin-bottom: 30px;">
           <tr style="background-color: #f5f5f5;">
-            <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">銘柄名</th>
-            <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">残存投資額</th>
-            <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">評価額</th>
-            <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">損益</th>
-            <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">損益率</th>
-            <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">前週比（損益）</th>
+            <th style="${STYLE.cellLeft}">銘柄名</th>
+            <th style="${STYLE.cellRight}">残存投資額</th>
+            <th style="${STYLE.cellRight}">評価額</th>
+            <th style="${STYLE.cellRight}">損益</th>
+            <th style="${STYLE.cellRight}">損益率</th>
+            <th style="${STYLE.cellRight}">前週比（損益）</th>
           </tr>
           ${holdingsHtml}
         </table>
 
         <p style="color: #999; font-size: 12px; margin-top: 40px;">
           このメールはTrustfolioから自動送信されています。
-        </p>
-      </body>
-    </html>
-  `;
+        </p>`;
 
-  return html;
+  return wrapEmailBody(inner);
 }
 
 /**
@@ -272,15 +355,9 @@ export function createEmailService(): EmailService {
   return {
     sendWeeklyReport: (report: WeeklyReport, recipient: string): Result<void> => {
       // メールアドレスのバリデーション
-      if (!recipient || typeof recipient !== 'string' || recipient.trim() === '') {
-        return {
-          success: false,
-          error: {
-            type: 'validation',
-            message: '送信先メールアドレスが指定されていません。',
-            field: 'recipient',
-          },
-        };
+      const recipientResult = validateRecipient(recipient);
+      if (!recipientResult.success) {
+        return recipientResult;
       }
 
       // メール本文を生成
@@ -312,15 +389,9 @@ export function createEmailService(): EmailService {
       recipient: string
     ): Result<void> => {
       // メールアドレスのバリデーション
-      if (!recipient || typeof recipient !== 'string' || recipient.trim() === '') {
-        return {
-          success: false,
-          error: {
-            type: 'validation',
-            message: '送信先メールアドレスが指定されていません。',
-            field: 'recipient',
-          },
-        };
+      const recipientResult = validateRecipient(recipient);
+      if (!recipientResult.success) {
+        return recipientResult;
       }
 
       // タスク名のバリデーション
@@ -339,6 +410,8 @@ export function createEmailService(): EmailService {
       const now = new Date();
       const timestamp = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss');
 
+      // 注意: このメールは歴史的に外枠のインデントが他メールと異なるため、
+      // wrapEmailBody を使わずインラインで生成して既存の出力を維持している。
       const htmlBody = `
         <html>
           <head>
@@ -382,15 +455,9 @@ export function createEmailService(): EmailService {
       recipient: string
     ): Result<void> => {
       // メールアドレスのバリデーション
-      if (!recipient || typeof recipient !== 'string' || recipient.trim() === '') {
-        return {
-          success: false,
-          error: {
-            type: 'validation',
-            message: '送信先メールアドレスが指定されていません。',
-            field: 'recipient',
-          },
-        };
+      const recipientResult = validateRecipient(recipient);
+      if (!recipientResult.success) {
+        return recipientResult;
       }
 
       // アラートがトリガーされていない場合は送信しない
@@ -446,10 +513,10 @@ function generateMarketIndexAlertEmailBody(alertResult: MarketIndexAlertResult):
   if (sp500?.isTriggered) {
     triggeredIndicesHtml += `
       <tr style="background-color: #ffebee;">
-        <td style="padding: 12px; border: 1px solid #ddd; font-weight: bold;">S&P500</td>
-        <td style="padding: 12px; border: 1px solid #ddd; text-align: right;">${sp500.previousValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-        <td style="padding: 12px; border: 1px solid #ddd; text-align: right;">${sp500.currentValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-        <td style="padding: 12px; border: 1px solid #ddd; text-align: right; color: #c62828; font-weight: bold;">${sp500.changeRate.toFixed(2)}%</td>
+        <td style="${STYLE.cell} font-weight: bold;">S&P500</td>
+        <td style="${STYLE.cellRight}">${sp500.previousValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        <td style="${STYLE.cellRight}">${sp500.currentValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        <td style="${STYLE.cellRight} color: #c62828; font-weight: bold;">${sp500.changeRate.toFixed(2)}%</td>
       </tr>
     `;
   }
@@ -457,10 +524,10 @@ function generateMarketIndexAlertEmailBody(alertResult: MarketIndexAlertResult):
   if (nasdaq?.isTriggered) {
     triggeredIndicesHtml += `
       <tr style="background-color: #ffebee;">
-        <td style="padding: 12px; border: 1px solid #ddd; font-weight: bold;">NASDAQ</td>
-        <td style="padding: 12px; border: 1px solid #ddd; text-align: right;">${nasdaq.previousValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-        <td style="padding: 12px; border: 1px solid #ddd; text-align: right;">${nasdaq.currentValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-        <td style="padding: 12px; border: 1px solid #ddd; text-align: right; color: #c62828; font-weight: bold;">${nasdaq.changeRate.toFixed(2)}%</td>
+        <td style="${STYLE.cell} font-weight: bold;">NASDAQ</td>
+        <td style="${STYLE.cellRight}">${nasdaq.previousValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        <td style="${STYLE.cellRight}">${nasdaq.currentValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        <td style="${STYLE.cellRight} color: #c62828; font-weight: bold;">${nasdaq.changeRate.toFixed(2)}%</td>
       </tr>
     `;
   }
@@ -473,10 +540,10 @@ function generateMarketIndexAlertEmailBody(alertResult: MarketIndexAlertResult):
     const changeSign = sp500.changeRate >= 0 ? '+' : '';
     referenceIndicesHtml += `
       <tr>
-        <td style="padding: 12px; border: 1px solid #ddd;">S&P500</td>
-        <td style="padding: 12px; border: 1px solid #ddd; text-align: right;">${sp500.previousValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-        <td style="padding: 12px; border: 1px solid #ddd; text-align: right;">${sp500.currentValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-        <td style="padding: 12px; border: 1px solid #ddd; text-align: right; color: ${changeColor};">${changeSign}${sp500.changeRate.toFixed(2)}%</td>
+        <td style="${STYLE.cell}">S&P500</td>
+        <td style="${STYLE.cellRight}">${sp500.previousValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        <td style="${STYLE.cellRight}">${sp500.currentValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        <td style="${STYLE.cellRight} color: ${changeColor};">${changeSign}${sp500.changeRate.toFixed(2)}%</td>
       </tr>
     `;
   }
@@ -486,20 +553,15 @@ function generateMarketIndexAlertEmailBody(alertResult: MarketIndexAlertResult):
     const changeSign = nasdaq.changeRate >= 0 ? '+' : '';
     referenceIndicesHtml += `
       <tr>
-        <td style="padding: 12px; border: 1px solid #ddd;">NASDAQ</td>
-        <td style="padding: 12px; border: 1px solid #ddd; text-align: right;">${nasdaq.previousValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-        <td style="padding: 12px; border: 1px solid #ddd; text-align: right;">${nasdaq.currentValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-        <td style="padding: 12px; border: 1px solid #ddd; text-align: right; color: ${changeColor};">${changeSign}${nasdaq.changeRate.toFixed(2)}%</td>
+        <td style="${STYLE.cell}">NASDAQ</td>
+        <td style="${STYLE.cellRight}">${nasdaq.previousValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        <td style="${STYLE.cellRight}">${nasdaq.currentValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        <td style="${STYLE.cellRight} color: ${changeColor};">${changeSign}${nasdaq.changeRate.toFixed(2)}%</td>
       </tr>
     `;
   }
 
-  const html = `
-    <html>
-      <head>
-        <meta charset="utf-8">
-      </head>
-      <body style="font-family: 'Hiragino Sans', 'Meiryo', sans-serif; padding: 20px;">
+  const inner = `
         <h1 style="color: #c62828;">⚠️ -5%ルールアラート</h1>
         <p style="color: #666;">比較期間: ${comparisonDate} → ${alertDate}</p>
 
@@ -513,10 +575,10 @@ function generateMarketIndexAlertEmailBody(alertResult: MarketIndexAlertResult):
         <h2 style="color: #333; margin-top: 30px;">下落した指数</h2>
         <table style="border-collapse: collapse; width: 100%; max-width: 600px; margin-bottom: 20px;">
           <tr style="background-color: #f5f5f5;">
-            <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">指数</th>
-            <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">前週終値</th>
-            <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">今週終値</th>
-            <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">変化率</th>
+            <th style="${STYLE.cellLeft}">指数</th>
+            <th style="${STYLE.cellRight}">前週終値</th>
+            <th style="${STYLE.cellRight}">今週終値</th>
+            <th style="${STYLE.cellRight}">変化率</th>
           </tr>
           ${triggeredIndicesHtml}
         </table>
@@ -527,10 +589,10 @@ function generateMarketIndexAlertEmailBody(alertResult: MarketIndexAlertResult):
         <h2 style="color: #333; margin-top: 30px;">参考: その他の指数</h2>
         <table style="border-collapse: collapse; width: 100%; max-width: 600px; margin-bottom: 20px;">
           <tr style="background-color: #f5f5f5;">
-            <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">指数</th>
-            <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">前週終値</th>
-            <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">今週終値</th>
-            <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">変化率</th>
+            <th style="${STYLE.cellLeft}">指数</th>
+            <th style="${STYLE.cellRight}">前週終値</th>
+            <th style="${STYLE.cellRight}">今週終値</th>
+            <th style="${STYLE.cellRight}">変化率</th>
           </tr>
           ${referenceIndicesHtml}
         </table>
@@ -549,10 +611,7 @@ function generateMarketIndexAlertEmailBody(alertResult: MarketIndexAlertResult):
         <p style="color: #999; font-size: 12px; margin-top: 40px;">
           このメールはTrustfolioから自動送信されています。<br>
           投資は自己責任で行ってください。
-        </p>
-      </body>
-    </html>
-  `;
+        </p>`;
 
-  return html;
+  return wrapEmailBody(inner);
 }
