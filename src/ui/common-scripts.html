@@ -1,0 +1,124 @@
+<script>
+  'use strict';
+
+  /**
+   * 画面間で共有するUIユーティリティ群。
+   *
+   * 目的:
+   * - Index.html（scripts / performance-scripts）と Performance.html
+   *   （performance-scripts）で重複していた callApi / setLoading / setMessage /
+   *   通貨・パーセントのフォーマッタを一元化する。
+   *
+   * 使い方:
+   * - 各画面は <?!= include('common-scripts'); ?> を画面スクリプトより前に読み込み、
+   *   IIFE 内から window.TrustfolioUi 経由で各関数を参照する。
+   *
+   * 注意:
+   * - 画面スクリプトはそれぞれ独立した IIFE のため、共有関数はグローバル
+   *   （window.TrustfolioUi）へ公開して両 IIFE から参照できるようにしている。
+   */
+  window.TrustfolioUi = (function () {
+    /**
+     * GAS の handleApiRequest を Promise でラップして呼び出す。
+     *
+     * @param {unknown} request - APIリクエストオブジェクト
+     * @returns {Promise<unknown>} レスポンス（Result型オブジェクト）
+     */
+    function callApi(request) {
+      return new Promise((resolve, reject) => {
+        google.script.run
+          .withSuccessHandler(resolve)
+          .withFailureHandler((error) => {
+            reject(error);
+          })
+          .handleApiRequest(request);
+      });
+    }
+
+    /**
+     * 金額を「N,NNN円」形式に整形する。
+     * 値は円単位。小数を含む場合（チャート軸の補間値など）は四捨五入する。
+     * サーバー由来の金額は既に整数へ丸め済みのため、四捨五入による表示変化はない。
+     *
+     * @param {number} value - 金額（円）
+     * @returns {string} 例: "1,234,000円"
+     */
+    function formatCurrency(value) {
+      return `${Math.round(value).toLocaleString()}円`;
+    }
+
+    /**
+     * 比率（小数）をパーセント表記へ整形する。
+     *
+     * @param {number} value - 比率（例: 0.1234）
+     * @returns {string} 例: "12.34%"
+     */
+    function formatPercent(value) {
+      return `${(value * 100).toFixed(2)}%`;
+    }
+
+    /**
+     * ローディング状態を切り替える。
+     * 無効化対象の要素は画面ごとに異なるため controlSelector で指定する。
+     *
+     * @param {boolean} isLoading - ローディング中なら true
+     * @param {string} controlSelector - 無効化対象要素のCSSセレクタ
+     */
+    function setLoading(isLoading, controlSelector) {
+      const app = document.querySelector('.app');
+      if (isLoading) {
+        app.classList.add('opacity-60', 'pointer-events-none');
+      } else {
+        app.classList.remove('opacity-60', 'pointer-events-none');
+      }
+      document.querySelectorAll(controlSelector).forEach((element) => {
+        element.disabled = isLoading;
+      });
+      const refreshButton = document.getElementById('refreshButton');
+      if (refreshButton) {
+        refreshButton.disabled = false;
+      }
+    }
+
+    /**
+     * 指定したメッセージ要素に紐づく setMessage 関数を生成する。
+     * 成功メッセージ（stateValue === 'success'）は10秒後に自動で消去する。
+     * 自動消去用のタイマーは生成した関数ごとに独立して保持する。
+     *
+     * @param {HTMLElement} messageElement - メッセージ表示用の要素
+     * @returns {(text: string, stateValue: string|null) => void} setMessage 関数
+     */
+    function createSetMessage(messageElement) {
+      let successMessageTimer = null;
+      return function setMessage(text, stateValue) {
+        messageElement.textContent = text;
+        if (stateValue) {
+          messageElement.setAttribute('data-state', stateValue);
+        } else {
+          messageElement.removeAttribute('data-state');
+        }
+        if (text) {
+          messageElement.classList.remove('hidden');
+        } else {
+          messageElement.classList.add('hidden');
+        }
+
+        if (successMessageTimer) {
+          clearTimeout(successMessageTimer);
+          successMessageTimer = null;
+        }
+        if (stateValue === 'success') {
+          successMessageTimer = setTimeout(() => {
+            if (messageElement.getAttribute('data-state') === 'success') {
+              messageElement.textContent = '';
+              messageElement.removeAttribute('data-state');
+              messageElement.classList.add('hidden');
+            }
+          }, 10000);
+        }
+      };
+    }
+
+    return { callApi, formatCurrency, formatPercent, setLoading, createSetMessage };
+  })();
+</script>

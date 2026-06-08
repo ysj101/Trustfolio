@@ -83,65 +83,17 @@
     const badgeRedemptionClass = `${badgeBaseClass} bg-rose-500/20 text-rose-200`;
     const badgeRecurringClass = `${badgeBaseClass} bg-emerald-500/20 text-emerald-200`;
 
+    // 共通UIユーティリティ（common-scripts.html / window.TrustfolioUi）を参照する。
+    // callApi / formatCurrency / setMessage / フォーマッタは画面間で共有している。
+    const callApi = window.TrustfolioUi.callApi;
+    const formatCurrency = window.TrustfolioUi.formatCurrency;
+    // 旧 formatRate と同一実装（比率→パーセント表記）。
+    const formatRate = window.TrustfolioUi.formatPercent;
+    const setMessage = window.TrustfolioUi.createSetMessage(message);
+
+    // この画面では button / input / select を無効化対象とする。
     function setLoading(isLoading) {
-      if (isLoading) {
-        app.classList.add('opacity-60', 'pointer-events-none');
-      } else {
-        app.classList.remove('opacity-60', 'pointer-events-none');
-      }
-      document.querySelectorAll('button, input, select').forEach((element) => {
-        element.disabled = isLoading;
-      });
-      refreshButton.disabled = false;
-    }
-
-    function callApi(request) {
-      return new Promise((resolve, reject) => {
-        google.script.run
-          .withSuccessHandler(resolve)
-          .withFailureHandler((error) => {
-            reject(error);
-          })
-          .handleApiRequest(request);
-      });
-    }
-
-    let successMessageTimer = null;
-
-    function setMessage(text, stateValue) {
-      message.textContent = text;
-      if (stateValue) {
-        message.setAttribute('data-state', stateValue);
-      } else {
-        message.removeAttribute('data-state');
-      }
-      if (text) {
-        message.classList.remove('hidden');
-      } else {
-        message.classList.add('hidden');
-      }
-
-      if (successMessageTimer) {
-        clearTimeout(successMessageTimer);
-        successMessageTimer = null;
-      }
-      if (stateValue === 'success') {
-        successMessageTimer = setTimeout(() => {
-          if (message.getAttribute('data-state') === 'success') {
-            message.textContent = '';
-            message.removeAttribute('data-state');
-            message.classList.add('hidden');
-          }
-        }, 10000);
-      }
-    }
-
-    function formatCurrency(value) {
-      return `${value.toLocaleString()}円`;
-    }
-
-    function formatRate(value) {
-      return `${(value * 100).toFixed(2)}%`;
+      window.TrustfolioUi.setLoading(isLoading, 'button, input, select');
     }
 
     function createActionButton(label, className, onClick) {
