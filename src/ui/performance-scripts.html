@@ -12,69 +12,15 @@
     const message = document.getElementById('message');
     const periodButtons = document.querySelectorAll('.period-btn');
 
-    /**
-     * ローディング状態の管理
-     */
+    // 共通UIユーティリティ（common-scripts.html / window.TrustfolioUi）を参照する。
+    const callApi = window.TrustfolioUi.callApi;
+    const formatCurrency = window.TrustfolioUi.formatCurrency;
+    const formatPercent = window.TrustfolioUi.formatPercent;
+    const setMessage = window.TrustfolioUi.createSetMessage(message);
+
+    // この画面では button のみを無効化対象とする。
     function setLoading(isLoading) {
-      if (isLoading) {
-        app.classList.add('opacity-60', 'pointer-events-none');
-      } else {
-        app.classList.remove('opacity-60', 'pointer-events-none');
-      }
-      document.querySelectorAll('button').forEach((element) => {
-        element.disabled = isLoading;
-      });
-      const refreshButton = document.getElementById('refreshButton');
-      if (refreshButton) {
-        refreshButton.disabled = false;
-      }
-    }
-
-    /**
-     * APIリクエスト送信
-     */
-    function callApi(request) {
-      return new Promise((resolve, reject) => {
-        google.script.run
-          .withSuccessHandler(resolve)
-          .withFailureHandler((error) => {
-            reject(error);
-          })
-          .handleApiRequest(request);
-      });
-    }
-
-    let successMessageTimer = null;
-
-    /**
-     * メッセージ表示
-     */
-    function setMessage(text, stateValue) {
-      message.textContent = text;
-      if (stateValue) {
-        message.setAttribute('data-state', stateValue);
-      } else {
-        message.removeAttribute('data-state');
-      }
-      if (text) {
-        message.classList.remove('hidden');
-      } else {
-        message.classList.add('hidden');
-      }
-
-      if (successMessageTimer) {
-        clearTimeout(successMessageTimer);
-        successMessageTimer = null;
-      }
-      if (stateValue === 'success') {
-        successMessageTimer = setTimeout(() => {
-          if (message.getAttribute('data-state') === 'success') {
-            message.textContent = '';
-            message.removeAttribute('data-state');
-            message.classList.add('hidden');
-          }
-        }, 10000);
-      }
+      window.TrustfolioUi.setLoading(isLoading, 'button');
     }
 
     /**
@@ -229,20 +175,6 @@
           options: getChartOptions(label, valueFormatter, lineColor, backgroundColor),
         });
       }
-    }
-
-    /**
-     * 通貨フォーマット
-     */
-    function formatCurrency(value) {
-      return `${Math.round(value).toLocaleString()}円`;
-    }
-
-    /**
-     * パーセントフォーマット
-     */
-    function formatPercent(value) {
-      return `${(value * 100).toFixed(2)}%`;
     }
 
     /**
