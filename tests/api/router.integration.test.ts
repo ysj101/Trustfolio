@@ -1,14 +1,13 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { handleApiRequest } from '../../src/api/router';
 import {
-  SHEET_HEADERS,
   SHEET_NAMES,
   PERFORMANCE_HEADERS,
   PERFORMANCE_SHEET_NAME,
   getTransactionSheetName,
   getPerformanceSheetName,
 } from '../../src/Config';
-import { createInMemorySheetRepository, ok } from '../fakes';
+import { createInMemorySheetRepository, headerRow, ok } from '../fakes';
 
 vi.mock('../../src/repository/SheetRepository', () => ({
   openSheetRepository: vi.fn(),
@@ -46,15 +45,15 @@ describe('router integration', () => {
     const performanceSheet = getPerformanceSheetName(fundId);
     const sheetRepository = createInMemorySheetRepository({
       [SHEET_NAMES.FUNDS]: [
-        [...SHEET_HEADERS[SHEET_NAMES.FUNDS]],
+        headerRow(SHEET_NAMES.FUNDS),
         [fundId, '国内株式', '', 0, '2024-01-01T00:00:00.000Z'],
       ],
       [SHEET_NAMES.NAV_RECORDS]: [
-        [...SHEET_HEADERS[SHEET_NAMES.NAV_RECORDS]],
+        headerRow(SHEET_NAMES.NAV_RECORDS),
         [fundId, '2024-03-05', 10000, '2024-03-05T00:00:00.000Z'],
       ],
-      [SHEET_NAMES.RECURRING]: [[...SHEET_HEADERS[SHEET_NAMES.RECURRING]]],
-      [transactionSheet]: [[...SHEET_HEADERS[SHEET_NAMES.TRANSACTIONS]]],
+      [SHEET_NAMES.RECURRING]: [headerRow(SHEET_NAMES.RECURRING)],
+      [transactionSheet]: [headerRow(SHEET_NAMES.TRANSACTIONS)],
       [performanceSheet]: [[...PERFORMANCE_HEADERS]],
       [PERFORMANCE_SHEET_NAME]: [[...PERFORMANCE_HEADERS]],
     });
