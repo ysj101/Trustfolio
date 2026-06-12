@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createTransactionRepository } from '../../src/repository/TransactionRepository';
-import { getTransactionSheetName, SHEET_NAMES, SHEET_HEADERS } from '../../src/Config';
-import { createInMemorySheetRepository } from '../fakes';
+import { getTransactionSheetName, SHEET_NAMES } from '../../src/Config';
+import { createInMemorySheetRepository, headerRow } from '../fakes';
 
 describe('TransactionRepository', () => {
   it('空行を除外して取引履歴を取得する', () => {
@@ -11,7 +11,7 @@ describe('TransactionRepository', () => {
     const sheetName = getTransactionSheetName('fund-1');
     const sheetRepository = createInMemorySheetRepository({
       [sheetName]: [
-        [...SHEET_HEADERS[SHEET_NAMES.TRANSACTIONS]],
+        headerRow(SHEET_NAMES.TRANSACTIONS),
         [
           'tx-1',
           'fund-1',
@@ -43,7 +43,7 @@ describe('TransactionRepository', () => {
     const sheetName = getTransactionSheetName('fund-1');
     const sheetRepository = createInMemorySheetRepository({
       [sheetName]: [
-        [...SHEET_HEADERS[SHEET_NAMES.TRANSACTIONS]],
+        headerRow(SHEET_NAMES.TRANSACTIONS),
         [
           'tx-1',
           'fund-1',
@@ -73,7 +73,7 @@ describe('TransactionRepository', () => {
     const sheetName = getTransactionSheetName('fund-2');
     const sheetRepository = createInMemorySheetRepository({
       [sheetName]: [
-        [...SHEET_HEADERS[SHEET_NAMES.TRANSACTIONS]],
+        headerRow(SHEET_NAMES.TRANSACTIONS),
         [
           'tx-2',
           'fund-2',
@@ -103,7 +103,7 @@ describe('TransactionRepository', () => {
     const sheetName = getTransactionSheetName('fund-3');
     const sheetRepository = createInMemorySheetRepository({
       [sheetName]: [
-        [...SHEET_HEADERS[SHEET_NAMES.TRANSACTIONS]],
+        headerRow(SHEET_NAMES.TRANSACTIONS),
         [
           'tx-3',
           'fund-3',
@@ -133,7 +133,7 @@ describe('TransactionRepository', () => {
     const sheetName = getTransactionSheetName('fund-1');
     const sheetRepository = createInMemorySheetRepository({
       [sheetName]: [
-        [...SHEET_HEADERS[SHEET_NAMES.TRANSACTIONS]],
+        headerRow(SHEET_NAMES.TRANSACTIONS),
         [
           'tx-1',
           'fund-1',
@@ -163,7 +163,7 @@ describe('TransactionRepository', () => {
     const sheetName = getTransactionSheetName('fund-10');
     const sheetRepository = createInMemorySheetRepository({
       [sheetName]: [
-        [...SHEET_HEADERS[SHEET_NAMES.TRANSACTIONS]],
+        headerRow(SHEET_NAMES.TRANSACTIONS),
         [
           'tx-10',
           'fund-10',
@@ -206,7 +206,7 @@ describe('TransactionRepository', () => {
     const sheetName = getTransactionSheetName('fund-11');
     const sheetRepository = createInMemorySheetRepository({
       [sheetName]: [
-        [...SHEET_HEADERS[SHEET_NAMES.TRANSACTIONS]],
+        headerRow(SHEET_NAMES.TRANSACTIONS),
         [
           'tx-11',
           'fund-11',
@@ -237,7 +237,7 @@ describe('TransactionRepository', () => {
     // 検証: nullが返る
     const sheetName = getTransactionSheetName('fund-12');
     const sheetRepository = createInMemorySheetRepository({
-      [sheetName]: [[...SHEET_HEADERS[SHEET_NAMES.TRANSACTIONS]]],
+      [sheetName]: [headerRow(SHEET_NAMES.TRANSACTIONS)],
     });
     const repository = createTransactionRepository(sheetRepository);
     const result = repository.findById('missing-id', 'fund-12');
@@ -256,7 +256,7 @@ describe('TransactionRepository', () => {
       const sheetName2 = getTransactionSheetName('野村アセット-NASDAQ100');
       const sheetRepository = createInMemorySheetRepository({
         [sheetName1]: [
-          [...SHEET_HEADERS[SHEET_NAMES.TRANSACTIONS]],
+          headerRow(SHEET_NAMES.TRANSACTIONS),
           [
             'tx-1',
             '三菱UFJ国際投信-eMAXIS',
@@ -283,7 +283,7 @@ describe('TransactionRepository', () => {
           ],
         ],
         [sheetName2]: [
-          [...SHEET_HEADERS[SHEET_NAMES.TRANSACTIONS]],
+          headerRow(SHEET_NAMES.TRANSACTIONS),
           [
             'tx-3',
             '野村アセット-NASDAQ100',
@@ -328,7 +328,7 @@ describe('TransactionRepository', () => {
       const sheetName1 = getTransactionSheetName('三菱UFJ国際投信-eMAXIS');
       const sheetRepository = createInMemorySheetRepository({
         [sheetName1]: [
-          [...SHEET_HEADERS[SHEET_NAMES.TRANSACTIONS]],
+          headerRow(SHEET_NAMES.TRANSACTIONS),
           [
             'tx-1',
             '三菱UFJ国際投信-eMAXIS',
@@ -369,7 +369,7 @@ describe('TransactionRepository', () => {
       const sheetName1 = getTransactionSheetName('fund-1');
       const sheetRepository = createInMemorySheetRepository({
         [sheetName1]: [
-          [...SHEET_HEADERS[SHEET_NAMES.TRANSACTIONS]],
+          headerRow(SHEET_NAMES.TRANSACTIONS),
           [
             'tx-1',
             'fund-1',
@@ -400,7 +400,7 @@ describe('TransactionRepository', () => {
       const sheetName1 = getTransactionSheetName('fund-1');
       const sheetRepository = createInMemorySheetRepository({
         [sheetName1]: [
-          [...SHEET_HEADERS[SHEET_NAMES.TRANSACTIONS]],
+          headerRow(SHEET_NAMES.TRANSACTIONS),
           [
             'tx-1',
             'fund-1',

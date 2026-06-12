@@ -1,5 +1,5 @@
 import type { Result, AppError } from '../src/domain/types';
-import type { SheetDefinition } from '../src/Config';
+import { SHEET_HEADERS, type SheetDefinition } from '../src/Config';
 import type { SheetRepository } from '../src/repository/SheetRepository';
 
 export function ok<T>(value: T): Result<T> {
@@ -8,6 +8,51 @@ export function ok<T>(value: T): Result<T> {
 
 export function fail<T>(type: AppError['type'], message: string, field?: string): Result<T> {
   return { success: false, error: { type, message, field } };
+}
+
+/**
+ * 指定シートのヘッダー行を返すテスト用ヘルパー。
+ *
+ * 目的:
+ * - 各テストで `[...SHEET_HEADERS[SHEET_NAMES.X]]` と手書きしていたヘッダー行生成を一本化する。
+ *
+ * 使い方:
+ * - createInMemorySheetRepository の初期データで、ヘッダー行として先頭に置く。
+ *   例: `{ [SHEET_NAMES.FUNDS]: [headerRow(SHEET_NAMES.FUNDS), ['fund-1', ...]] }`
+ *
+ * @param sheetName - 対象シート名（SHEET_HEADERS のキー）。
+ * @returns ヘッダー文字列の配列（呼び出しごとに新しい配列）。
+ */
+export function headerRow(sheetName: keyof typeof SHEET_HEADERS): string[] {
+  return Array.from(SHEET_HEADERS[sheetName]);
+}
+
+/**
+ * SheetRepository のスタブを生成するテスト用ファクトリ。
+ *
+ * 目的:
+ * - router のテストなどで繰り返し定義していた「全メソッドが成功を返す SheetRepository」
+ *   のボイラープレートを一本化し、各テストは関心のあるメソッドだけを overrides で差し替える。
+ *
+ * 既定の挙動:
+ * - ensureSheet / getRequiredSheet は空のシート相当を ok で返す。
+ * - readAllRows は空配列、appendRows / updateRow / deleteRow は undefined を ok で返す。
+ *
+ * @param overrides - 差し替えたいメソッドのみを指定する。
+ * @returns SheetRepository のスタブ。
+ */
+export function createStubSheetRepository(
+  overrides: Partial<SheetRepository> = {}
+): SheetRepository {
+  return {
+    ensureSheet: () => ok({} as GoogleAppsScript.Spreadsheet.Sheet),
+    getRequiredSheet: () => ok({} as GoogleAppsScript.Spreadsheet.Sheet),
+    readAllRows: () => ok([]),
+    appendRows: () => ok(undefined),
+    updateRow: () => ok(undefined),
+    deleteRow: () => ok(undefined),
+    ...overrides,
+  };
 }
 
 type SheetData = {
