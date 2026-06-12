@@ -87,7 +87,7 @@ export function createPerformanceRepository(
         return sheetNameResult;
       }
 
-      return sheetRepository.appendRows(sheetNameResult.value as never, [
+      return sheetRepository.appendRows(sheetNameResult.value, [
         [
           performance.fundId,
           performance.date,
@@ -107,7 +107,7 @@ export function createPerformanceRepository(
       }
 
       // 全体実績ではtotalUnitsは記録しない（ファンドごとに単位が異なるため合計値に意味がない）
-      return sheetRepository.appendRows(sheetNameResult.value as never, [
+      return sheetRepository.appendRows(sheetNameResult.value, [
         [
           performance.fundId,
           performance.date,
@@ -122,7 +122,7 @@ export function createPerformanceRepository(
     },
     findByFundAndDate: (fundId: string, date: string): Result<PerformanceRecord | null> => {
       const sheetName = getPerformanceSheetName(fundId);
-      const rowsResult = sheetRepository.readAllRows(sheetName as never);
+      const rowsResult = sheetRepository.readAllRows(sheetName);
 
       // シートが存在しない場合はnullを返す（エラーにしない）
       if (!rowsResult.success) {
@@ -141,7 +141,7 @@ export function createPerformanceRepository(
       return { success: true, value: found.value?.entity ?? null };
     },
     findGlobalByDate: (date: string): Result<PerformanceRecord | null> => {
-      const rowsResult = sheetRepository.readAllRows(PERFORMANCE_SHEET_NAME as never);
+      const rowsResult = sheetRepository.readAllRows(PERFORMANCE_SHEET_NAME);
 
       // シートが存在しない場合はnullを返す（エラーにしない）
       if (!rowsResult.success) {
@@ -186,7 +186,7 @@ export function createPerformanceRepository(
     },
 
     listGlobalHistory: (): Result<PerformanceRecord[]> => {
-      const rowsResult = sheetRepository.readAllRows(PERFORMANCE_SHEET_NAME as never);
+      const rowsResult = sheetRepository.readAllRows(PERFORMANCE_SHEET_NAME);
       if (!rowsResult.success) {
         return rowsResult as Result<PerformanceRecord[]>;
       }
@@ -216,7 +216,7 @@ export function createPerformanceRepository(
     },
 
     findGlobalByDateRange: (startDate: string, endDate: string): Result<PerformanceRecord[]> => {
-      const rowsResult = sheetRepository.readAllRows(PERFORMANCE_SHEET_NAME as never);
+      const rowsResult = sheetRepository.readAllRows(PERFORMANCE_SHEET_NAME);
       if (!rowsResult.success) {
         return rowsResult as Result<PerformanceRecord[]>;
       }
@@ -253,7 +253,7 @@ export function createPerformanceRepository(
       endDate: string
     ): Result<PerformanceRecord[]> => {
       const sheetName = getPerformanceSheetName(fundId);
-      const rowsResult = sheetRepository.readAllRows(sheetName as never);
+      const rowsResult = sheetRepository.readAllRows(sheetName);
 
       // シートが存在しない場合は空配列を返す（エラーにしない）
       if (!rowsResult.success) {
@@ -303,7 +303,7 @@ export function createPerformanceRepository(
 function ensurePerformanceSheet(sheetRepository: SheetRepository, fundId: string): Result<string> {
   const sheetName = getPerformanceSheetName(fundId);
   const definition: SheetDefinition = {
-    name: sheetName as never,
+    name: sheetName,
     headers: PERFORMANCE_HEADERS,
   };
 
@@ -322,7 +322,7 @@ function ensurePerformanceSheet(sheetRepository: SheetRepository, fundId: string
  */
 function ensureGlobalPerformanceSheet(sheetRepository: SheetRepository): Result<string> {
   const definition: SheetDefinition = {
-    name: PERFORMANCE_SHEET_NAME as never,
+    name: PERFORMANCE_SHEET_NAME,
     headers: PERFORMANCE_HEADERS,
   };
 

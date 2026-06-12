@@ -29,7 +29,7 @@ export function createTransactionRepository(
   const repository: TransactionRepository = {
     listByFundId: (fundId: string): Result<Transaction[]> => {
       const sheetName = getTransactionSheetName(fundId);
-      const rowsResult = sheetRepository.readAllRows(sheetName as never);
+      const rowsResult = sheetRepository.readAllRows(sheetName);
       if (!rowsResult.success) {
         return rowsResult;
       }
@@ -49,7 +49,7 @@ export function createTransactionRepository(
 
       for (const fundId of fundIds) {
         const sheetName = getTransactionSheetName(fundId);
-        const rowsResult = sheetRepository.readAllRows(sheetName as never);
+        const rowsResult = sheetRepository.readAllRows(sheetName);
 
         // シートが存在しない場合はスキップ(エラーにしない)
         if (!rowsResult.success) {
@@ -79,7 +79,7 @@ export function createTransactionRepository(
       // 各ファンドのトランザクションシートを読み込み
       for (const fundId of fundIds) {
         const sheetName = getTransactionSheetName(fundId);
-        const rowsResult = sheetRepository.readAllRows(sheetName as never);
+        const rowsResult = sheetRepository.readAllRows(sheetName);
 
         // シートが存在しない場合はスキップ(エラーにしない)
         if (!rowsResult.success) {
@@ -107,7 +107,7 @@ export function createTransactionRepository(
         return sheetNameResult;
       }
 
-      return sheetRepository.appendRows(sheetNameResult.value as never, [toRow(transaction)]);
+      return sheetRepository.appendRows(sheetNameResult.value, [toRow(transaction)]);
     },
     findByIdempotencyKey: (
       idempotencyKey: string,
@@ -115,7 +115,7 @@ export function createTransactionRepository(
     ): Result<Transaction | null> => {
       for (const fundId of fundIds) {
         const sheetName = getTransactionSheetName(fundId);
-        const rowsResult = sheetRepository.readAllRows(sheetName as never);
+        const rowsResult = sheetRepository.readAllRows(sheetName);
 
         // シートが存在しない場合はスキップ
         if (!rowsResult.success) {
@@ -154,11 +154,7 @@ export function createTransactionRepository(
       }
 
       const sheetName = getTransactionSheetName(transaction.fundId);
-      return sheetRepository.updateRow(
-        sheetName as never,
-        findResult.value.rowIndex,
-        toRow(transaction)
-      );
+      return sheetRepository.updateRow(sheetName, findResult.value.rowIndex, toRow(transaction));
     },
     deleteTransaction: (transactionId: string, fundId: string): Result<void> => {
       const findResult = findTransactionRow(sheetRepository, transactionId, fundId);
@@ -170,7 +166,7 @@ export function createTransactionRepository(
       }
 
       const sheetName = getTransactionSheetName(fundId);
-      return sheetRepository.deleteRow(sheetName as never, findResult.value.rowIndex);
+      return sheetRepository.deleteRow(sheetName, findResult.value.rowIndex);
     },
   };
 
@@ -205,7 +201,7 @@ function toRow(transaction: Transaction): unknown[] {
 function ensureTransactionSheet(sheetRepository: SheetRepository, fundId: string): Result<string> {
   const sheetName = getTransactionSheetName(fundId);
   const definition: SheetDefinition = {
-    name: sheetName as never, // SheetNameは静的な型なので動的シート名をキャスト
+    name: sheetName,
     headers: SHEET_HEADERS[SHEET_NAMES.TRANSACTIONS],
   };
 
@@ -230,7 +226,7 @@ function findTransactionRow(
   fundId: string
 ): Result<{ rowIndex: number; transaction: Transaction } | null> {
   const sheetName = getTransactionSheetName(fundId);
-  const rowsResult = sheetRepository.readAllRows(sheetName as never);
+  const rowsResult = sheetRepository.readAllRows(sheetName);
   if (!rowsResult.success) {
     return rowsResult;
   }
