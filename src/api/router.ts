@@ -253,7 +253,7 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
 
       // 全体実績シートを作成
       const globalPerformanceDefinition: SheetDefinition = {
-        name: PERFORMANCE_SHEET_NAME as never,
+        name: PERFORMANCE_SHEET_NAME,
         headers: PERFORMANCE_HEADERS,
       };
       const globalPerfResult = sheetRepository.ensureSheet(globalPerformanceDefinition);
@@ -284,7 +284,7 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
           // 取引シートを作成
           const transactionSheetName = getTransactionSheetName(fund.id);
           const transactionDefinition: SheetDefinition = {
-            name: transactionSheetName as never,
+            name: transactionSheetName,
             headers: SHEET_HEADERS[SHEET_NAMES.TRANSACTIONS],
           };
           const transactionResult = sheetRepository.ensureSheet(transactionDefinition);
@@ -295,7 +295,7 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
           // 実績シートを作成
           const performanceSheetName = getPerformanceSheetName(fund.id);
           const performanceDefinition: SheetDefinition = {
-            name: performanceSheetName as never,
+            name: performanceSheetName,
             headers: PERFORMANCE_HEADERS,
           };
           const performanceResult = sheetRepository.ensureSheet(performanceDefinition);
@@ -487,13 +487,3 @@ function ensureRequiredSheetsForNavFetch(sheetRepository: SheetRepository): Resu
 
   return { success: true, value: undefined };
 }
-
-/**
- * ファンド別シート名の旧形式を新形式に移行する。
- * 旧シートが存在し、新シートが存在しない場合にリネームを行う。
- * 新旧が同時に存在する場合は衝突として失敗させる。
- *
- * @param sheetRepository シートリポジトリ
- * @param fundRepository ファンドリポジトリ
- * @returns 移行結果のサマリー、またはエラー
- */
