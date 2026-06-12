@@ -45,8 +45,33 @@ export const SHEET_HEADERS = {
 
 export type SheetName = (typeof SHEET_NAMES)[keyof typeof SHEET_NAMES];
 
+/**
+ * ファンド別取引シート名（例: `_tx_001`）の型。
+ * {@link getTransactionSheetName} が生成する動的シート名を表す。
+ */
+export type TransactionSheetName = `${typeof SHEET_NAME_PREFIXES.TRANSACTIONS}${string}`;
+
+/**
+ * ファンド別実績シート名（例: `_perf_001`）の型。
+ * {@link getPerformanceSheetName} が生成する動的シート名を表す。
+ */
+export type PerformanceSheetName = `${typeof SHEET_NAME_PREFIXES.PERFORMANCE}${string}`;
+
+/**
+ * `ensureSheet` に渡しうる全てのシート名。
+ * 静的シート名（{@link SheetName}）に加え、ファンド別の動的シート名
+ * （{@link TransactionSheetName} / {@link PerformanceSheetName}）と
+ * 全体実績シート名（{@link PERFORMANCE_SHEET_NAME}）を含む。
+ * 動的シート名を扱う箇所で `as never` キャストを不要にするために導入している。
+ */
+export type AnySheetName =
+  | SheetName
+  | TransactionSheetName
+  | PerformanceSheetName
+  | typeof PERFORMANCE_SHEET_NAME;
+
 export type SheetDefinition = {
-  name: SheetName;
+  name: AnySheetName;
   headers: readonly string[];
 };
 
@@ -90,7 +115,7 @@ export function getFundIdSuffix(fundId: string): string {
  * @param fundId ファンドID
  * @returns 取引シート名(例: _tx_001)
  */
-export function getTransactionSheetName(fundId: string): string {
+export function getTransactionSheetName(fundId: string): TransactionSheetName {
   return `${SHEET_NAME_PREFIXES.TRANSACTIONS}${getFundIdSuffix(fundId)}`;
 }
 
@@ -101,7 +126,7 @@ export function getTransactionSheetName(fundId: string): string {
  * @param fundId ファンドID
  * @returns 実績シート名(例: _perf_001)
  */
-export function getPerformanceSheetName(fundId: string): string {
+export function getPerformanceSheetName(fundId: string): PerformanceSheetName {
   return `${SHEET_NAME_PREFIXES.PERFORMANCE}${getFundIdSuffix(fundId)}`;
 }
 
