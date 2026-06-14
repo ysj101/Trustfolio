@@ -271,7 +271,8 @@ describe('main', () => {
     const trigger = { getHandlerFunction: () => 'fetchAllNavs', getUniqueId: () => 't-2' };
     vi.spyOn(globalThis.ScriptApp, 'getProjectTriggers').mockReturnValue([trigger]);
     vi.spyOn(globalThis.ScriptApp, 'deleteTrigger');
-    const logMock = vi.spyOn(globalThis.console, 'log');
+    // GAS 公式の Logger.log へログ出力を統一したため、Logger.log を捕捉する
+    const logMock = vi.spyOn(globalThis.Logger, 'log');
 
     deleteNavFetchTrigger();
 

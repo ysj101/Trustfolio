@@ -202,7 +202,7 @@ export function createPerformanceRepository(
         if (!parsed.success) {
           // パースエラーの場合、その行をスキップして続行
           // Logger.log()でエラーを記録するが、処理は継続
-          console.warn(
+          Logger.log(
             `[PerformanceRepository] Skipping invalid row at index ${String(index)}: ${parsed.error.message}`
           );
           continue;
@@ -230,7 +230,7 @@ export function createPerformanceRepository(
 
         const parsed = parseRow(row, index);
         if (!parsed.success) {
-          console.warn(
+          Logger.log(
             `[PerformanceRepository] Skipping invalid row at index ${String(index)}: ${parsed.error.message}`
           );
           continue;
@@ -269,7 +269,7 @@ export function createPerformanceRepository(
 
         const parsed = parseRow(row, index);
         if (!parsed.success) {
-          console.warn(
+          Logger.log(
             `[PerformanceRepository] Skipping invalid row at index ${String(index)}: ${parsed.error.message}`
           );
           continue;

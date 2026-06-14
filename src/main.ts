@@ -103,7 +103,7 @@ function sendErrorNotificationEmail(taskName: string, errorMessage: string): voi
 export function fetchAllNavs(): void {
   const response = handleApiRequest({ action: 'fetchAllNavs' });
   if (!response.success) {
-    console.error('基準価額の自動取得に失敗しました:', response.error.message);
+    Logger.log(`基準価額の自動取得に失敗しました: ${response.error.message}`);
     // エラー通知メールを送信
     sendErrorNotificationEmail(
       '基準価額自動取得',
@@ -114,7 +114,7 @@ export function fetchAllNavs(): void {
 
   const result = response.value;
   if (!isNavFetchResult(result)) {
-    console.error('基準価額の自動取得結果の形式が不正です');
+    Logger.log('基準価額の自動取得結果の形式が不正です');
     // エラー通知メールを送信
     sendErrorNotificationEmail(
       '基準価額自動取得',
@@ -123,7 +123,7 @@ export function fetchAllNavs(): void {
     return;
   }
 
-  console.log(
+  Logger.log(
     `基準価額の自動取得が完了しました。` +
       `総数: ${String(result.totalCount)}, ` +
       `成功: ${String(result.successCount)}, ` +
@@ -218,7 +218,7 @@ function logNavFetchFailures(items: NavFetchResultItem[]): void {
   }
 
   for (const item of failedItems) {
-    console.error(
+    Logger.log(
       `基準価額取得に失敗しました: fundId=${item.fundId}, fundName=${item.fundName}, reason=${
         item.message ?? '不明なエラー'
       }`
@@ -237,14 +237,14 @@ export function setupNavFetchTrigger(): void {
   for (const trigger of existingTriggers) {
     if (trigger.getHandlerFunction() === 'fetchAllNavs') {
       ScriptApp.deleteTrigger(trigger);
-      console.log(`既存のトリガーを削除しました: ${trigger.getUniqueId()}`);
+      Logger.log(`既存のトリガーを削除しました: ${trigger.getUniqueId()}`);
     }
   }
 
   // 新しいトリガーを設定（毎日21:00-22:00に実行）
   ScriptApp.newTrigger('fetchAllNavs').timeBased().everyDays(1).atHour(21).create();
 
-  console.log('NAV自動取得トリガーを設定しました（毎日21:00-22:00実行）');
+  Logger.log('NAV自動取得トリガーを設定しました（毎日21:00-22:00実行）');
 }
 
 /**
@@ -283,14 +283,14 @@ export function deleteNavFetchTrigger(): void {
     if (trigger.getHandlerFunction() === 'fetchAllNavs') {
       ScriptApp.deleteTrigger(trigger);
       deletedCount++;
-      console.log(`トリガーを削除しました: ${trigger.getUniqueId()}`);
+      Logger.log(`トリガーを削除しました: ${trigger.getUniqueId()}`);
     }
   }
 
   if (deletedCount === 0) {
-    console.log('削除対象のトリガーが見つかりませんでした。');
+    Logger.log('削除対象のトリガーが見つかりませんでした。');
   } else {
-    console.log(`${String(deletedCount)}個のトリガーを削除しました。`);
+    Logger.log(`${String(deletedCount)}個のトリガーを削除しました。`);
   }
 }
 
