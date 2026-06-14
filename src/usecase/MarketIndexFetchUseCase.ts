@@ -64,7 +64,7 @@ export function createMarketIndexFetchUseCase(
 
       // 営業日チェック（デバッグ用にログ出力）
       const isBusinessDay = isUsMarketBusinessDay(usDate);
-      console.log(
+      Logger.log(
         `市場指数取得: 現在日付=${usDate}, 営業日=${String(isBusinessDay)}, 対象日付=${lastBusinessDay}`
       );
 
