@@ -1,3 +1,4 @@
+import { formatDateToIso } from '../domain/dateFormat';
 import type { MarketIndex, Result } from '../domain/types';
 import type { MarketIndexRepository } from '../repository/MarketIndexRepository';
 
@@ -172,17 +173,4 @@ function calculateIndexChange(currentValue: number, previousValue: number): Mark
     changeRate: roundedChangeRate,
     isTriggered: roundedChangeRate <= ALERT_THRESHOLD_PERCENT,
   };
-}
-
-/**
- * DateオブジェクトをYYYY-MM-DD形式の文字列に変換する。
- *
- * @param date Dateオブジェクト
- * @returns YYYY-MM-DD形式の日付文字列
- */
-function formatDateToIso(date: Date): string {
-  const year = String(date.getFullYear());
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
 }

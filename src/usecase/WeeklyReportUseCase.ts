@@ -26,6 +26,16 @@ export type WeeklyReportUseCase = {
 };
 
 /**
+ * 前週データを検索する際の日数オフセット。
+ * 7日前（targetDate）を基準（0）に、より古い日付だけを過去方向へ順番に探索する。
+ * 祝日や連休で7日前のデータが存在しない場合でも、最大14日前まで遡って
+ * 直近の有効データを前週データとして採用するためのもの。
+ * 7日前より新しい日付（正のオフセット）を含めないのは、前週比ではなく
+ * 直近日次比較になってしまうのを防ぐためである。
+ */
+const PREVIOUS_WEEK_SEARCH_OFFSETS = [0, -1, -2, -3, -4, -5, -6, -7];
+
+/**
  * 週次レポートのユースケースを生成する。
  *
  * @param portfolioUseCase - ポートフォリオのユースケース
@@ -98,8 +108,7 @@ function getPreviousWeekData(
 } {
   // 7日前を基準に、より古い日付だけを順番に探索する。
   // 7日前より新しい日付を採用すると、前週比ではなく直近日次比較になるため許可しない。
-  const searchOffsets = [0, -1, -2, -3, -4, -5, -6, -7];
-  const searchDates = searchOffsets.map((offset) => {
+  const searchDates = PREVIOUS_WEEK_SEARCH_OFFSETS.map((offset) => {
     const date = new Date(targetDate);
     date.setDate(date.getDate() + offset);
     return Utilities.formatDate(date, 'Asia/Tokyo', 'yyyy-MM-dd');

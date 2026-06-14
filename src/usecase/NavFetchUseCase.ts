@@ -106,9 +106,9 @@ export function createNavFetchUseCase(
           );
 
           if (!globalResult.success) {
-            console.warn(`全体実績記録に失敗: ${globalResult.error.message}`);
+            Logger.log(`全体実績記録に失敗: ${globalResult.error.message}`);
           } else {
-            console.log(`全体実績記録成功: ${latestDate}`);
+            Logger.log(`全体実績記録成功: ${latestDate}`);
           }
         }
       }
@@ -216,9 +216,9 @@ function processFund(
   );
 
   if (!performanceResult.success) {
-    console.warn(`[${fund.name}] ファンド別実績記録に失敗: ${performanceResult.error.message}`);
+    Logger.log(`[${fund.name}] ファンド別実績記録に失敗: ${performanceResult.error.message}`);
   } else {
-    console.log(`[${fund.name}] ファンド別実績記録成功: ${nav.date}`);
+    Logger.log(`[${fund.name}] ファンド別実績記録成功: ${nav.date}`);
   }
 
   return {
