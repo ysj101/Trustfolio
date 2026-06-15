@@ -186,3 +186,47 @@ export const MARKET_DATA_HELPER_CELLS = {
   /** NASDAQ終値を取得するセル（B1にGOOGLEFINANCE式を設定） */
   NASDAQ_PRICE: 'B1',
 } as const;
+
+/**
+ * 時間駆動トリガーのスケジュール定義。
+ * 「どの頻度・時刻・曜日で実行するか」を型で表現する。
+ *
+ * - `daily`: 毎日 `atHour` の時刻枠で実行する。`nearMinute` を指定するとその分付近で実行する。
+ * - `weekly`: 毎週 `weekDay` の `atHour` の時刻枠で実行する。
+ *
+ * 注意:
+ * - GAS の時間ベーストリガーは「指定時刻ちょうど」ではなく、その時刻を含む
+ *   おおよそ1時間の枠内で実行される（例: `atHour: 21` は 21:00-22:00 枠）。
+ */
+export type TriggerSchedule =
+  | {
+      readonly frequency: 'daily';
+      /** 実行する時刻（0-23）。 */
+      readonly atHour: number;
+      /** 実行する分（0-59）。指定時はその分付近で実行する。省略時は時刻枠内の任意の分。 */
+      readonly nearMinute?: number;
+    }
+  | {
+      readonly frequency: 'weekly';
+      /** 実行する曜日（現状は土曜日のみ使用）。 */
+      readonly weekDay: 'SATURDAY';
+      /** 実行する時刻（0-23）。 */
+      readonly atHour: number;
+    };
+
+/**
+ * 各時間駆動トリガーのスケジュール定義を一元管理する。
+ * main.ts のトリガー設定関数（setup*Trigger）が参照する「時刻・頻度・曜日」の唯一の定義元。
+ *
+ * 【重要】ここを変更するとトリガーの実行タイミング（=外部挙動）が変わる。
+ */
+export const TRIGGER_SCHEDULES = {
+  /** 基準価額の自動取得（毎日21:00-22:00枠）。 */
+  navFetch: { frequency: 'daily', atHour: 21 },
+  /** 積立の自動発注（毎日22:30付近）。 */
+  recurringPurchases: { frequency: 'daily', atHour: 22, nearMinute: 30 },
+  /** 週次レポート送信（毎週土曜7:00-8:00枠）。 */
+  weeklyReport: { frequency: 'weekly', weekDay: 'SATURDAY', atHour: 7 },
+  /** 市場指数の取得（毎日7:00-8:00枠）。 */
+  marketIndexFetch: { frequency: 'daily', atHour: 7 },
+} as const satisfies Record<string, TriggerSchedule>;

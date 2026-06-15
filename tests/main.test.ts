@@ -19,9 +19,12 @@ vi.mock('../src/api/router', () => ({
   handleApiRequest: vi.fn(),
 }));
 
-vi.mock('../src/Config', () => ({
-  getWeeklyReportEmail: vi.fn(),
-}));
+// Config は getWeeklyReportEmail のみモックし、TRIGGER_SCHEDULES など他の実定義は
+// 実体をそのまま使う。これによりトリガー設定関数がスケジュール定数を正しく参照できる。
+vi.mock('../src/Config', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/Config')>();
+  return { ...actual, getWeeklyReportEmail: vi.fn() };
+});
 
 vi.mock('../src/service/EmailService', () => ({
   createEmailService: vi.fn(),
