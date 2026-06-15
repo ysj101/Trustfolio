@@ -3,10 +3,17 @@ import { handleApiRequest } from './api/router';
 export { handleApiRequest } from './api/router';
 export { runRakutenIntegrationTest } from './integration/RakutenIntegrationTest';
 export type { NavFetchResult } from './usecase/NavFetchUseCase';
-import type { Result } from './domain/types';
+import type { AppError, Result } from './domain/types';
 import type { NavFetchResult, NavFetchResultItem } from './usecase/NavFetchUseCase';
 import type { ExecuteRecurringResult } from './usecase/RecurringUseCase';
-import { getWeeklyReportEmail, SHEET_HEADERS, SHEET_NAMES, type SheetDefinition } from './Config';
+import {
+  getWeeklyReportEmail,
+  SHEET_HEADERS,
+  SHEET_NAMES,
+  TRIGGER_SCHEDULES,
+  type SheetDefinition,
+  type TriggerSchedule,
+} from './Config';
 import { createEmailService } from './service/EmailService';
 import { createMarketIndexRepository } from './repository/MarketIndexRepository';
 import { openSheetRepository } from './repository/SheetRepository';
@@ -96,6 +103,20 @@ function sendErrorNotificationEmail(taskName: string, errorMessage: string): voi
 }
 
 /**
+ * Result のエラー情報を、エラー通知メール本文用の共通フォーマットへ整形する。
+ * 「エラー: {メッセージ}」「タイプ: {種別}」の2行を生成する。
+ *
+ * 各タスクのエラー通知で繰り返し記述していた本文末尾の定型部分を共通化したもの。
+ * 生成される文字列は従来の inline 記述と完全に一致する（メール本文を変えない）。
+ *
+ * @param error - Result の失敗時のエラー情報
+ * @returns エラー通知メール本文用の整形済み文字列
+ */
+function formatErrorDetail(error: AppError): string {
+  return `エラー: ${error.message}\nタイプ: ${error.type}`;
+}
+
+/**
  * 全銘柄の基準価額を自動取得する。
  * Google Apps Scriptのトリガーから呼び出すための関数。
  * 毎日21:00〜22:00頃に実行することを推奨（投資信託協会の基準価額公開後）。
@@ -107,7 +128,7 @@ export function fetchAllNavs(): void {
     // エラー通知メールを送信
     sendErrorNotificationEmail(
       '基準価額自動取得',
-      `基準価額の自動取得に失敗しました。\n\nエラー: ${response.error.message}\nタイプ: ${response.error.type}`
+      `基準価額の自動取得に失敗しました。\n\n${formatErrorDetail(response.error)}`
     );
     return;
   }
@@ -171,10 +192,7 @@ export function executeRecurringPurchasesDaily(): Result<ExecuteRecurringResult>
     // エラー通知メールを送信
     sendErrorNotificationEmail(
       '積立自動実行',
-      `積立の自動実行に失敗しました。\n\n` +
-        `約定日: ${today}\n` +
-        `エラー: ${response.error.message}\n` +
-        `タイプ: ${response.error.type}`
+      `積立の自動実行に失敗しました。\n\n約定日: ${today}\n${formatErrorDetail(response.error)}`
     );
     return response as Result<ExecuteRecurringResult>;
   }
@@ -226,25 +244,148 @@ function logNavFetchFailures(items: NavFetchResultItem[]): void {
   }
 }
 
+// ============================================
+// 時間駆動トリガーの管理（設定/削除の共通基盤）
+// ============================================
+
+/**
+ * 時間駆動トリガーの設定情報。
+ * 「どのハンドラ関数を」「どのスケジュールで」起動するか、および設定完了時のログ文言を束ねる。
+ */
+type TriggerConfig = {
+  /** GAS がトリガーから名前で呼び出すハンドラ関数名。 */
+  readonly handlerFunctionName: string;
+  /** 実行スケジュール（Config の TRIGGER_SCHEDULES に集約）。 */
+  readonly schedule: TriggerSchedule;
+  /** トリガー設定完了時に出力するログ文言。 */
+  readonly setupLogMessage: string;
+};
+
+/** 基準価額の自動取得トリガー設定。 */
+const NAV_FETCH_TRIGGER: TriggerConfig = {
+  handlerFunctionName: 'fetchAllNavs',
+  schedule: TRIGGER_SCHEDULES.navFetch,
+  setupLogMessage: 'NAV自動取得トリガーを設定しました（毎日21:00-22:00実行）',
+};
+
+/** 積立自動発注トリガー設定。 */
+const RECURRING_PURCHASES_TRIGGER: TriggerConfig = {
+  handlerFunctionName: 'executeRecurringPurchasesDaily',
+  schedule: TRIGGER_SCHEDULES.recurringPurchases,
+  setupLogMessage: '積立自動発注トリガーを設定しました（毎日22:30実行）',
+};
+
+/** 週次レポート送信トリガー設定。 */
+const WEEKLY_REPORT_TRIGGER: TriggerConfig = {
+  handlerFunctionName: 'sendWeeklyReport',
+  schedule: TRIGGER_SCHEDULES.weeklyReport,
+  setupLogMessage: '週次レポート送信トリガーを設定しました（毎週土曜日7:00-8:00実行）',
+};
+
+/** 市場指数取得トリガー設定。 */
+const MARKET_INDEX_FETCH_TRIGGER: TriggerConfig = {
+  handlerFunctionName: 'fetchMarketIndices',
+  schedule: TRIGGER_SCHEDULES.marketIndexFetch,
+  setupLogMessage: '市場指数取得トリガーを設定しました（毎日7:00-8:00実行）',
+};
+
+/**
+ * 曜日識別子を GAS の Weekday へ変換する。
+ *
+ * @param weekDay - 曜日識別子（現状は土曜日のみ）
+ * @returns GAS の Weekday
+ */
+function resolveWeekDay(weekDay: 'SATURDAY'): GoogleAppsScript.Base.Weekday {
+  switch (weekDay) {
+    case 'SATURDAY':
+      return ScriptApp.WeekDay.SATURDAY;
+  }
+}
+
+/**
+ * 指定スケジュールに従って時間駆動トリガーを新規作成する。
+ *
+ * @param handlerFunctionName - 起動するハンドラ関数名
+ * @param schedule - 実行スケジュール
+ */
+function buildTimeBasedTrigger(handlerFunctionName: string, schedule: TriggerSchedule): void {
+  const timeBased = ScriptApp.newTrigger(handlerFunctionName).timeBased();
+
+  if (schedule.frequency === 'weekly') {
+    timeBased.onWeekDay(resolveWeekDay(schedule.weekDay)).atHour(schedule.atHour).create();
+    return;
+  }
+
+  const daily = timeBased.everyDays(1).atHour(schedule.atHour);
+  if (schedule.nearMinute === undefined) {
+    daily.create();
+    return;
+  }
+  daily.nearMinute(schedule.nearMinute).create();
+}
+
+/**
+ * 指定ハンドラ名の既存トリガーを全て削除し、削除件数を返す。
+ * 各削除時に logEach(uniqueId) を呼び、呼び出し側でログ文言を制御できるようにする。
+ *
+ * @param handlerFunctionName - 削除対象のハンドラ関数名
+ * @param logEach - 1件削除するたびに呼ばれるログ出力関数
+ * @returns 削除した件数
+ */
+function deleteTriggersByHandler(
+  handlerFunctionName: string,
+  logEach: (uniqueId: string) => void
+): number {
+  const triggers = ScriptApp.getProjectTriggers();
+  let deletedCount = 0;
+  for (const trigger of triggers) {
+    if (trigger.getHandlerFunction() === handlerFunctionName) {
+      ScriptApp.deleteTrigger(trigger);
+      deletedCount += 1;
+      logEach(trigger.getUniqueId());
+    }
+  }
+  return deletedCount;
+}
+
+/**
+ * トリガーを（再）設定する。
+ * 既存の同名トリガーを削除してから、スケジュールに従って新規作成する。
+ *
+ * @param config - トリガー設定情報
+ */
+function setupTrigger(config: TriggerConfig): void {
+  deleteTriggersByHandler(config.handlerFunctionName, (uniqueId) => {
+    Logger.log(`既存のトリガーを削除しました: ${uniqueId}`);
+  });
+  buildTimeBasedTrigger(config.handlerFunctionName, config.schedule);
+  Logger.log(config.setupLogMessage);
+}
+
+/**
+ * 指定ハンドラ名のトリガーを全て削除し、削除件数をログに残す。
+ *
+ * @param handlerFunctionName - 削除対象のハンドラ関数名
+ */
+function removeTrigger(handlerFunctionName: string): void {
+  const deletedCount = deleteTriggersByHandler(handlerFunctionName, (uniqueId) => {
+    Logger.log(`トリガーを削除しました: ${uniqueId}`);
+  });
+
+  if (deletedCount === 0) {
+    Logger.log('削除対象のトリガーが見つかりませんでした。');
+  } else {
+    Logger.log(`${String(deletedCount)}個のトリガーを削除しました。`);
+  }
+}
+
 /**
  * NAV自動取得の時間駆動トリガーを設定する。
  * この関数を1回だけ手動実行することで、毎日21:00-22:00に自動実行されるトリガーが設定される。
  * 既存のトリガーは削除してから新しいトリガーを設定する。
  */
 export function setupNavFetchTrigger(): void {
-  // 既存のfetchAllNavsトリガーを削除
-  const existingTriggers = ScriptApp.getProjectTriggers();
-  for (const trigger of existingTriggers) {
-    if (trigger.getHandlerFunction() === 'fetchAllNavs') {
-      ScriptApp.deleteTrigger(trigger);
-      Logger.log(`既存のトリガーを削除しました: ${trigger.getUniqueId()}`);
-    }
-  }
-
-  // 新しいトリガーを設定（毎日21:00-22:00に実行）
-  ScriptApp.newTrigger('fetchAllNavs').timeBased().everyDays(1).atHour(21).create();
-
-  Logger.log('NAV自動取得トリガーを設定しました（毎日21:00-22:00実行）');
+  setupTrigger(NAV_FETCH_TRIGGER);
 }
 
 /**
@@ -253,22 +394,7 @@ export function setupNavFetchTrigger(): void {
  * 既存のトリガーは削除してから新しいトリガーを設定する。
  */
 export function setupRecurringPurchasesTrigger(): void {
-  const existingTriggers = ScriptApp.getProjectTriggers();
-  for (const trigger of existingTriggers) {
-    if (trigger.getHandlerFunction() === 'executeRecurringPurchasesDaily') {
-      ScriptApp.deleteTrigger(trigger);
-      Logger.log(`既存のトリガーを削除しました: ${trigger.getUniqueId()}`);
-    }
-  }
-
-  ScriptApp.newTrigger('executeRecurringPurchasesDaily')
-    .timeBased()
-    .everyDays(1)
-    .atHour(22)
-    .nearMinute(30)
-    .create();
-
-  Logger.log('積立自動発注トリガーを設定しました（毎日22:30実行）');
+  setupTrigger(RECURRING_PURCHASES_TRIGGER);
 }
 
 /**
@@ -276,22 +402,7 @@ export function setupRecurringPurchasesTrigger(): void {
  * 自動取得を停止したい場合に実行する。
  */
 export function deleteNavFetchTrigger(): void {
-  const triggers = ScriptApp.getProjectTriggers();
-  let deletedCount = 0;
-
-  for (const trigger of triggers) {
-    if (trigger.getHandlerFunction() === 'fetchAllNavs') {
-      ScriptApp.deleteTrigger(trigger);
-      deletedCount++;
-      Logger.log(`トリガーを削除しました: ${trigger.getUniqueId()}`);
-    }
-  }
-
-  if (deletedCount === 0) {
-    Logger.log('削除対象のトリガーが見つかりませんでした。');
-  } else {
-    Logger.log(`${String(deletedCount)}個のトリガーを削除しました。`);
-  }
+  removeTrigger('fetchAllNavs');
 }
 
 /**
@@ -479,21 +590,7 @@ function checkAndSendMarketIndexAlert(): void {
  * 既存のトリガーは削除してから新しいトリガーを設定する。
  */
 export function setupWeeklyReportTrigger(): void {
-  const existingTriggers = ScriptApp.getProjectTriggers();
-  for (const trigger of existingTriggers) {
-    if (trigger.getHandlerFunction() === 'sendWeeklyReport') {
-      ScriptApp.deleteTrigger(trigger);
-      Logger.log(`既存のトリガーを削除しました: ${trigger.getUniqueId()}`);
-    }
-  }
-
-  ScriptApp.newTrigger('sendWeeklyReport')
-    .timeBased()
-    .onWeekDay(ScriptApp.WeekDay.SATURDAY)
-    .atHour(7)
-    .create();
-
-  Logger.log('週次レポート送信トリガーを設定しました（毎週土曜日7:00-8:00実行）');
+  setupTrigger(WEEKLY_REPORT_TRIGGER);
 }
 
 /**
@@ -501,22 +598,7 @@ export function setupWeeklyReportTrigger(): void {
  * 自動送信を停止したい場合に実行する。
  */
 export function deleteWeeklyReportTrigger(): void {
-  const triggers = ScriptApp.getProjectTriggers();
-  let deletedCount = 0;
-
-  for (const trigger of triggers) {
-    if (trigger.getHandlerFunction() === 'sendWeeklyReport') {
-      ScriptApp.deleteTrigger(trigger);
-      deletedCount++;
-      Logger.log(`トリガーを削除しました: ${trigger.getUniqueId()}`);
-    }
-  }
-
-  if (deletedCount === 0) {
-    Logger.log('削除対象のトリガーが見つかりませんでした。');
-  } else {
-    Logger.log(`${String(deletedCount)}個のトリガーを削除しました。`);
-  }
+  removeTrigger('sendWeeklyReport');
 }
 
 // ============================================
@@ -552,7 +634,7 @@ export function fetchMarketIndices(): void {
     Logger.log(`[fetchMarketIndices] 失敗: ${response.error.message} (${response.error.type})`);
     sendErrorNotificationEmail(
       '市場指数取得',
-      `市場指数の取得に失敗しました。\n\nエラー: ${response.error.message}\nタイプ: ${response.error.type}`
+      `市場指数の取得に失敗しました。\n\n${formatErrorDetail(response.error)}`
     );
     return;
   }
@@ -581,19 +663,9 @@ export function fetchMarketIndices(): void {
  * 既存のトリガーは削除してから新しいトリガーを設定する。
  */
 export function setupMarketIndexFetchTrigger(): void {
-  const existingTriggers = ScriptApp.getProjectTriggers();
-  for (const trigger of existingTriggers) {
-    if (trigger.getHandlerFunction() === 'fetchMarketIndices') {
-      ScriptApp.deleteTrigger(trigger);
-      Logger.log(`既存のトリガーを削除しました: ${trigger.getUniqueId()}`);
-    }
-  }
-
-  // 毎日7:00-8:00（JST）に実行
-  // 米国市場は日本時間5:00-6:00に閉場（夏時間/冬時間による変動）
-  ScriptApp.newTrigger('fetchMarketIndices').timeBased().everyDays(1).atHour(7).create();
-
-  Logger.log('市場指数取得トリガーを設定しました（毎日7:00-8:00実行）');
+  // 市場指数は毎日7:00-8:00（JST）に取得する。
+  // 米国市場は日本時間5:00-6:00に閉場するため、その後に実行する想定（夏時間/冬時間で変動）。
+  setupTrigger(MARKET_INDEX_FETCH_TRIGGER);
 }
 
 /**
@@ -601,20 +673,5 @@ export function setupMarketIndexFetchTrigger(): void {
  * 自動取得を停止したい場合に実行する。
  */
 export function deleteMarketIndexFetchTrigger(): void {
-  const triggers = ScriptApp.getProjectTriggers();
-  let deletedCount = 0;
-
-  for (const trigger of triggers) {
-    if (trigger.getHandlerFunction() === 'fetchMarketIndices') {
-      ScriptApp.deleteTrigger(trigger);
-      deletedCount++;
-      Logger.log(`トリガーを削除しました: ${trigger.getUniqueId()}`);
-    }
-  }
-
-  if (deletedCount === 0) {
-    Logger.log('削除対象のトリガーが見つかりませんでした。');
-  } else {
-    Logger.log(`${String(deletedCount)}個のトリガーを削除しました。`);
-  }
+  removeTrigger('fetchMarketIndices');
 }
