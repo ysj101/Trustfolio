@@ -26,7 +26,10 @@ const allowedDependencies = {
   domain: new Set(['domain', 'utils']),
   usecase: new Set(['usecase', 'domain', 'repository', 'utils']),
   repository: new Set(['repository', 'domain', 'utils']),
-  api: new Set(['api', 'usecase', 'domain', 'repository', 'utils']),
+  // api（router）は usecase への委譲に限定し、repository への直接依存は禁止する。
+  // DI 配線（リポジトリ生成）は composition root（src/usecase/appContainer.ts）へ集約し、
+  // ビジネスロジックが usecase をバイパスして router に書かれることを機械的に防ぐ。
+  api: new Set(['api', 'usecase', 'domain', 'utils']),
   ui: new Set(['ui', 'api']),
   utils: new Set(['utils']),
 };
