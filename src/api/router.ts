@@ -1,36 +1,7 @@
-import {
-  PERFORMANCE_HEADERS,
-  PERFORMANCE_SHEET_NAME,
-  SHEET_DEFINITIONS,
-  SHEET_HEADERS,
-  SHEET_NAMES,
-  getPerformanceSheetName,
-  getTransactionSheetName,
-  getWeeklyReportEmail,
-  getFundIdSuffix,
-  type SheetDefinition,
-} from '../Config';
-import { createMarketIndexRepository } from '../repository/MarketIndexRepository';
-import { createMarketIndexService } from '../service/MarketIndexService';
-import { createMarketIndexFetchUseCase } from '../usecase/MarketIndexFetchUseCase';
+import { getWeeklyReportEmail } from '../Config';
+import { fail } from '../domain/result';
 import type { Result } from '../domain/types';
-import { createFundRepository } from '../repository/FundRepository';
-import { createNavRepository } from '../repository/NavRepository';
-import { createPerformanceRepository } from '../repository/PerformanceRepository';
-import { createRecurringPurchaseRepository } from '../repository/RecurringPurchaseRepository';
-import type { SheetRepository } from '../repository/SheetRepository';
-import { openSheetRepository } from '../repository/SheetRepository';
-import { createTransactionRepository } from '../repository/TransactionRepository';
-import { createEmailService } from '../service/EmailService';
-import { createRakutenService } from '../service/RakutenService';
-import { createFundUseCase } from '../usecase/FundUseCase';
-import { createHoldingUseCase } from '../usecase/HoldingUseCase';
-import { createNavFetchUseCase } from '../usecase/NavFetchUseCase';
-import { createNavUseCase } from '../usecase/NavUseCase';
-import { createPortfolioUseCase } from '../usecase/PortfolioUseCase';
-import { createRecurringUseCase } from '../usecase/RecurringUseCase';
-import { createTransactionUseCase } from '../usecase/TransactionUseCase';
-import { createWeeklyReportUseCase } from '../usecase/WeeklyReportUseCase';
+import { createAppContainer } from '../usecase/appContainer';
 
 type InitializeSheetsRequest = {
   action: 'initializeSheets';
@@ -205,138 +176,48 @@ export type ApiRequest =
  * APIリクエストをハンドリングする。
  */
 export function handleApiRequest(request: ApiRequest): Result<unknown> {
-  const sheetRepositoryResult = openSheetRepository();
-  if (!sheetRepositoryResult.success) {
-    return sheetRepositoryResult;
+  // 依存（リポジトリ・サービス・ユースケース）の組み立ては composition root に委譲する。
+  // router 自身はリポジトリ層へ直接依存せず、ユースケースへの委譲のみを担う。
+  const containerResult = createAppContainer();
+  if (!containerResult.success) {
+    return containerResult;
   }
 
-  const sheetRepository = sheetRepositoryResult.value;
-  const fundRepository = createFundRepository(sheetRepository);
-  const navRepository = createNavRepository(sheetRepository);
-  const recurringRepository = createRecurringPurchaseRepository(sheetRepository);
-  const transactionRepository = createTransactionRepository(sheetRepository);
-  const performanceRepository = createPerformanceRepository(sheetRepository);
-  const fundUseCase = createFundUseCase(fundRepository);
-  const navUseCase = createNavUseCase(fundRepository, navRepository);
-  const transactionUseCase = createTransactionUseCase(fundRepository, transactionRepository);
-  const holdingUseCase = createHoldingUseCase(fundRepository, navRepository, transactionRepository);
-  const portfolioUseCase = createPortfolioUseCase(
-    fundRepository,
-    transactionRepository,
-    holdingUseCase,
-    performanceRepository
-  );
-  const recurringUseCase = createRecurringUseCase(
-    fundRepository,
-    navRepository,
-    recurringRepository,
-    transactionRepository
-  );
-  const rakutenService = createRakutenService();
-  const navFetchUseCase = createNavFetchUseCase(
-    fundRepository,
-    navRepository,
-    transactionRepository,
-    performanceRepository,
-    rakutenService
-  );
+  const container = containerResult.value;
 
   switch (request.action) {
-    case 'initializeSheets': {
-      // 基本シートの初期化
-      for (const definition of SHEET_DEFINITIONS) {
-        const result = sheetRepository.ensureSheet(definition);
-        if (!result.success) {
-          return result;
-        }
-      }
-
-      // 全体実績シートを作成
-      const globalPerformanceDefinition: SheetDefinition = {
-        name: PERFORMANCE_SHEET_NAME,
-        headers: PERFORMANCE_HEADERS,
-      };
-      const globalPerfResult = sheetRepository.ensureSheet(globalPerformanceDefinition);
-      if (!globalPerfResult.success) {
-        return globalPerfResult;
-      }
-
-      // 全ファンドの取引シートと実績シートを作成
-      const fundsResult = fundRepository.listFunds();
-      if (fundsResult.success) {
-        const suffixMap = new Map<string, string>();
-        for (const fund of fundsResult.value) {
-          const suffix = getFundIdSuffix(fund.id);
-          const existingId = suffixMap.get(suffix);
-          if (existingId !== undefined) {
-            return {
-              success: false,
-              error: {
-                type: 'conflict',
-                message: `ファンドID末尾3文字が重複しています。対象末尾: ${suffix}`,
-              },
-            };
-          }
-          suffixMap.set(suffix, fund.id);
-        }
-
-        for (const fund of fundsResult.value) {
-          // 取引シートを作成
-          const transactionSheetName = getTransactionSheetName(fund.id);
-          const transactionDefinition: SheetDefinition = {
-            name: transactionSheetName,
-            headers: SHEET_HEADERS[SHEET_NAMES.TRANSACTIONS],
-          };
-          const transactionResult = sheetRepository.ensureSheet(transactionDefinition);
-          if (!transactionResult.success) {
-            return transactionResult;
-          }
-
-          // 実績シートを作成
-          const performanceSheetName = getPerformanceSheetName(fund.id);
-          const performanceDefinition: SheetDefinition = {
-            name: performanceSheetName,
-            headers: PERFORMANCE_HEADERS,
-          };
-          const performanceResult = sheetRepository.ensureSheet(performanceDefinition);
-          if (!performanceResult.success) {
-            return performanceResult;
-          }
-        }
-      }
-
-      return { success: true, value: { message: 'シート初期化が完了しました。' } };
-    }
+    case 'initializeSheets':
+      return container.sheetInitializationUseCase.initializeAllSheets();
     case 'listFunds':
-      return fundUseCase.listFunds();
+      return container.fundUseCase.listFunds();
     case 'createFund':
-      return fundUseCase.createFund({
+      return container.fundUseCase.createFund({
         name: request.name,
         rakutenFundId: request.rakutenFundId,
         settlementBusinessDays: request.settlementBusinessDays,
       });
     case 'updateFund':
-      return fundUseCase.updateFund({
+      return container.fundUseCase.updateFund({
         id: request.id,
         name: request.name,
         rakutenFundId: request.rakutenFundId,
         settlementBusinessDays: request.settlementBusinessDays,
       });
     case 'getNavHistory':
-      return navUseCase.getNavHistory(request.fundId);
+      return container.navUseCase.getNavHistory(request.fundId);
     case 'getTransactionHistory':
-      return transactionUseCase.getHistory(request.fundId);
+      return container.transactionUseCase.getHistory(request.fundId);
     case 'listAllTransactions':
-      return transactionUseCase.listAll();
+      return container.transactionUseCase.listAll();
     case 'executeSpotPurchase':
-      return transactionUseCase.executeSpotPurchase({
+      return container.transactionUseCase.executeSpotPurchase({
         fundId: request.fundId,
         date: request.date,
         amount: request.amount,
         navValue: request.navValue,
       });
     case 'executeSale':
-      return transactionUseCase.executeSaleTransaction({
+      return container.transactionUseCase.executeSaleTransaction({
         fundId: request.fundId,
         date: request.date,
         units: request.units,
@@ -344,7 +225,7 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
         navValue: request.navValue,
       });
     case 'updateSpotPurchase':
-      return transactionUseCase.updateSpotPurchase({
+      return container.transactionUseCase.updateSpotPurchase({
         id: request.id,
         fundId: request.fundId,
         date: request.date,
@@ -352,7 +233,7 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
         navValue: request.navValue,
       });
     case 'updateSaleTransaction':
-      return transactionUseCase.updateSaleTransaction({
+      return container.transactionUseCase.updateSaleTransaction({
         id: request.id,
         fundId: request.fundId,
         date: request.date,
@@ -361,11 +242,11 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
         navValue: request.navValue,
       });
     case 'deleteSpotPurchase':
-      return transactionUseCase.deleteSpotPurchase(request.id, request.fundId);
+      return container.transactionUseCase.deleteSpotPurchase(request.id, request.fundId);
     case 'listRecurringPurchases':
-      return recurringUseCase.listRecurringPurchases();
+      return container.recurringUseCase.listRecurringPurchases();
     case 'createRecurringPurchase':
-      return recurringUseCase.createRecurringPurchase({
+      return container.recurringUseCase.createRecurringPurchase({
         fundId: request.fundId,
         monthlyAmount: request.monthlyAmount,
         executionDay: request.executionDay,
@@ -374,7 +255,7 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
         isActive: request.isActive,
       });
     case 'updateRecurringPurchase':
-      return recurringUseCase.updateRecurringPurchase({
+      return container.recurringUseCase.updateRecurringPurchase({
         id: request.id,
         fundId: request.fundId,
         monthlyAmount: request.monthlyAmount,
@@ -384,106 +265,60 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
         isActive: request.isActive,
       });
     case 'deleteRecurringPurchase':
-      return recurringUseCase.deleteRecurringPurchase(request.id);
+      return container.recurringUseCase.deleteRecurringPurchase(request.id);
     case 'executeRecurringPurchases':
-      return recurringUseCase.executeRecurringPurchases(request.targetDate);
+      return container.recurringUseCase.executeRecurringPurchases(request.targetDate);
     case 'listHoldings':
-      return holdingUseCase.listHoldings();
+      return container.holdingUseCase.listHoldings();
     case 'getHolding':
-      return holdingUseCase.getHolding(request.fundId);
+      return container.holdingUseCase.getHolding(request.fundId);
     case 'getPortfolioSummary':
-      return portfolioUseCase.getPortfolioSummary();
+      return container.portfolioUseCase.getPortfolioSummary();
     case 'fetchAllNavs': {
-      const ensureResult = ensureRequiredSheetsForNavFetch(sheetRepository);
+      const ensureResult = container.sheetInitializationUseCase.ensureNavFetchSheets();
       if (!ensureResult.success) {
         return ensureResult;
       }
-      return navFetchUseCase.fetchAndRegisterAllNavs();
+      return container.navFetchUseCase.fetchAndRegisterAllNavs();
     }
     case 'sendWeeklyReport': {
       // メールアドレスを取得
       const recipientEmail = getWeeklyReportEmail();
       if (recipientEmail === null) {
-        return {
-          success: false,
-          error: {
-            type: 'validation',
-            message:
-              'WEEKLY_REPORT_EMAILが設定されていません。スクリプトプロパティに設定してください。',
-            field: 'WEEKLY_REPORT_EMAIL',
-          },
-        };
+        return fail(
+          'validation',
+          'WEEKLY_REPORT_EMAILが設定されていません。スクリプトプロパティに設定してください。',
+          'WEEKLY_REPORT_EMAIL'
+        );
       }
 
       // 週次レポートを生成
-      const weeklyReportUseCase = createWeeklyReportUseCase(
-        portfolioUseCase,
-        performanceRepository
-      );
-      const reportResult = weeklyReportUseCase.generateWeeklyReport();
+      const reportResult = container.weeklyReportUseCase.generateWeeklyReport();
       if (!reportResult.success) {
         return reportResult;
       }
 
       // メールを送信
-      const emailService = createEmailService();
-      const sendResult = emailService.sendWeeklyReport(reportResult.value, recipientEmail);
+      const sendResult = container.emailService.sendWeeklyReport(
+        reportResult.value,
+        recipientEmail
+      );
       if (!sendResult.success) {
         return sendResult;
       }
 
       return { success: true, value: { message: '週次レポートを送信しました。' } };
     }
-    case 'getPortfolioPerformanceHistory': {
-      return portfolioUseCase.getPortfolioPerformanceHistory();
-    }
+    case 'getPortfolioPerformanceHistory':
+      return container.portfolioUseCase.getPortfolioPerformanceHistory();
     case 'fetchMarketIndices': {
-      // 市場指数シートの存在確認と初期化
-      const marketIndicesDefinition: SheetDefinition = {
-        name: SHEET_NAMES.MARKET_INDICES,
-        headers: SHEET_HEADERS[SHEET_NAMES.MARKET_INDICES],
-      };
-      const ensureMarketIndicesResult = sheetRepository.ensureSheet(marketIndicesDefinition);
-      if (!ensureMarketIndicesResult.success) {
-        return ensureMarketIndicesResult;
+      const ensureResult = container.sheetInitializationUseCase.ensureMarketIndexSheet();
+      if (!ensureResult.success) {
+        return ensureResult;
       }
-
-      // 市場指数取得ユースケースを実行
-      const marketIndexRepository = createMarketIndexRepository(sheetRepository);
-      const marketIndexService = createMarketIndexService();
-      const marketIndexFetchUseCase = createMarketIndexFetchUseCase(
-        marketIndexRepository,
-        marketIndexService
-      );
-      return marketIndexFetchUseCase.fetchAndRecordLatestIndices();
+      return container.marketIndexFetchUseCase.fetchAndRecordLatestIndices();
     }
     default:
-      return {
-        success: false,
-        error: {
-          type: 'unexpected',
-          message: '未対応のアクションです。',
-        },
-      };
+      return fail('unexpected', '未対応のアクションです。');
   }
-}
-
-/**
- * NAV自動取得に必要なシートが存在し、ヘッダーも正しいことを事前に検証する。
- * シートが存在しない場合は自動作成するため、初期化漏れを原因とした失敗を防ぐ。
- */
-function ensureRequiredSheetsForNavFetch(sheetRepository: SheetRepository): Result<void> {
-  const requiredDefinitions = SHEET_DEFINITIONS.filter(
-    (definition) =>
-      definition.name === SHEET_NAMES.FUNDS || definition.name === SHEET_NAMES.NAV_RECORDS
-  );
-
-  for (const definition of requiredDefinitions) {
-    const result = sheetRepository.ensureSheet(definition);
-    if (!result.success) {
-      return result;
-    }
-  }
-
-  return { success: true, value: undefined };
 }
