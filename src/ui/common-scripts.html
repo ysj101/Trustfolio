@@ -119,6 +119,265 @@
       };
     }
 
-    return { callApi, formatCurrency, formatPercent, setLoading, createSetMessage };
+    /**
+     * 銘柄選択用の <select> 要素を再描画する共通ファクトリ。
+     *
+     * scripts.html の renderTransactionSelect / renderRecurringSelect が共有していた
+     * 「option を一旦クリア → 銘柄が無ければ disabled + プレースホルダ → 銘柄があれば
+     * 各 fund を option 化」という同一構造を集約する。
+     *
+     * 「選択値を維持する」挙動（取引フォーム側）と「維持しない」挙動（積立フォーム側）の
+     * 差分のみ options.keepSelection で切り替える。DOM 生成内容は集約前と同一になる。
+     *
+     * @param {HTMLSelectElement} selectElement - 対象の <select> 要素
+     * @param {ReadonlyArray<{ id: string; name: string }>} funds - 銘柄一覧
+     * @param {{ keepSelection?: boolean; selectedFundId?: string | null }} [options]
+     *   - keepSelection: true の場合のみ、解決済みの選択 fundId を <select>.value に設定して返す
+     *   - selectedFundId: 維持したい選択 fundId（存在しなければ先頭 fund にフォールバック）
+     * @returns {string | null} keepSelection 指定かつ銘柄が存在する場合は解決済みの fundId、
+     *   それ以外（銘柄が空 / keepSelection 未指定）は null
+     */
+    function renderFundSelect(selectElement, funds, options) {
+      const opts = options || {};
+      selectElement.innerHTML = '';
+
+      // 銘柄が1件も無い場合は選択不可にし、案内用の単一 option のみを表示する。
+      if (funds.length === 0) {
+        selectElement.disabled = true;
+        const option = document.createElement('option');
+        option.textContent = '銘柄がありません';
+        option.value = '';
+        selectElement.appendChild(option);
+        return null;
+      }
+
+      selectElement.disabled = false;
+      funds.forEach((fund) => {
+        const option = document.createElement('option');
+        option.value = fund.id;
+        option.textContent = fund.name;
+        selectElement.appendChild(option);
+      });
+
+      // 取引フォームのみ、直前の選択 fundId を維持する。
+      // 選択が未設定 or 既に存在しない銘柄を指していた場合は先頭の銘柄へフォールバックする。
+      if (opts.keepSelection) {
+        let selectedFundId = opts.selectedFundId;
+        if (!selectedFundId || !funds.find((fund) => fund.id === selectedFundId)) {
+          selectedFundId = funds[0].id;
+        }
+        selectElement.value = selectedFundId;
+        return selectedFundId;
+      }
+
+      return null;
+    }
+
+    /**
+     * リストの空状態を表す <li> を生成する。
+     *
+     * scripts.html の各 render 関数が「空配列なら案内文の <li> を1件だけ追加する」処理を
+     * 繰り返していたため、その <li> 生成のみを共通化する。
+     *
+     * @param {string} message - 表示する案内文（例: "取引履歴がありません。"）
+     * @param {string} className - <li> に付与するクラス文字列
+     * @returns {HTMLLIElement} 案内文を持つ <li> 要素
+     */
+    function createEmptyListItem(message, className) {
+      const empty = document.createElement('li');
+      empty.className = className;
+      empty.textContent = message;
+      return empty;
+    }
+
+    /**
+     * リスト行内の操作ボタン（編集 / 削除など）を生成する。
+     *
+     * scripts.html 側にあった同名ヘルパーを、共通ファクトリから利用できるよう移設したもの。
+     * type="button" 固定で、クリック時に onClick を呼ぶ <button> を返す。
+     *
+     * @param {string} label - ボタンの表示文言
+     * @param {string} className - ボタンに付与するクラス文字列
+     * @param {(event: Event) => void} onClick - クリック時のハンドラ
+     * @returns {HTMLButtonElement} 生成したボタン要素
+     */
+    function createActionButton(label, className, onClick) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = label;
+      button.className = className;
+      button.addEventListener('click', onClick);
+      return button;
+    }
+
+    /**
+     * リスト1行分の <li> を生成する低レベル共通ファクトリ。
+     *
+     * scripts.html の renderRecurringList / renderTransactions / renderRecurringTransactionHistory が
+     * 共有していた「li(itemClass) > content(contentClass) に本文要素を並べ、任意で操作ボタン群を
+     * actions(actionsClass) として末尾に付ける」という外枠構造を集約する。
+     * 本文要素（contentChildren）の中身は呼び出し側が組み立てて渡すため、生成 DOM は集約前と同一になる。
+     *
+     * @param {{
+     *   itemClass: string;
+     *   contentClass: string;
+     *   contentChildren: ReadonlyArray<HTMLElement>;
+     *   actionsClass?: string;
+     *   actions?: ReadonlyArray<HTMLElement> | null;
+     * }} options
+     *   - itemClass: 行 <li> のクラス
+     *   - contentClass: 本文ラッパ <div> のクラス
+     *   - contentChildren: 本文ラッパへ順番に append する要素群
+     *   - actionsClass: 操作ボタン群ラッパ <div> のクラス（actions 指定時に使用）
+     *   - actions: 操作ボタン群（null / 空配列なら操作ボタンラッパ自体を生成しない）
+     * @returns {HTMLLIElement} 組み立てた <li> 要素
+     */
+    function createListItem(options) {
+      const item = document.createElement('li');
+      item.className = options.itemClass;
+
+      const content = document.createElement('div');
+      content.className = options.contentClass;
+      options.contentChildren.forEach((child) => content.appendChild(child));
+      item.appendChild(content);
+
+      // 操作ボタンが指定されている場合のみ、操作ボタン群ラッパを末尾に追加する。
+      if (options.actions && options.actions.length > 0) {
+        const actions = document.createElement('div');
+        actions.className = options.actionsClass;
+        options.actions.forEach((button) => actions.appendChild(button));
+        item.appendChild(actions);
+      }
+
+      return item;
+    }
+
+    /**
+     * 取引1件分のリスト行 <li> を生成する共通ファクトリ。
+     *
+     * scripts.html の renderTransactions（取引一覧）と renderRecurringTransactionHistory（全取引履歴）は
+     * 「日付 + 取引種別バッジのヘッダー行 → （任意で）銘柄名 → 金額/口数/基準価額の詳細行」という
+     * ほぼ同一の本文構造を持つため、その組み立てを集約する。差分（ヘッダーのクラス、銘柄名の有無、
+     * 操作ボタンの有無）は options で切り替える。外枠は createListItem に委譲する。
+     *
+     * @param {{
+     *   type: 'SPOT_PURCHASE' | 'REDEMPTION' | string;
+     *   date: string;
+     *   amount: number;
+     *   units: number;
+     *   navValue: number;
+     * }} transaction - 取引データ（type は SPOT_PURCHASE / REDEMPTION / それ以外=積立購入）
+     * @param {{
+     *   itemClass: string;
+     *   contentClass: string;
+     *   headerClass: string;
+     *   detailClass: string;
+     *   badgeSpotClass: string;
+     *   badgeRedemptionClass: string;
+     *   badgeRecurringClass: string;
+     *   fundName?: string | null;
+     *   fundNameClass?: string;
+     *   actionsClass?: string;
+     *   actions?: ReadonlyArray<HTMLElement> | null;
+     * }} options
+     *   - headerClass: ヘッダー行 <div> のクラス（一覧と履歴で余白指定が異なるため引数化）
+     *   - badge*Class: 取引種別バッジのクラス（スポット購入 / 売却 / 積立購入）
+     *   - fundName: 指定時のみヘッダーと詳細の間に銘柄名 <div> を挿入する（履歴一覧で使用）
+     *   - fundNameClass: 銘柄名 <div> のクラス（fundName 指定時に使用）
+     *   - actions / actionsClass: createListItem に委譲する操作ボタン群
+     * @returns {HTMLLIElement} 取引1件分の <li> 要素
+     */
+    function createTransactionItem(transaction, options) {
+      const contentChildren = [];
+
+      // 日付 + 取引種別バッジを含むヘッダー行
+      const header = document.createElement('div');
+      header.className = options.headerClass;
+
+      const date = document.createElement('strong');
+      date.textContent = transaction.date;
+
+      const badge = document.createElement('span');
+      if (transaction.type === 'SPOT_PURCHASE') {
+        badge.className = options.badgeSpotClass;
+        badge.textContent = 'スポット購入';
+      } else if (transaction.type === 'REDEMPTION') {
+        badge.className = options.badgeRedemptionClass;
+        badge.textContent = '売却';
+      } else {
+        badge.className = options.badgeRecurringClass;
+        badge.textContent = '積立購入';
+      }
+
+      header.appendChild(date);
+      header.appendChild(badge);
+      contentChildren.push(header);
+
+      // 銘柄名（全取引履歴のみ。fundName 未指定の取引一覧では挿入しない）
+      if (options.fundName != null) {
+        const fundNameDiv = document.createElement('div');
+        fundNameDiv.className = options.fundNameClass;
+        fundNameDiv.textContent = options.fundName;
+        contentChildren.push(fundNameDiv);
+      }
+
+      // 金額 / 口数 / 基準価額の詳細行（売却は口数を絶対値表示する）
+      const detail = document.createElement('span');
+      detail.className = options.detailClass;
+      const unitsDisplay =
+        transaction.type === 'REDEMPTION'
+          ? `${Math.abs(transaction.units).toLocaleString()}口`
+          : `${transaction.units.toLocaleString()}口`;
+      const navDisplay = `${transaction.navValue.toLocaleString()}円`;
+      detail.textContent = `${transaction.amount.toLocaleString()}円 / ${unitsDisplay} / 基準価額: ${navDisplay}`;
+      contentChildren.push(detail);
+
+      return createListItem({
+        itemClass: options.itemClass,
+        contentClass: options.contentClass,
+        contentChildren,
+        actionsClass: options.actionsClass,
+        actions: options.actions || null,
+      });
+    }
+
+    /**
+     * フォームの入力欄を初期状態へ戻す共通ヘルパー。
+     *
+     * scripts.html の resetTransactionForm / resetRecurringForm が共有していた
+     * 「テキスト/数値/日付系 input を空文字へ」「チェックボックスを true へ」という
+     * 単純なクリア処理のみを集約する。各フォーム固有の表示リセット（基準価額表示など）は
+     * 呼び出し側に残す。
+     *
+     * @param {{
+     *   textInputs?: ReadonlyArray<HTMLInputElement>;
+     *   checkedInputs?: ReadonlyArray<HTMLInputElement>;
+     * }} options
+     *   - textInputs: value を空文字へ戻す入力欄
+     *   - checkedInputs: checked を true（初期値）へ戻すチェックボックス
+     */
+    function resetFormFields(options) {
+      const opts = options || {};
+      (opts.textInputs || []).forEach((input) => {
+        input.value = '';
+      });
+      (opts.checkedInputs || []).forEach((input) => {
+        input.checked = true;
+      });
+    }
+
+    return {
+      callApi,
+      formatCurrency,
+      formatPercent,
+      setLoading,
+      createSetMessage,
+      renderFundSelect,
+      createEmptyListItem,
+      createActionButton,
+      createListItem,
+      createTransactionItem,
+      resetFormFields,
+    };
   })();
 </script>
