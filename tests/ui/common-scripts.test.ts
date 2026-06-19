@@ -128,7 +128,9 @@ function createNodeMock(tagName: string): NodeMock {
       node.listeners.push({ type, handler });
     },
   } as NodeMock;
-  // innerHTML='' で子要素をクリアする実DOM挙動を再現する（再描画の検証に必要）。
+  // innerHTML は「クリア専用」として扱う。
+  // 本テスト対象の関数群は innerHTML='' による子要素クリアしか行わないため、
+  // set 時のみ実DOM挙動（空文字で子要素を全削除）を再現し、get は常に '' を返す。
   Object.defineProperty(node, 'innerHTML', {
     get: () => '',
     set: (value: string) => {
@@ -447,6 +449,23 @@ describe('TrustfolioUi.createListItem', () => {
 
     expect(li.children).toHaveLength(1);
   });
+
+  it('actionsClass を省略しても actions ラッパの className が文字列 "undefined" にならない', () => {
+    const documentMock = createDocumentMock();
+    const ui = loadTrustfolioUi(documentMock, {});
+
+    const li = ui.createListItem({
+      itemClass: 'list-item',
+      contentClass: 'list-content',
+      contentChildren: [createNodeMock('span')],
+      // actionsClass を意図的に省略する
+      actions: [createNodeMock('button')],
+    });
+
+    expect(li.children).toHaveLength(2);
+    expect(li.children[1]?.className).toBe('');
+    expect(li.children[1]?.className).not.toBe('undefined');
+  });
 });
 
 describe('TrustfolioUi.createTransactionItem', () => {
@@ -544,6 +563,22 @@ describe('TrustfolioUi.createTransactionItem', () => {
     );
     expect(content?.children[1]?.className).toBe('text-sm font-medium text-slate-100');
     expect(content?.children[1]?.textContent).toBe('eMAXIS Slim 全世界株式');
+  });
+
+  it('fundName 指定かつ fundNameClass 省略でも銘柄名 <div> の className が文字列 "undefined" にならない', () => {
+    const documentMock = createDocumentMock();
+    const ui = loadTrustfolioUi(documentMock, {});
+
+    const li = ui.createTransactionItem(
+      { type: 'SPOT_PURCHASE', date: '2026-06-20', amount: 30000, units: 25000, navValue: 12000 },
+      // fundNameClass を意図的に省略する
+      { ...BASE_OPTIONS, fundName: 'eMAXIS Slim 全世界株式' }
+    );
+
+    const fundNameDiv = li.children[0]?.children[1];
+    expect(fundNameDiv?.textContent).toBe('eMAXIS Slim 全世界株式');
+    expect(fundNameDiv?.className).toBe('');
+    expect(fundNameDiv?.className).not.toBe('undefined');
   });
 
   it('actions 指定時は li 直下に操作ボタン群を追加する（取引一覧の挙動）', () => {
