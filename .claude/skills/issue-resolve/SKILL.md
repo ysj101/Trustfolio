@@ -107,8 +107,11 @@ PR 作成（および以降の各 push）後、**CI 完了と Claude bot コメ�
 
 1. **CI 完了待ち**:
    ```bash
-   # CI完了を最大20分待つ。タイムアウト時は中断してユーザーに報告する（無期限ブロック防止）。
-   gh pr checks <PR番号> --watch --interval 30 --fail-fast
+   # CI完了を最大20分(1200秒)待つ。gh pr checks に --timeout は無く --fail-fast は
+   # 失敗時即終了であって時間上限ではないため、timeout コマンドで実時間の上限を強制する。
+   # 失敗または時間超過時は中断してユーザーに報告する（無期限ブロック防止）。
+   timeout 1200 gh pr checks <PR番号> --watch --interval 30 --fail-fast || {
+     echo "CI 失敗またはタイムアウト: ユーザーに報告して中断"; exit 1; }
    ```
    - `claude-review` ジョブを含む全チェックの完了を待つ。
    - GitHub Actions のハング等で 20 分以内に完了しない場合は、待機を打ち切りユーザーに状況を報告する（推測で次工程へ進まない）。
