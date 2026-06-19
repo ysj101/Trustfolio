@@ -83,6 +83,70 @@ function loadTrustfolioUi(documentMock: unknown, googleMock: unknown): Record<st
   return windowMock.TrustfolioUi as Record<string, Function>;
 }
 
+/**
+ * createElement で生成される DOM 要素を模した最小限のノードモック。
+ *
+ * 描画ファクトリ（renderFundSelect / createListItem / createTransactionItem 等）が
+ * 生成する DOM 構造（タグ・クラス・テキスト・子要素の並び）を検証できるよう、
+ * appendChild による子要素の蓄積と innerHTML='' による子要素クリアを再現する。
+ */
+interface NodeMock {
+  tagName: string;
+  className: string;
+  textContent: string;
+  value: string;
+  checked: boolean;
+  disabled: boolean;
+  type: string;
+  innerHTML: string;
+  dataset: Record<string, string>;
+  children: NodeMock[];
+  /** addEventListener で登録された (種別, ハンドラ) の記録。 */
+  listeners: Array<{ type: string; handler: (event: unknown) => void }>;
+  appendChild: (child: NodeMock) => NodeMock;
+  addEventListener: (type: string, handler: (event: unknown) => void) => void;
+}
+
+/** タグ名を指定して NodeMock を生成する。 */
+function createNodeMock(tagName: string): NodeMock {
+  const node = {
+    tagName: tagName.toUpperCase(),
+    className: '',
+    textContent: '',
+    value: '',
+    checked: false,
+    disabled: false,
+    type: '',
+    dataset: {} as Record<string, string>,
+    children: [] as NodeMock[],
+    listeners: [] as Array<{ type: string; handler: (event: unknown) => void }>,
+    appendChild(child: NodeMock): NodeMock {
+      node.children.push(child);
+      return child;
+    },
+    addEventListener(type: string, handler: (event: unknown) => void): void {
+      node.listeners.push({ type, handler });
+    },
+  } as NodeMock;
+  // innerHTML='' で子要素をクリアする実DOM挙動を再現する（再描画の検証に必要）。
+  Object.defineProperty(node, 'innerHTML', {
+    get: () => '',
+    set: (value: string) => {
+      if (value === '') {
+        node.children.length = 0;
+      }
+    },
+  });
+  return node;
+}
+
+/** createElement のみを提供する document モックを生成する。 */
+function createDocumentMock(): { createElement: (tag: string) => NodeMock } {
+  return {
+    createElement: (tag: string) => createNodeMock(tag),
+  };
+}
+
 afterEach(() => {
   vi.useRealTimers();
 });
@@ -199,5 +263,334 @@ describe('TrustfolioUi.createSetMessage', () => {
     expect(messageEl.textContent).toBe('');
     expect(messageEl.getAttribute('data-state')).toBeNull();
     expect(messageEl.hasClass('hidden')).toBe(true);
+  });
+});
+
+describe('TrustfolioUi.renderFundSelect', () => {
+  // サンプル銘柄（実際の名称に近い文字列を使用）
+  const FUNDS = [
+    { id: 'fund-emaxis', name: 'eMAXIS Slim 全世界株式' },
+    { id: 'fund-sp500', name: 'SBI・V・S&P500' },
+  ];
+
+  it('銘柄が空のときは select を無効化し「銘柄がありません」の単一 option のみを表示する', () => {
+    const documentMock = createDocumentMock();
+    const ui = loadTrustfolioUi(documentMock, {});
+    const select = createNodeMock('select');
+
+    const result = ui.renderFundSelect(select, []);
+
+    // 戻り値は null（選択値の解決なし）
+    expect(result).toBeNull();
+    expect(select.disabled).toBe(true);
+    expect(select.children).toHaveLength(1);
+    expect(select.children[0]?.tagName).toBe('OPTION');
+    expect(select.children[0]?.textContent).toBe('銘柄がありません');
+    expect(select.children[0]?.value).toBe('');
+  });
+
+  it('銘柄があるときは各 fund を option 化し select を有効化する', () => {
+    const documentMock = createDocumentMock();
+    const ui = loadTrustfolioUi(documentMock, {});
+    const select = createNodeMock('select');
+
+    ui.renderFundSelect(select, FUNDS);
+
+    expect(select.disabled).toBe(false);
+    expect(select.children).toHaveLength(2);
+    expect(select.children[0]?.value).toBe('fund-emaxis');
+    expect(select.children[0]?.textContent).toBe('eMAXIS Slim 全世界株式');
+    expect(select.children[1]?.value).toBe('fund-sp500');
+    expect(select.children[1]?.textContent).toBe('SBI・V・S&P500');
+  });
+
+  it('keepSelection なしでは value を設定せず null を返す（積立フォームの挙動）', () => {
+    const documentMock = createDocumentMock();
+    const ui = loadTrustfolioUi(documentMock, {});
+    const select = createNodeMock('select');
+
+    const result = ui.renderFundSelect(select, FUNDS);
+
+    expect(result).toBeNull();
+    // value 未設定（初期値の空文字のまま）
+    expect(select.value).toBe('');
+  });
+
+  it('keepSelection で既存の選択を維持し、その fundId を value へ設定して返す（取引フォームの挙動）', () => {
+    const documentMock = createDocumentMock();
+    const ui = loadTrustfolioUi(documentMock, {});
+    const select = createNodeMock('select');
+
+    const result = ui.renderFundSelect(select, FUNDS, {
+      keepSelection: true,
+      selectedFundId: 'fund-sp500',
+    });
+
+    expect(result).toBe('fund-sp500');
+    expect(select.value).toBe('fund-sp500');
+  });
+
+  it('keepSelection で選択が未設定 / 存在しない銘柄のときは先頭 fund へフォールバックする', () => {
+    const documentMock = createDocumentMock();
+    const ui = loadTrustfolioUi(documentMock, {});
+
+    // 選択未設定
+    const selectA = createNodeMock('select');
+    expect(ui.renderFundSelect(selectA, FUNDS, { keepSelection: true, selectedFundId: null })).toBe(
+      'fund-emaxis'
+    );
+    expect(selectA.value).toBe('fund-emaxis');
+
+    // 既に存在しない銘柄を選択していた場合
+    const selectB = createNodeMock('select');
+    expect(
+      ui.renderFundSelect(selectB, FUNDS, {
+        keepSelection: true,
+        selectedFundId: 'fund-deleted',
+      })
+    ).toBe('fund-emaxis');
+    expect(selectB.value).toBe('fund-emaxis');
+  });
+});
+
+describe('TrustfolioUi.createEmptyListItem', () => {
+  it('指定した文言とクラスを持つ <li> を生成する', () => {
+    const documentMock = createDocumentMock();
+    const ui = loadTrustfolioUi(documentMock, {});
+
+    const li = ui.createEmptyListItem('取引履歴がありません。', 'item-class empty-class');
+
+    expect(li.tagName).toBe('LI');
+    expect(li.className).toBe('item-class empty-class');
+    expect(li.textContent).toBe('取引履歴がありません。');
+  });
+});
+
+describe('TrustfolioUi.createActionButton', () => {
+  it('type=button のボタンを生成し、クリックで onClick を呼ぶ', () => {
+    const documentMock = createDocumentMock();
+    const ui = loadTrustfolioUi(documentMock, {});
+    const onClick = vi.fn();
+
+    const button = ui.createActionButton('削除', 'ghost-button', onClick);
+
+    expect(button.tagName).toBe('BUTTON');
+    expect(button.type).toBe('button');
+    expect(button.textContent).toBe('削除');
+    expect(button.className).toBe('ghost-button');
+
+    // 登録された click ハンドラを実行すると onClick が呼ばれる
+    const clickListener = button.listeners.find((l: { type: string }) => l.type === 'click');
+    expect(clickListener).toBeDefined();
+    clickListener?.handler(undefined);
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('TrustfolioUi.createListItem', () => {
+  it('li(itemClass) > content(contentClass) に本文要素を順番に並べる', () => {
+    const documentMock = createDocumentMock();
+    const ui = loadTrustfolioUi(documentMock, {});
+    const childA = createNodeMock('strong');
+    childA.textContent = '本文A';
+    const childB = createNodeMock('span');
+    childB.textContent = '本文B';
+
+    const li = ui.createListItem({
+      itemClass: 'list-item',
+      contentClass: 'list-content',
+      contentChildren: [childA, childB],
+    });
+
+    expect(li.tagName).toBe('LI');
+    expect(li.className).toBe('list-item');
+    // 操作ボタン無し → 子要素は content のみ
+    expect(li.children).toHaveLength(1);
+    const content = li.children[0];
+    expect(content?.className).toBe('list-content');
+    expect(content?.children).toEqual([childA, childB]);
+  });
+
+  it('actions 指定時は content の後ろに actions(actionsClass) を追加する', () => {
+    const documentMock = createDocumentMock();
+    const ui = loadTrustfolioUi(documentMock, {});
+    const child = createNodeMock('strong');
+    const editButton = createNodeMock('button');
+    const deleteButton = createNodeMock('button');
+
+    const li = ui.createListItem({
+      itemClass: 'list-item',
+      contentClass: 'list-content',
+      contentChildren: [child],
+      actionsClass: 'list-actions',
+      actions: [editButton, deleteButton],
+    });
+
+    // content + actions の2要素
+    expect(li.children).toHaveLength(2);
+    const actions = li.children[1];
+    expect(actions?.className).toBe('list-actions');
+    expect(actions?.children).toEqual([editButton, deleteButton]);
+  });
+
+  it('actions が空配列のときは操作ボタンラッパを生成しない', () => {
+    const documentMock = createDocumentMock();
+    const ui = loadTrustfolioUi(documentMock, {});
+
+    const li = ui.createListItem({
+      itemClass: 'list-item',
+      contentClass: 'list-content',
+      contentChildren: [createNodeMock('span')],
+      actionsClass: 'list-actions',
+      actions: [],
+    });
+
+    expect(li.children).toHaveLength(1);
+  });
+});
+
+describe('TrustfolioUi.createTransactionItem', () => {
+  // 各種別の取引行で共通して渡すクラス設定（実コードの値に揃える）
+  const BASE_OPTIONS = {
+    itemClass: 'list-item',
+    contentClass: 'list-content',
+    headerClass: 'flex items-center gap-2 text-sm text-slate-200',
+    detailClass: 'text-xs text-slate-400',
+    badgeSpotClass: 'badge-spot',
+    badgeRedemptionClass: 'badge-redemption',
+    badgeRecurringClass: 'badge-recurring',
+  };
+
+  it('スポット購入は「スポット購入」バッジと金額/口数/基準価額の詳細を表示する', () => {
+    const documentMock = createDocumentMock();
+    const ui = loadTrustfolioUi(documentMock, {});
+
+    const li = ui.createTransactionItem(
+      { type: 'SPOT_PURCHASE', date: '2026-06-20', amount: 30000, units: 25000, navValue: 12000 },
+      BASE_OPTIONS
+    );
+
+    const content = li.children[0];
+    // content の子は [header, detail]（fundName 無し）
+    expect(content?.children).toHaveLength(2);
+    const header = content?.children[0];
+    expect(header?.className).toBe('flex items-center gap-2 text-sm text-slate-200');
+    // header の子は [date(strong), badge(span)]
+    expect(header?.children[0]?.textContent).toBe('2026-06-20');
+    expect(header?.children[1]?.className).toBe('badge-spot');
+    expect(header?.children[1]?.textContent).toBe('スポット購入');
+    // 詳細行
+    const detail = content?.children[1];
+    expect(detail?.className).toBe('text-xs text-slate-400');
+    expect(detail?.textContent).toBe('30,000円 / 25,000口 / 基準価額: 12,000円');
+  });
+
+  it('売却は「売却」バッジを表示し、口数を絶対値で表示する', () => {
+    const documentMock = createDocumentMock();
+    const ui = loadTrustfolioUi(documentMock, {});
+
+    const li = ui.createTransactionItem(
+      { type: 'REDEMPTION', date: '2026-06-21', amount: 15000, units: -10000, navValue: 15000 },
+      BASE_OPTIONS
+    );
+
+    const header = li.children[0]?.children[0];
+    expect(header?.children[1]?.className).toBe('badge-redemption');
+    expect(header?.children[1]?.textContent).toBe('売却');
+    const detail = li.children[0]?.children[1];
+    // units=-10000 → 絶対値 10,000口
+    expect(detail?.textContent).toBe('15,000円 / 10,000口 / 基準価額: 15,000円');
+  });
+
+  it('SPOT_PURCHASE / REDEMPTION 以外は「積立購入」バッジを表示する', () => {
+    const documentMock = createDocumentMock();
+    const ui = loadTrustfolioUi(documentMock, {});
+
+    const li = ui.createTransactionItem(
+      {
+        type: 'RECURRING_PURCHASE',
+        date: '2026-06-22',
+        amount: 10000,
+        units: 8000,
+        navValue: 12500,
+      },
+      BASE_OPTIONS
+    );
+
+    const badge = li.children[0]?.children[0]?.children[1];
+    expect(badge?.className).toBe('badge-recurring');
+    expect(badge?.textContent).toBe('積立購入');
+  });
+
+  it('fundName 指定時はヘッダーと詳細の間に銘柄名 <div> を挿入する（全取引履歴の挙動）', () => {
+    const documentMock = createDocumentMock();
+    const ui = loadTrustfolioUi(documentMock, {});
+
+    const li = ui.createTransactionItem(
+      { type: 'SPOT_PURCHASE', date: '2026-06-20', amount: 30000, units: 25000, navValue: 12000 },
+      {
+        ...BASE_OPTIONS,
+        headerClass: 'mb-1 flex items-center gap-2 text-sm text-slate-200',
+        fundName: 'eMAXIS Slim 全世界株式',
+        fundNameClass: 'text-sm font-medium text-slate-100',
+      }
+    );
+
+    const content = li.children[0];
+    // content の子は [header, fundName, detail] の順
+    expect(content?.children).toHaveLength(3);
+    expect(content?.children[0]?.className).toBe(
+      'mb-1 flex items-center gap-2 text-sm text-slate-200'
+    );
+    expect(content?.children[1]?.className).toBe('text-sm font-medium text-slate-100');
+    expect(content?.children[1]?.textContent).toBe('eMAXIS Slim 全世界株式');
+  });
+
+  it('actions 指定時は li 直下に操作ボタン群を追加する（取引一覧の挙動）', () => {
+    const documentMock = createDocumentMock();
+    const ui = loadTrustfolioUi(documentMock, {});
+    const editButton = createNodeMock('button');
+    const deleteButton = createNodeMock('button');
+
+    const li = ui.createTransactionItem(
+      { type: 'SPOT_PURCHASE', date: '2026-06-20', amount: 30000, units: 25000, navValue: 12000 },
+      { ...BASE_OPTIONS, actionsClass: 'list-actions', actions: [editButton, deleteButton] }
+    );
+
+    // content + actions
+    expect(li.children).toHaveLength(2);
+    expect(li.children[1]?.className).toBe('list-actions');
+    expect(li.children[1]?.children).toEqual([editButton, deleteButton]);
+  });
+});
+
+describe('TrustfolioUi.resetFormFields', () => {
+  it('textInputs の value を空にし、checkedInputs の checked を true へ戻す', () => {
+    const ui = loadTrustfolioUi({}, {});
+    const dateInput = createNodeMock('input');
+    dateInput.value = '2026-06-20';
+    const amountInput = createNodeMock('input');
+    amountInput.value = '30000';
+    const activeInput = createNodeMock('input');
+    activeInput.checked = false;
+
+    ui.resetFormFields({
+      textInputs: [dateInput, amountInput],
+      checkedInputs: [activeInput],
+    });
+
+    expect(dateInput.value).toBe('');
+    expect(amountInput.value).toBe('');
+    expect(activeInput.checked).toBe(true);
+  });
+
+  it('checkedInputs を省略してもエラーにならず textInputs のみクリアする', () => {
+    const ui = loadTrustfolioUi({}, {});
+    const input = createNodeMock('input');
+    input.value = '12345';
+
+    ui.resetFormFields({ textInputs: [input] });
+
+    expect(input.value).toBe('');
   });
 });
