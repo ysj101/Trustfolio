@@ -96,19 +96,14 @@
       window.TrustfolioUi.setLoading(isLoading, 'button, input, select');
     }
 
-    function createActionButton(label, className, onClick) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.textContent = label;
-      button.className = className;
-      button.addEventListener('click', onClick);
-      return button;
-    }
+    // リスト行の操作ボタン生成は common-scripts（window.TrustfolioUi）へ集約済み。
+    const createActionButton = window.TrustfolioUi.createActionButton;
 
     function resetTransactionForm() {
-      transactionDateInput.value = '';
-      transactionAmountInput.value = '';
-      transactionUnitsInput.value = '';
+      // テキスト系入力欄のクリアは共通ヘルパーへ委譲し、基準価額/計算値の表示リセットのみ残す。
+      window.TrustfolioUi.resetFormFields({
+        textInputs: [transactionDateInput, transactionAmountInput, transactionUnitsInput],
+      });
       transactionNavValue.textContent = '-';
       transactionNavValue.className = calculatedValueMutedClass;
       delete transactionNavValue.dataset.value;
@@ -165,11 +160,16 @@
     }
 
     function resetRecurringForm() {
-      recurringMonthlyAmountInput.value = '';
-      recurringExecutionDayInput.value = '';
-      recurringStartDateInput.value = '';
-      recurringEndDateInput.value = '';
-      recurringIsActiveInput.checked = true;
+      // 金額/実行日/開始終了日のクリアと「有効」チェックの初期化を共通ヘルパーへ委譲する。
+      window.TrustfolioUi.resetFormFields({
+        textInputs: [
+          recurringMonthlyAmountInput,
+          recurringExecutionDayInput,
+          recurringStartDateInput,
+          recurringEndDateInput,
+        ],
+        checkedInputs: [recurringIsActiveInput],
+      });
     }
 
     function setRecurringEditMode(recurring) {
@@ -218,60 +218,35 @@
     }
 
     function renderTransactionSelect() {
-      transactionFundSelect.innerHTML = '';
-      if (state.funds.length === 0) {
-        transactionFundSelect.disabled = true;
-        const option = document.createElement('option');
-        option.textContent = '銘柄がありません';
-        option.value = '';
-        transactionFundSelect.appendChild(option);
-        return;
+      // 取引フォームは直前に選択していた銘柄を維持する（keepSelection: true）。
+      // 共通ファクトリが解決した fundId を state へ反映する（銘柄が空のときは null が返る）。
+      const resolvedFundId = window.TrustfolioUi.renderFundSelect(
+        transactionFundSelect,
+        state.funds,
+        {
+          keepSelection: true,
+          selectedFundId: state.selectedTransactionFundId,
+        }
+      );
+      if (resolvedFundId) {
+        state.selectedTransactionFundId = resolvedFundId;
       }
-
-      transactionFundSelect.disabled = false;
-      state.funds.forEach((fund) => {
-        const option = document.createElement('option');
-        option.value = fund.id;
-        option.textContent = fund.name;
-        transactionFundSelect.appendChild(option);
-      });
-
-      if (
-        !state.selectedTransactionFundId ||
-        !state.funds.find((fund) => fund.id === state.selectedTransactionFundId)
-      ) {
-        state.selectedTransactionFundId = state.funds[0].id;
-      }
-      transactionFundSelect.value = state.selectedTransactionFundId;
     }
 
     function renderRecurringSelect() {
-      recurringFundSelect.innerHTML = '';
-      if (state.funds.length === 0) {
-        recurringFundSelect.disabled = true;
-        const option = document.createElement('option');
-        option.textContent = '銘柄がありません';
-        option.value = '';
-        recurringFundSelect.appendChild(option);
-        return;
-      }
-
-      recurringFundSelect.disabled = false;
-      state.funds.forEach((fund) => {
-        const option = document.createElement('option');
-        option.value = fund.id;
-        option.textContent = fund.name;
-        recurringFundSelect.appendChild(option);
-      });
+      // 積立フォームは選択維持を行わない（option 一覧の再生成のみ）。
+      window.TrustfolioUi.renderFundSelect(recurringFundSelect, state.funds);
     }
 
     function renderTransactions(transactions) {
       transactionList.innerHTML = '';
       if (transactions.length === 0) {
-        const empty = document.createElement('li');
-        empty.className = `${listItemClass} ${listEmptyClass}`;
-        empty.textContent = '取引履歴がありません。';
-        transactionList.appendChild(empty);
+        transactionList.appendChild(
+          window.TrustfolioUi.createEmptyListItem(
+            '取引履歴がありません。',
+            `${listItemClass} ${listEmptyClass}`
+          )
+        );
         return;
       }
 
@@ -279,51 +254,9 @@
       const recentTransactions = transactions.slice(0, 5);
 
       recentTransactions.forEach((transaction) => {
-        const item = document.createElement('li');
-        item.className = listItemClass;
-        const content = document.createElement('div');
-        content.className = listContentClass;
-
-        // 日付と取引種別バッジを含むヘッダー行
-        const header = document.createElement('div');
-        header.className = 'flex items-center gap-2 text-sm text-slate-200';
-
-        const date = document.createElement('strong');
-        date.textContent = transaction.date;
-
-        const badge = document.createElement('span');
-        if (transaction.type === 'SPOT_PURCHASE') {
-          badge.className = badgeSpotClass;
-          badge.textContent = 'スポット購入';
-        } else if (transaction.type === 'REDEMPTION') {
-          badge.className = badgeRedemptionClass;
-          badge.textContent = '売却';
-        } else {
-          badge.className = badgeRecurringClass;
-          badge.textContent = '積立購入';
-        }
-
-        header.appendChild(date);
-        header.appendChild(badge);
-
-        // 取引詳細行
-        const detail = document.createElement('span');
-        detail.className = 'text-xs text-slate-400';
-        const unitsDisplay =
-          transaction.type === 'REDEMPTION'
-            ? `${Math.abs(transaction.units).toLocaleString()}口`
-            : `${transaction.units.toLocaleString()}口`;
-        const navDisplay = `${transaction.navValue.toLocaleString()}円`;
-        detail.textContent = `${transaction.amount.toLocaleString()}円 / ${unitsDisplay} / 基準価額: ${navDisplay}`;
-
-        content.appendChild(header);
-        content.appendChild(detail);
-        item.appendChild(content);
-
         // スポット購入と売却のみ編集・削除可能（積立購入は不可）
+        let actions = null;
         if (transaction.type === 'SPOT_PURCHASE' || transaction.type === 'REDEMPTION') {
-          const actions = document.createElement('div');
-          actions.className = listActionsClass;
           const editButton = createActionButton('編集', ghostButtonClass, () => {
             setTransactionEditMode(transaction);
           });
@@ -353,11 +286,20 @@
               setLoading(false);
             }
           });
-          actions.appendChild(editButton);
-          actions.appendChild(deleteButton);
-          item.appendChild(actions);
+          actions = [editButton, deleteButton];
         }
 
+        const item = window.TrustfolioUi.createTransactionItem(transaction, {
+          itemClass: listItemClass,
+          contentClass: listContentClass,
+          headerClass: 'flex items-center gap-2 text-sm text-slate-200',
+          detailClass: 'text-xs text-slate-400',
+          badgeSpotClass,
+          badgeRedemptionClass,
+          badgeRecurringClass,
+          actionsClass: listActionsClass,
+          actions,
+        });
         transactionList.appendChild(item);
       });
     }
@@ -365,21 +307,18 @@
     function renderRecurringList(recurrings) {
       recurringList.innerHTML = '';
       if (recurrings.length === 0) {
-        const empty = document.createElement('li');
-        empty.className = `${listItemClass} ${listEmptyClass}`;
-        empty.textContent = '積立設定がありません。';
-        recurringList.appendChild(empty);
+        recurringList.appendChild(
+          window.TrustfolioUi.createEmptyListItem(
+            '積立設定がありません。',
+            `${listItemClass} ${listEmptyClass}`
+          )
+        );
         return;
       }
 
       recurrings.forEach((recurring) => {
         const fund = state.funds.find((f) => f.id === recurring.fundId);
         const fundName = fund ? fund.name : '不明な銘柄';
-
-        const item = document.createElement('li');
-        item.className = listItemClass;
-        const content = document.createElement('div');
-        content.className = listContentClass;
 
         // 銘柄名
         const fundNameElement = document.createElement('div');
@@ -398,13 +337,6 @@
         const status = recurring.isActive ? 'アクティブ' : '停止中';
         detail.textContent = `${period} / ${status}`;
 
-        content.appendChild(fundNameElement);
-        content.appendChild(title);
-        content.appendChild(detail);
-        item.appendChild(content);
-
-        const actions = document.createElement('div');
-        actions.className = listActionsClass;
         const editButton = createActionButton('編集', ghostButtonClass, () => {
           setRecurringEditMode(recurring);
         });
@@ -431,9 +363,15 @@
             setLoading(false);
           }
         });
-        actions.appendChild(editButton);
-        actions.appendChild(deleteButton);
-        item.appendChild(actions);
+
+        // 外枠（li > content + actions）は共通ファクトリへ委譲する。
+        const item = window.TrustfolioUi.createListItem({
+          itemClass: listItemClass,
+          contentClass: listContentClass,
+          contentChildren: [fundNameElement, title, detail],
+          actionsClass: listActionsClass,
+          actions: [editButton, deleteButton],
+        });
         recurringList.appendChild(item);
       });
     }
@@ -607,10 +545,12 @@
       const recentTransactions = allTransactions.slice(0, 10);
 
       if (recentTransactions.length === 0) {
-        const emptyItem = document.createElement('li');
-        emptyItem.className = `${listItemClass} ${listEmptyClass}`;
-        emptyItem.textContent = '取引履歴がありません。';
-        recurringTransactionList.appendChild(emptyItem);
+        recurringTransactionList.appendChild(
+          window.TrustfolioUi.createEmptyListItem(
+            '取引履歴がありません。',
+            `${listItemClass} ${listEmptyClass}`
+          )
+        );
         return;
       }
 
@@ -618,51 +558,18 @@
         const fund = state.funds.find((f) => f.id === transaction.fundId);
         const fundName = fund ? fund.name : '不明な銘柄';
 
-        const item = document.createElement('li');
-        item.className = listItemClass;
-        const content = document.createElement('div');
-        content.className = listContentClass;
-
-        // 日付と取引種別バッジを含むヘッダー行
-        const header = document.createElement('div');
-        header.className = 'mb-1 flex items-center gap-2 text-sm text-slate-200';
-
-        const date = document.createElement('strong');
-        date.textContent = transaction.date;
-
-        const badge = document.createElement('span');
-        if (transaction.type === 'SPOT_PURCHASE') {
-          badge.className = badgeSpotClass;
-          badge.textContent = 'スポット購入';
-        } else if (transaction.type === 'REDEMPTION') {
-          badge.className = badgeRedemptionClass;
-          badge.textContent = '売却';
-        } else {
-          badge.className = badgeRecurringClass;
-          badge.textContent = '積立購入';
-        }
-
-        header.appendChild(date);
-        header.appendChild(badge);
-
-        // 銘柄名と取引詳細
-        const fundNameDiv = document.createElement('div');
-        fundNameDiv.className = 'text-sm font-medium text-slate-100';
-        fundNameDiv.textContent = fundName;
-
-        const detail = document.createElement('span');
-        detail.className = 'text-xs text-slate-400';
-        const unitsDisplay =
-          transaction.type === 'REDEMPTION'
-            ? `${Math.abs(transaction.units).toLocaleString()}口`
-            : `${transaction.units.toLocaleString()}口`;
-        const navDisplay = `${transaction.navValue.toLocaleString()}円`;
-        detail.textContent = `${transaction.amount.toLocaleString()}円 / ${unitsDisplay} / 基準価額: ${navDisplay}`;
-
-        content.appendChild(header);
-        content.appendChild(fundNameDiv);
-        content.appendChild(detail);
-        item.appendChild(content);
+        // 取引一覧との違いは「ヘッダーに mb-1 余白」「銘柄名 div を挿入」「操作ボタン無し」のみ。
+        const item = window.TrustfolioUi.createTransactionItem(transaction, {
+          itemClass: listItemClass,
+          contentClass: listContentClass,
+          headerClass: 'mb-1 flex items-center gap-2 text-sm text-slate-200',
+          detailClass: 'text-xs text-slate-400',
+          badgeSpotClass,
+          badgeRedemptionClass,
+          badgeRecurringClass,
+          fundName,
+          fundNameClass: 'text-sm font-medium text-slate-100',
+        });
         recurringTransactionList.appendChild(item);
       });
     }
