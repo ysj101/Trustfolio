@@ -244,7 +244,8 @@
       // 操作ボタンが指定されている場合のみ、操作ボタン群ラッパを末尾に追加する。
       if (options.actions && options.actions.length > 0) {
         const actions = document.createElement('div');
-        actions.className = options.actionsClass;
+        // actionsClass 未指定でも className に文字列 "undefined" が入らないよう空文字でフォールバックする。
+        actions.className = options.actionsClass ?? '';
         options.actions.forEach((button) => actions.appendChild(button));
         item.appendChild(actions);
       }
@@ -316,7 +317,8 @@
       // 銘柄名（全取引履歴のみ。fundName 未指定の取引一覧では挿入しない）
       if (options.fundName != null) {
         const fundNameDiv = document.createElement('div');
-        fundNameDiv.className = options.fundNameClass;
+        // fundNameClass 未指定でも className に文字列 "undefined" が入らないよう空文字でフォールバックする。
+        fundNameDiv.className = options.fundNameClass ?? '';
         fundNameDiv.textContent = options.fundName;
         contentChildren.push(fundNameDiv);
       }
