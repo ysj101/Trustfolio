@@ -50,7 +50,7 @@ git switch main && git pull --ff-only
 git switch -c <type>/<slug>
 ```
 
-- `<type>`: issue ラベル・内容から `feat` / `fix` / `refactor` / `chore` のいずれかを選ぶ。
+- `<type>`: issue ラベル・内容から `feat` / `fix` / `refactor` / `chore` / `docs` / `test` のいずれかを選ぶ。
 - `<slug>`: 内容を表す英小文字ケバブケース（既存例: `refactor/g5-scripts-render-factory`）。
 - issue 番号は PR タイトル・本文で参照する（ブランチ名には必須ではない）。
 
@@ -107,9 +107,11 @@ PR 作成（および以降の各 push）後、**CI 完了と Claude bot コメ�
 
 1. **CI 完了待ち**:
    ```bash
-   gh pr checks <PR番号> --watch
+   # CI完了を最大20分待つ。タイムアウト時は中断してユーザーに報告する（無期限ブロック防止）。
+   gh pr checks <PR番号> --watch --interval 30 --fail-fast
    ```
    - `claude-review` ジョブを含む全チェックの完了を待つ。
+   - GitHub Actions のハング等で 20 分以内に完了しない場合は、待機を打ち切りユーザーに状況を報告する（推測で次工程へ進まない）。
    - 失敗チェックがあれば原因を修正し、コミット→push して本ラウンドをやり直す。
 2. **Claude bot コメント取得**:
    ```bash
