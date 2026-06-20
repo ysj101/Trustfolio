@@ -1,4 +1,5 @@
 import type { Fund, Result } from '../domain/types';
+import { propagateFailure } from '../domain/result';
 import type { FundRepository } from '../repository/FundRepository';
 import { getFundIdSuffix } from '../Config';
 import { generateUlid } from '../utils/ulid';
@@ -77,12 +78,12 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
 
       const suffixValidation = validateFundIdSuffixUniqueness(fundRepository, fund.id);
       if (!suffixValidation.success) {
-        return suffixValidation as Result<Fund>;
+        return propagateFailure(suffixValidation);
       }
 
       const createResult = fundRepository.createFund(fund);
       if (!createResult.success) {
-        return createResult as Result<Fund>;
+        return propagateFailure(createResult);
       }
 
       return { success: true, value: fund };
@@ -158,12 +159,12 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
 
       const suffixValidation = validateFundIdSuffixUniqueness(fundRepository, id, id);
       if (!suffixValidation.success) {
-        return suffixValidation as Result<Fund>;
+        return propagateFailure(suffixValidation);
       }
 
       const updateResult = fundRepository.updateFund(updatedFund);
       if (!updateResult.success) {
-        return updateResult as Result<Fund>;
+        return propagateFailure(updateResult);
       }
 
       return { success: true, value: updatedFund };
@@ -227,7 +228,7 @@ function validateFundIdSuffixUniqueness(
 ): Result<void> {
   const listResult = fundRepository.listFunds();
   if (!listResult.success) {
-    return listResult as Result<void>;
+    return propagateFailure(listResult);
   }
 
   const targetSuffix = getFundIdSuffix(targetFundId);

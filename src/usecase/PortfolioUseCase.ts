@@ -1,4 +1,5 @@
 import type { Portfolio, PortfolioPerformanceHistory, Result } from '../domain/types';
+import { propagateFailure } from '../domain/result';
 import type { FundRepository } from '../repository/FundRepository';
 import type { TransactionRepository } from '../repository/TransactionRepository';
 import type { HoldingUseCase } from './HoldingUseCase';
@@ -24,7 +25,7 @@ export function createPortfolioUseCase(
       // HoldingUseCaseを利用してHoldingsを取得（内部でバッチ取得済み）
       const holdingsResult = holdingUseCase.listHoldings();
       if (!holdingsResult.success) {
-        return holdingsResult as Result<Portfolio>;
+        return propagateFailure(holdingsResult);
       }
 
       const holdings = holdingsResult.value;
@@ -32,7 +33,7 @@ export function createPortfolioUseCase(
       // 全ファンドのIDリストを取得
       const fundResult = fundRepository.listFunds();
       if (!fundResult.success) {
-        return fundResult as Result<Portfolio>;
+        return propagateFailure(fundResult);
       }
 
       const fundIds = fundResult.value.map((f) => f.id);
@@ -40,7 +41,7 @@ export function createPortfolioUseCase(
       // 全トランザクション取得（実現損益計算用）
       const transactionsMapResult = transactionRepository.listByFundIdsGrouped(fundIds);
       if (!transactionsMapResult.success) {
-        return transactionsMapResult as Result<Portfolio>;
+        return propagateFailure(transactionsMapResult);
       }
 
       // 全トランザクションでPortfolio計算
@@ -58,7 +59,7 @@ export function createPortfolioUseCase(
     getPortfolioPerformanceHistory: (): Result<PortfolioPerformanceHistory[]> => {
       const historyResult = performanceRepository.listGlobalHistory();
       if (!historyResult.success) {
-        return historyResult as Result<PortfolioPerformanceHistory[]>;
+        return propagateFailure(historyResult);
       }
 
       const history: PortfolioPerformanceHistory[] = historyResult.value.map((record) => ({

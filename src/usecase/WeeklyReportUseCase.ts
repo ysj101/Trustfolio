@@ -1,5 +1,6 @@
 import { enrichPortfolioWithWeekOverWeek } from '../domain/WeekOverWeekCalculator';
 import type { PerformanceRecord, PortfolioWithWeekOverWeek, Result } from '../domain/types';
+import { propagateFailure } from '../domain/result';
 import type { PerformanceRepository } from '../repository/PerformanceRepository';
 import type { PortfolioUseCase } from './PortfolioUseCase';
 
@@ -51,7 +52,7 @@ export function createWeeklyReportUseCase(
       // ポートフォリオサマリーを取得
       const portfolioResult = portfolioUseCase.getPortfolioSummary();
       if (!portfolioResult.success) {
-        return portfolioResult as Result<WeeklyReport>;
+        return propagateFailure(portfolioResult);
       }
 
       // 現在日時を取得（JST）

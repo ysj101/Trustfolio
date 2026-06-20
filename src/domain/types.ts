@@ -1,7 +1,15 @@
 /**
+ * 失敗を表す {@link Result} のブランチ（`success: false` 側）。
+ *
+ * {@link Result} の失敗ブランチは型パラメータ `T` に依存せず常に同一構造であるため、
+ * 名前付きの型として切り出し、{@link Result} の定義とエラー伝播ヘルパーの双方から参照する。
+ */
+export type FailureResult = { success: false; error: AppError };
+
+/**
  * 成功・失敗を明示する結果型。
  */
-export type Result<T> = { success: true; value: T } | { success: false; error: AppError };
+export type Result<T> = { success: true; value: T } | FailureResult;
 
 /**
  * APIで返却するエラー情報。
