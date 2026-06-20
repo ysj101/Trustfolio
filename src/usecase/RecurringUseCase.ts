@@ -1,6 +1,6 @@
 import type { Fund, Nav, RecurringPurchase, Result, Transaction } from '../domain/types';
 import { calculateUnits } from '../domain/PurchaseCalculator';
-import { fail } from '../domain/result';
+import { fail, propagateFailure } from '../domain/result';
 import {
   isValidIsoDate,
   validateNonEmptyString,
@@ -113,7 +113,7 @@ export function createRecurringUseCase(
 
       const fundResult = assertFundExists(fundRepository, fundId);
       if (!fundResult.success) {
-        return fundResult as Result<RecurringPurchase>;
+        return propagateFailure(fundResult);
       }
 
       const recurring: RecurringPurchase = {
@@ -129,7 +129,7 @@ export function createRecurringUseCase(
 
       const createResult = recurringRepository.createRecurringPurchase(recurring);
       if (!createResult.success) {
-        return createResult as Result<RecurringPurchase>;
+        return propagateFailure(createResult);
       }
 
       return { success: true, value: recurring };
@@ -150,7 +150,7 @@ export function createRecurringUseCase(
 
       const existingResult = recurringRepository.findById(input.id);
       if (!existingResult.success) {
-        return existingResult as Result<RecurringPurchase>;
+        return propagateFailure(existingResult);
       }
       if (!existingResult.value) {
         return {
@@ -161,7 +161,7 @@ export function createRecurringUseCase(
 
       const fundResult = assertFundExists(fundRepository, fundId);
       if (!fundResult.success) {
-        return fundResult as Result<RecurringPurchase>;
+        return propagateFailure(fundResult);
       }
 
       const recurring: RecurringPurchase = {
@@ -177,7 +177,7 @@ export function createRecurringUseCase(
 
       const updateResult = recurringRepository.updateRecurringPurchase(recurring);
       if (!updateResult.success) {
-        return updateResult as Result<RecurringPurchase>;
+        return propagateFailure(updateResult);
       }
 
       return { success: true, value: recurring };
@@ -190,7 +190,7 @@ export function createRecurringUseCase(
 
       const existingResult = recurringRepository.findById(recurringId);
       if (!existingResult.success) {
-        return existingResult as Result<RecurringPurchase>;
+        return propagateFailure(existingResult);
       }
       if (!existingResult.value) {
         return {
@@ -201,7 +201,7 @@ export function createRecurringUseCase(
 
       const deleteResult = recurringRepository.deleteRecurringPurchase(recurringId);
       if (!deleteResult.success) {
-        return deleteResult as Result<RecurringPurchase>;
+        return propagateFailure(deleteResult);
       }
 
       return { success: true, value: existingResult.value };
@@ -213,12 +213,12 @@ export function createRecurringUseCase(
 
       const listResult = recurringRepository.listAll();
       if (!listResult.success) {
-        return listResult as Result<ExecuteRecurringResult>;
+        return propagateFailure(listResult);
       }
 
       const fundIndexResult = buildFundIndex(fundRepository);
       if (!fundIndexResult.success) {
-        return fundIndexResult as Result<ExecuteRecurringResult>;
+        return propagateFailure(fundIndexResult);
       }
       const { fundMap, fundIds } = fundIndexResult.value;
 
@@ -237,7 +237,7 @@ export function createRecurringUseCase(
       for (const recurring of listResult.value) {
         const outcomeResult = processRecurringPurchase(recurring, context);
         if (!outcomeResult.success) {
-          return outcomeResult as Result<ExecuteRecurringResult>;
+          return propagateFailure(outcomeResult);
         }
 
         const outcome = outcomeResult.value;
@@ -267,7 +267,7 @@ function buildFundIndex(
 ): Result<{ fundMap: Map<string, Fund>; fundIds: string[] }> {
   const fundListResult = fundRepository.listFunds();
   if (!fundListResult.success) {
-    return fundListResult as Result<{ fundMap: Map<string, Fund>; fundIds: string[] }>;
+    return propagateFailure(fundListResult);
   }
 
   const fundMap = new Map<string, Fund>();
@@ -304,13 +304,13 @@ function processRecurringPurchase(
 
   const fundResult = resolveRecurringFund(recurring, context.fundMap);
   if (!fundResult.success) {
-    return fundResult as Result<RecurringOutcome>;
+    return propagateFailure(fundResult);
   }
   const { fund, settlementBusinessDays } = fundResult.value;
 
   const navCalendarResult = getNavCalendar(context.navRepository, context.navCache, fund.id);
   if (!navCalendarResult.success) {
-    return navCalendarResult as Result<RecurringOutcome>;
+    return propagateFailure(navCalendarResult);
   }
   const navCalendar = navCalendarResult.value;
 
@@ -334,7 +334,7 @@ function processRecurringPurchase(
     context.fundIds
   );
   if (!idempotencyResult.success) {
-    return idempotencyResult as Result<RecurringOutcome>;
+    return propagateFailure(idempotencyResult);
   }
   if (idempotencyResult.value.alreadyExecuted) {
     return { success: true, value: { kind: 'skipped', reason: 'ALREADY_EXECUTED' } };

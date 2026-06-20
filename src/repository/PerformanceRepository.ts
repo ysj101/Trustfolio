@@ -4,7 +4,7 @@ import {
   getPerformanceSheetName,
   type SheetDefinition,
 } from '../Config';
-import { fail } from '../domain/result';
+import { fail, propagateFailure } from '../domain/result';
 import type { PerformanceRecord, Result } from '../domain/types';
 import { findRowByPredicate, isEmptyRow, parseSheetDate } from './SheetMapping';
 import type { SheetRepository } from './SheetRepository';
@@ -162,12 +162,12 @@ export function createPerformanceRepository(
     findLatestByFundId: (fundId: string): Result<PerformanceRecord | null> => {
       const sheetNameResult = ensurePerformanceSheet(sheetRepository, fundId);
       if (!sheetNameResult.success) {
-        return sheetNameResult as Result<PerformanceRecord | null>;
+        return propagateFailure(sheetNameResult);
       }
 
       const rowsResult = sheetRepository.readAllRows(sheetNameResult.value);
       if (!rowsResult.success) {
-        return rowsResult as Result<PerformanceRecord | null>;
+        return propagateFailure(rowsResult);
       }
 
       const rows = rowsResult.value;
@@ -188,7 +188,7 @@ export function createPerformanceRepository(
     listGlobalHistory: (): Result<PerformanceRecord[]> => {
       const rowsResult = sheetRepository.readAllRows(PERFORMANCE_SHEET_NAME);
       if (!rowsResult.success) {
-        return rowsResult as Result<PerformanceRecord[]>;
+        return propagateFailure(rowsResult);
       }
 
       const records: PerformanceRecord[] = [];
@@ -218,7 +218,7 @@ export function createPerformanceRepository(
     findGlobalByDateRange: (startDate: string, endDate: string): Result<PerformanceRecord[]> => {
       const rowsResult = sheetRepository.readAllRows(PERFORMANCE_SHEET_NAME);
       if (!rowsResult.success) {
-        return rowsResult as Result<PerformanceRecord[]>;
+        return propagateFailure(rowsResult);
       }
 
       const records: PerformanceRecord[] = [];

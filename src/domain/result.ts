@@ -1,4 +1,4 @@
-import type { AppError, Result } from './types';
+import type { AppError, FailureResult, Result } from './types';
 
 /**
  * 失敗を表す {@link Result} を生成する共通ヘルパー。
@@ -27,4 +27,29 @@ export function fail<T>(type: AppError['type'], message: string, field?: string)
     return { success: false, error: { type, message } };
   }
   return { success: false, error: { type, message, field } };
+}
+
+/**
+ * 失敗を表す {@link Result} を、別の成功型を持つ {@link Result} として型安全に伝播するヘルパー。
+ *
+ * 目的:
+ * - usecase / repository 層で多発していた失敗 Result への強制キャスト（`as` による型付け替え）を排除する。
+ *   {@link Result} の失敗ブランチ（`error`）は型パラメータ `T` に依存しないため、
+ *   下位処理の失敗をそのまま上位の戻り値型へ付け替える際にキャストが必要だった。
+ *
+ * 内容:
+ * - 戻り値型を `Result<never>` とする。`never` は全ての型に代入可能であるため、
+ *   TypeScript の変性により `Result<never>` は任意の `Result<T>` へ代入可能となる。
+ *   これにより呼び出し側はキャストなしで失敗をそのまま `return` できる。
+ *
+ * 注意:
+ * - 引数には判別済みの失敗 {@link Result}（`if (!result.success)` で絞り込んだ後の値）を渡す。
+ *   成功 {@link Result} はコンパイルエラーとなり、誤用を fail-fast で検出できる。
+ * - 失敗オブジェクトをそのまま返すため、`error` の内容（type・message・field）は一切変化しない。
+ *
+ * @param failure - 伝播する失敗 {@link Result}。
+ * @returns 同一の `error` を保持した `Result<never>`。任意の `Result<T>` として返却できる。
+ */
+export function propagateFailure(failure: FailureResult): Result<never> {
+  return failure;
 }

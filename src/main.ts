@@ -4,6 +4,7 @@ export { handleApiRequest } from './api/router';
 export { runRakutenIntegrationTest } from './integration/RakutenIntegrationTest';
 export type { NavFetchResult } from './usecase/NavFetchUseCase';
 import type { AppError, Result } from './domain/types';
+import { propagateFailure } from './domain/result';
 import type { NavFetchResult, NavFetchResultItem } from './usecase/NavFetchUseCase';
 import type { ExecuteRecurringResult } from './usecase/RecurringUseCase';
 import {
@@ -194,7 +195,7 @@ export function executeRecurringPurchasesDaily(): Result<ExecuteRecurringResult>
       '積立自動実行',
       `積立の自動実行に失敗しました。\n\n約定日: ${today}\n${formatErrorDetail(response.error)}`
     );
-    return response as Result<ExecuteRecurringResult>;
+    return propagateFailure(response);
   }
 
   if (!isExecuteRecurringResult(response.value)) {

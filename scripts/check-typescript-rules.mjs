@@ -147,6 +147,42 @@ function hasExplicitReturnType(node) {
   return node.type !== undefined;
 }
 
+/**
+ * 型ノードから括弧（{@link ts.ParenthesizedTypeNode}）を再帰的に剥がす。
+ *
+ * TypeScript では `failure as (Result<Foo>)` や `<(Result<Foo>)>failure` のように
+ * 型注釈を括弧で囲む構文が有効であり、この場合キャスト式の `node.type` は
+ * `TypeReferenceNode` ではなく括弧でラップされた `ParenthesizedTypeNode` になる。
+ * 括弧を剥がさずに型名を判定すると、括弧で囲んだだけの迂回でキャスト禁止ルールを
+ * すり抜けられてしまうため、本ヘルパーで内側の型ノードまで降りてから判定する。
+ *
+ * @param {ts.TypeNode} typeNode 判定対象の型ノード。
+ * @returns {ts.TypeNode} 括弧を全て剥がした内側の型ノード。
+ */
+function unwrapParenthesizedType(typeNode) {
+  let current = typeNode;
+  while (ts.isParenthesizedTypeNode(current)) {
+    current = current.type;
+  }
+  return current;
+}
+
+/**
+ * 型ノードが `Result<...>`（修飾なしの型参照）かを判定する。
+ * 括弧を剥がしたうえで、型名が単純識別子 `Result` であるかを確認する。
+ *
+ * @param {ts.TypeNode} typeNode 判定対象の型ノード。
+ * @returns {boolean} `Result` 型への参照なら true。
+ */
+function isResultTypeReference(typeNode) {
+  const unwrapped = unwrapParenthesizedType(typeNode);
+  return (
+    ts.isTypeReferenceNode(unwrapped) &&
+    ts.isIdentifier(unwrapped.typeName) &&
+    unwrapped.typeName.text === 'Result'
+  );
+}
+
 const parsedTsconfig = loadTsconfig();
 const sourceFiles = collectTypeScriptFiles(srcRoot);
 const program = ts.createProgram(sourceFiles, parsedTsconfig.options);
@@ -259,6 +295,21 @@ for (const sourceFile of program.getSourceFiles()) {
 
     if (ts.isTypeNode(node) && node.kind === ts.SyntaxKind.AnyKeyword) {
       errors.push(`${formatLocation(sourceFile, node)}(explicit any は禁止です)`);
+    }
+
+    // Result 型への強制キャストを禁止する。
+    // Result の失敗ブランチは型パラメータに依存しないため、エラー伝播時にこの
+    // キャストが多用されていたが、本来のエラー型変更ミスをコンパイラが検出できなくなる。
+    // 失敗の付け替えには src/domain/result.ts の propagateFailure を使用すること。
+    // `as Result<...>`（AsExpression）と `<Result<...>>expr`（TypeAssertionExpression）の
+    // 両構文を対象とし、さらに `as (Result<...>)` のような括弧付きの迂回も
+    // isResultTypeReference 経由で剥がして検出する。
+    if (ts.isAsExpression(node) || ts.isTypeAssertionExpression(node)) {
+      if (isResultTypeReference(node.type)) {
+        errors.push(
+          `${formatLocation(sourceFile, node)}(Result 型への強制キャスト（as Result<...> / <Result<...>>）は禁止です。propagateFailure を使用してください)`
+        );
+      }
     }
 
     if (

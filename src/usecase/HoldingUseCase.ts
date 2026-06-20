@@ -1,4 +1,5 @@
 import type { Holding, Result } from '../domain/types';
+import { propagateFailure } from '../domain/result';
 import type { FundRepository } from '../repository/FundRepository';
 import type { NavRepository } from '../repository/NavRepository';
 import type { TransactionRepository } from '../repository/TransactionRepository';
@@ -28,7 +29,7 @@ export function createHoldingUseCase(
 
       const fundResult = fundRepository.findById(fundId);
       if (!fundResult.success) {
-        return fundResult as Result<Holding | null>;
+        return propagateFailure(fundResult);
       }
       if (!fundResult.value) {
         return {
@@ -39,12 +40,12 @@ export function createHoldingUseCase(
 
       const transactionResult = transactionRepository.listByFundId(fundId);
       if (!transactionResult.success) {
-        return transactionResult as Result<Holding | null>;
+        return propagateFailure(transactionResult);
       }
 
       const navResult = navRepository.findLatestByFundId(fundId);
       if (!navResult.success) {
-        return navResult as Result<Holding | null>;
+        return propagateFailure(navResult);
       }
 
       const holding = calculateHolding(fundResult.value, transactionResult.value, navResult.value);
@@ -53,7 +54,7 @@ export function createHoldingUseCase(
     listHoldings: (): Result<Holding[]> => {
       const fundResult = fundRepository.listFunds();
       if (!fundResult.success) {
-        return fundResult as Result<Holding[]>;
+        return propagateFailure(fundResult);
       }
 
       // 全ファンドIDを取得
@@ -62,12 +63,12 @@ export function createHoldingUseCase(
       // バッチ取得（合計3回程度のシートアクセス）
       const transactionsMapResult = transactionRepository.listByFundIdsGrouped(fundIds);
       if (!transactionsMapResult.success) {
-        return transactionsMapResult as Result<Holding[]>;
+        return propagateFailure(transactionsMapResult);
       }
 
       const navsMapResult = navRepository.findLatestByFundIds(fundIds);
       if (!navsMapResult.success) {
-        return navsMapResult as Result<Holding[]>;
+        return propagateFailure(navsMapResult);
       }
 
       // メモリ上でHoldingを計算
