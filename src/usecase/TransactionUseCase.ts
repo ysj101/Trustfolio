@@ -1,6 +1,6 @@
 import type { Result, Transaction } from '../domain/types';
 import { calculateUnits } from '../domain/PurchaseCalculator';
-import { fail } from '../domain/result';
+import { fail, propagateFailure } from '../domain/result';
 import {
   isValidIsoDate,
   validateNonEmptyString,
@@ -87,7 +87,7 @@ export function createTransactionUseCase(
     listAll: (): Result<Transaction[]> => {
       const fundsResult = fundRepository.listFunds();
       if (!fundsResult.success) {
-        return fundsResult as Result<Transaction[]>;
+        return propagateFailure(fundsResult);
       }
 
       const fundIds = fundsResult.value.map((f) => f.id);
@@ -127,7 +127,7 @@ export function createTransactionUseCase(
 
       const createResult = transactionRepository.createTransaction(transaction);
       if (!createResult.success) {
-        return createResult as Result<Transaction>;
+        return propagateFailure(createResult);
       }
 
       return { success: true, value: transaction };
@@ -155,7 +155,7 @@ export function createTransactionUseCase(
       // 売却日時点および全期間で保有口数がマイナスにならないことをチェック
       const transactionsResult = transactionRepository.listByFundId(fundId);
       if (!transactionsResult.success) {
-        return transactionsResult as Result<Transaction>;
+        return propagateFailure(transactionsResult);
       }
 
       // 保存対象の売却取引を一度だけ生成し、検証と登録で同一オブジェクトを使い回す。
@@ -176,12 +176,12 @@ export function createTransactionUseCase(
       );
 
       if (!validationResult.success) {
-        return validationResult as Result<Transaction>;
+        return propagateFailure(validationResult);
       }
 
       const createResult = transactionRepository.createTransaction(transaction);
       if (!createResult.success) {
-        return createResult as Result<Transaction>;
+        return propagateFailure(createResult);
       }
 
       return { success: true, value: transaction };
@@ -201,7 +201,7 @@ export function createTransactionUseCase(
 
       const existingResult = transactionRepository.findById(input.id, fundId);
       if (!existingResult.success) {
-        return existingResult as Result<Transaction>;
+        return propagateFailure(existingResult);
       }
       if (!existingResult.value) {
         return {
@@ -243,7 +243,7 @@ export function createTransactionUseCase(
 
       const updateResult = transactionRepository.updateTransaction(transaction);
       if (!updateResult.success) {
-        return updateResult as Result<Transaction>;
+        return propagateFailure(updateResult);
       }
 
       return { success: true, value: transaction };
@@ -270,7 +270,7 @@ export function createTransactionUseCase(
 
       const existingResult = transactionRepository.findById(input.id, fundId);
       if (!existingResult.success) {
-        return existingResult as Result<Transaction>;
+        return propagateFailure(existingResult);
       }
       if (!existingResult.value) {
         return {
@@ -311,7 +311,7 @@ export function createTransactionUseCase(
       // 全期間で保有口数がマイナスにならないことを検証（更新対象の売却取引を除く）
       const transactionsResult = transactionRepository.listByFundId(fundId);
       if (!transactionsResult.success) {
-        return transactionsResult as Result<Transaction>;
+        return propagateFailure(transactionsResult);
       }
 
       // 更新後の売却取引を含めて、全期間で保有口数がマイナスにならないことを検証
@@ -321,12 +321,12 @@ export function createTransactionUseCase(
       );
 
       if (!validationResult.success) {
-        return validationResult as Result<Transaction>;
+        return propagateFailure(validationResult);
       }
 
       const updateResult = transactionRepository.updateTransaction(transaction);
       if (!updateResult.success) {
-        return updateResult as Result<Transaction>;
+        return propagateFailure(updateResult);
       }
 
       return { success: true, value: transaction };
@@ -343,7 +343,7 @@ export function createTransactionUseCase(
 
       const existingResult = transactionRepository.findById(transactionId, fundId);
       if (!existingResult.success) {
-        return existingResult as Result<Transaction>;
+        return propagateFailure(existingResult);
       }
       if (!existingResult.value) {
         return {
@@ -365,7 +365,7 @@ export function createTransactionUseCase(
 
       const deleteResult = transactionRepository.deleteTransaction(transactionId, fundId);
       if (!deleteResult.success) {
-        return deleteResult as Result<Transaction>;
+        return propagateFailure(deleteResult);
       }
 
       return { success: true, value: existingResult.value };

@@ -1,4 +1,5 @@
 import type { Nav, Result } from '../domain/types';
+import { propagateFailure } from '../domain/result';
 import type { FundRepository } from '../repository/FundRepository';
 import type { NavRepository } from '../repository/NavRepository';
 
@@ -24,7 +25,7 @@ export function createNavUseCase(
 
       const fundResult = fundRepository.findById(fundId);
       if (!fundResult.success) {
-        return fundResult as Result<Nav[]>;
+        return propagateFailure(fundResult);
       }
       if (!fundResult.value) {
         return {
