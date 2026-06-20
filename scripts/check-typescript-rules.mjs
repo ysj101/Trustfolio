@@ -304,6 +304,8 @@ for (const sourceFile of program.getSourceFiles()) {
     // `as Result<...>`（AsExpression）と `<Result<...>>expr`（TypeAssertionExpression）の
     // 両構文を対象とし、さらに `as (Result<...>)` のような括弧付きの迂回も
     // isResultTypeReference 経由で剥がして検出する。
+    // 補足: `<Result<...>>expr` の山括弧記法は TSX では JSX と構文衝突しコンパイル不可だが、
+    // 本プロジェクトは GAS 向けの .ts のみ（TSX 不使用）のため両構文を対象として問題ない。
     if (ts.isAsExpression(node) || ts.isTypeAssertionExpression(node)) {
       if (isResultTypeReference(node.type)) {
         errors.push(

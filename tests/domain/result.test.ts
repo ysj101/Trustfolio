@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { fail } from '../../src/domain/result';
+import { fail, propagateFailure } from '../../src/domain/result';
+import type { Result } from '../../src/domain/types';
 
 describe('fail', () => {
   it('fieldを省略した場合はerrorにfieldキーを含めない', () => {
@@ -30,6 +31,52 @@ describe('fail', () => {
         message: '銘柄を選択してください。',
         field: 'fundId',
       });
+    }
+  });
+});
+
+describe('propagateFailure', () => {
+  it('失敗Resultを渡すと同一のerrorを保持したResultが返る（passthrough）', () => {
+    // 前提: 下位処理が返した失敗 Result（ここでは Result<number> 型）を、
+    //       上位の戻り値型（ここでは Result<string>）へ付け替えて伝播する状況を模す。
+    // 事前条件: 失敗 Result を生成し、success が false であることを確認してから渡す。
+    // 検証: 戻り値の error が、入力の error と「同一オブジェクト参照」かつ
+    //       type / message / field の内容が一切変化しないこと。
+    const original = fail<number>('not_found', '指定された銘柄が見つかりません。', 'fundId');
+    expect(original.success).toBe(false);
+    if (!original.success) {
+      // 上位の戻り値型 Result<string> へ代入できること（変性: Result<never> は任意の Result<T> に代入可能）
+      const propagated: Result<string> = propagateFailure(original);
+      expect(propagated.success).toBe(false);
+      if (!propagated.success) {
+        // error の中身が変化しないこと（外部挙動の不変性の保証）
+        expect(propagated.error).toEqual({
+          type: 'not_found',
+          message: '指定された銘柄が見つかりません。',
+          field: 'fundId',
+        });
+        // 新規オブジェクトを生成せず、入力の error をそのまま返すこと
+        expect(propagated.error).toBe(original.error);
+      }
+    }
+  });
+
+  it('field無しの失敗Resultでもerrorのキー構成を維持したまま伝播する', () => {
+    // 前提: field キーを持たない失敗 Result を伝播する。
+    // 事前条件: fail を field 無しで生成する。
+    // 検証: 伝播後も field キーが追加されず、type / message のみで構成されること。
+    const original = fail<number[]>('unexpected', '想定外のエラーが発生しました。');
+    expect(original.success).toBe(false);
+    if (!original.success) {
+      const propagated: Result<string> = propagateFailure(original);
+      expect(propagated.success).toBe(false);
+      if (!propagated.success) {
+        expect(propagated.error).toEqual({
+          type: 'unexpected',
+          message: '想定外のエラーが発生しました。',
+        });
+        expect('field' in propagated.error).toBe(false);
+      }
     }
   });
 });
