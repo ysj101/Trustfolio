@@ -43,22 +43,25 @@ describe('propagateFailure', () => {
     // 検証: 戻り値の error が、入力の error と「同一オブジェクト参照」かつ
     //       type / message / field の内容が一切変化しないこと。
     const original = fail<number>('not_found', '指定された銘柄が見つかりません。', 'fundId');
-    expect(original.success).toBe(false);
-    if (!original.success) {
-      // 上位の戻り値型 Result<string> へ代入できること（変性: Result<never> は任意の Result<T> に代入可能）
-      const propagated: Result<string> = propagateFailure(original);
-      expect(propagated.success).toBe(false);
-      if (!propagated.success) {
-        // error の中身が変化しないこと（外部挙動の不変性の保証）
-        expect(propagated.error).toEqual({
-          type: 'not_found',
-          message: '指定された銘柄が見つかりません。',
-          field: 'fundId',
-        });
-        // 新規オブジェクトを生成せず、入力の error をそのまま返すこと
-        expect(propagated.error).toBe(original.error);
-      }
+    // fail-fast: 前提（失敗 Result）が崩れたらアサーションをスキップせず即座に失敗させる
+    if (original.success) {
+      throw new Error('前提条件違反: original は失敗 Result のはずです。');
     }
+
+    // 上位の戻り値型 Result<string> へ代入できること（変性: Result<never> は任意の Result<T> に代入可能）
+    const propagated: Result<string> = propagateFailure(original);
+    if (propagated.success) {
+      throw new Error('伝播後も失敗 Result のはずです。');
+    }
+
+    // error の中身が変化しないこと（外部挙動の不変性の保証）
+    expect(propagated.error).toEqual({
+      type: 'not_found',
+      message: '指定された銘柄が見つかりません。',
+      field: 'fundId',
+    });
+    // 新規オブジェクトを生成せず、入力の error をそのまま返すこと
+    expect(propagated.error).toBe(original.error);
   });
 
   it('field無しの失敗Resultでもerrorのキー構成を維持したまま伝播する', () => {
@@ -66,17 +69,20 @@ describe('propagateFailure', () => {
     // 事前条件: fail を field 無しで生成する。
     // 検証: 伝播後も field キーが追加されず、type / message のみで構成されること。
     const original = fail<number[]>('unexpected', '想定外のエラーが発生しました。');
-    expect(original.success).toBe(false);
-    if (!original.success) {
-      const propagated: Result<string> = propagateFailure(original);
-      expect(propagated.success).toBe(false);
-      if (!propagated.success) {
-        expect(propagated.error).toEqual({
-          type: 'unexpected',
-          message: '想定外のエラーが発生しました。',
-        });
-        expect('field' in propagated.error).toBe(false);
-      }
+    // fail-fast: 前提（失敗 Result）が崩れたらアサーションをスキップせず即座に失敗させる
+    if (original.success) {
+      throw new Error('前提条件違反: original は失敗 Result のはずです。');
     }
+
+    const propagated: Result<string> = propagateFailure(original);
+    if (propagated.success) {
+      throw new Error('伝播後も失敗 Result のはずです。');
+    }
+
+    expect(propagated.error).toEqual({
+      type: 'unexpected',
+      message: '想定外のエラーが発生しました。',
+    });
+    expect('field' in propagated.error).toBe(false);
   });
 });
