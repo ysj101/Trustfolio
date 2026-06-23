@@ -106,15 +106,17 @@ PR 作成（および以降の各 push）後、**CI 完了と Claude bot コメ�
 各ラウンドで以下を行う:
 
 1. **CI 完了待ち**:
+
+   > **環境注意（確認済み事実）**: 本リポジトリの実行環境は macOS で、`timeout` コマンドは存在せず、coreutils の `gtimeout` も未インストールである。したがって `timeout 1200 ...` 形式での実時間上限の強制は**使えない**（`zsh: command not found: timeout` で即失敗する）。実時間上限が必要な待機は、`timeout` に頼らず**バックグラウンド実行＋完了通知**で行う。
+
+   `gh pr checks --watch --fail-fast` は全チェック完了時（または `--fail-fast` で失敗時）に自分で終了するため、これを**バックグラウンド実行**し、ハーネスの完了通知を待つ:
    ```bash
-   # CI完了を最大20分(1200秒)待つ。gh pr checks に --timeout は無く --fail-fast は
-   # 失敗時即終了であって時間上限ではないため、timeout コマンドで実時間の上限を強制する。
-   # 失敗または時間超過時は中断してユーザーに報告する（無期限ブロック防止）。
-   timeout 1200 gh pr checks <PR番号> --watch --interval 30 --fail-fast || {
-     echo "CI 失敗またはタイムアウト: ユーザーに報告して中断"; exit 1; }
+   # run_in_background: true で実行する。--watch は完了/失敗で自走終了するため
+   # timeout コマンドは不要。終了時にハーネスから完了通知が届く。
+   gh pr checks <PR番号> --watch --interval 30 --fail-fast
    ```
    - `claude-review` ジョブを含む全チェックの完了を待つ。
-   - GitHub Actions のハング等で 20 分以内に完了しない場合は、待機を打ち切りユーザーに状況を報告する（推測で次工程へ進まない）。
+   - 完了通知が**約20分以内に届かない**場合は、ハングを疑い `gh pr checks <PR番号>`（--watch 無し）で現在状態を一度確認する。なお未完了が続くなら待機を打ち切り、ユーザーに状況を報告する（推測で次工程へ進まない）。
    - 失敗チェックがあれば原因を修正し、コミット→push して本ラウンドをやり直す。
 2. **Claude bot コメント取得**:
    ```bash
