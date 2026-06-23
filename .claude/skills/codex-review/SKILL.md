@@ -62,7 +62,7 @@ codex exec --sandbox read-only "<PROMPT>"
 - レビュー完了待ち（必須）: codex exec 実行中は次の工程に進まない（別タスク開始・推測での中断禁止）
   - 定期確認: 60秒ごとに最大20回、`poll i/20` と経過時間のみをログし、追加作業はしない
   - 20回到達後も未完了なら: 「タイムアウト」扱いでエラー時ルールへ
-  - 長時間無出力になり得るため、必要に応じて codex exec をバックグラウンド実行し、プロセス生存確認を poll として扱ってよい。
+  - 長時間無出力になり得るため、必要に応じて codex exec をバックグラウンド実行し、プロセス生存確認を poll として扱ってよい。**ただしバックグラウンド実行時は必ず `< /dev/null` を付けること**（stdin ハング回避。下記「stdin ハング回避」を参照）。
   - **環境注意（確認済み事実）**: 本リポジトリの実行環境は macOS で `timeout` コマンドが無く、coreutils の `gtimeout` も未インストールである。よって `timeout <秒> codex exec ...` での実時間上限の強制は**使えない**（`command not found: timeout` で即失敗し codex は走らない）。実時間上限を設けたい場合は `timeout` に頼らず、**`run_in_background: true` での codex exec 実行＋完了通知**を用い、プロセス生存確認（`pgrep -f "codex exec"`）と出力ファイルのバイト数監視で進捗・ハングを判断する。
   - **stdin ハング回避（重要・確認済み事実）**: `codex exec` をバックグラウンド実行すると、stdin が tty に繋がらず `Reading additional input from stdin...` と表示したまま**永久にハングする**ことがある（出力が数十バイトで停止し、プロセスは生存し続ける）。これを防ぐため、バックグラウンド実行時は**必ず stdin を `/dev/null` にリダイレクトする**: `codex exec --sandbox read-only "<PROMPT>" < /dev/null > 出力ファイル 2>&1`。
   - **ハング検知時の対処**: codex exec がバックグラウンドで長時間（目安20分超）**出力がほぼ増えないまま**生存し続ける場合はハングとみなし、`pkill -f "codex exec"` で停止する。`< /dev/null` を付けていなければ付けて1回リトライ。それでも収束しなければエラー時ルールへ移行する。

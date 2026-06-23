@@ -111,8 +111,12 @@ PR 作成（および以降の各 push）後、**CI 完了と Claude bot コメ�
 
    `gh pr checks --watch --fail-fast` は全チェック完了時（または `--fail-fast` で失敗時）に自分で終了するため、これを**バックグラウンド実行**し、ハーネスの完了通知を待つ:
    ```bash
-   # run_in_background: true で実行する。--watch は完了/失敗で自走終了するため
-   # timeout コマンドは不要。終了時にハーネスから完了通知が届く。
+   # 【実行方法】Claude Code の Bash ツール呼び出し時に run_in_background: true を
+   #   指定して起動する（コマンド末尾に & を付ける方式ではない）。--watch は完了/失敗で
+   #   自走終了するため timeout コマンドは不要。終了時にハーネスから完了通知が届く。
+   # 【失敗パス】このコマンドは --fail-fast によりチェック失敗時に非ゼロ終了する。
+   #   非ゼロ終了を検知したら原因を調査し、修正→push して本ラウンドをやり直す。
+   #   完了通知が約20分以内に届かない場合はハングを疑い、--watch 無しで状態確認する。
    gh pr checks <PR番号> --watch --interval 30 --fail-fast
    ```
    - `claude-review` ジョブを含む全チェックの完了を待つ。
