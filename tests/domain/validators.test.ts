@@ -3,6 +3,7 @@ import {
   isValidIsoDate,
   validateNonEmptyString,
   validatePositiveNumber,
+  validateRecurringDay,
 } from '../../src/domain/validators';
 
 describe('isValidIsoDate', () => {
@@ -98,6 +99,54 @@ describe('validatePositiveNumber', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.value).toBe(10000);
+    }
+  });
+});
+
+describe('validateRecurringDay', () => {
+  const メッセージ = '注文日は1〜28の範囲で入力してください。';
+
+  it('範囲内（1〜28）の数値はそのまま返す', () => {
+    // 前提: 下限1・上限28・中間値15を与える
+    // 検証: いずれも成功し、入力値がそのまま返る
+    for (const 注文日 of [1, 15, 28]) {
+      const result = validateRecurringDay(注文日, メッセージ, 'executionDay');
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.value).toBe(注文日);
+      }
+    }
+  });
+
+  it('範囲外（0以下・29以上）はvalidationエラーを返す', () => {
+    // 前提: 下限未満の0と上限超過の29を与える
+    // 検証: いずれも validation エラーに指定の message/field が設定される
+    for (const 注文日 of [0, 29]) {
+      const result = validateRecurringDay(注文日, メッセージ, 'executionDay');
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.type).toBe('validation');
+        expect(result.error.message).toBe(メッセージ);
+        expect(result.error.field).toBe('executionDay');
+      }
+    }
+  });
+
+  it('NaN・数値以外はvalidationエラーを返す', () => {
+    // 前提: NaN と文字列を与える
+    // 検証: いずれも validation エラーが返る
+    expect(validateRecurringDay(Number.NaN, メッセージ, 'executionDay').success).toBe(false);
+    expect(validateRecurringDay('15', メッセージ, 'executionDay').success).toBe(false);
+  });
+
+  it('範囲内の非整数（例: 1.5）は元実装の挙動どおり許容する', () => {
+    // 前提: 1.5 を与える（仕様文言は「整数」だが、元実装は整数判定をしていなかった）
+    // 事前条件: 既存挙動の互換性維持のため Number.isInteger では弾かない
+    // 検証: 成功し、入力値 1.5 がそのまま返る
+    const result = validateRecurringDay(1.5, メッセージ, 'executionDay');
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.value).toBe(1.5);
     }
   });
 });

@@ -1,10 +1,16 @@
 import type { Fund, Nav, RecurringPurchase, Result, Transaction } from '../domain/types';
+import {
+  addBusinessDays,
+  findNextBusinessDay,
+  subtractBusinessDays,
+} from '../domain/BusinessDayCalculator';
 import { calculateUnits } from '../domain/PurchaseCalculator';
 import { fail, propagateFailure } from '../domain/result';
 import {
   isValidIsoDate,
   validateNonEmptyString,
   validatePositiveNumber,
+  validateRecurringDay,
 } from '../domain/validators';
 import type { FundRepository } from '../repository/FundRepository';
 import type { NavRepository } from '../repository/NavRepository';
@@ -469,12 +475,14 @@ function validateRecurringInput(input: {
   if (!monthlyAmountResult.success) {
     return monthlyAmountResult;
   }
-  // executionDayは「1〜28の整数」という固有の範囲制約があるため、共通バリデータではなく個別に検証する。
-  if (typeof executionDay !== 'number' || Number.isNaN(executionDay)) {
-    return fail('validation', '注文日は1〜28の範囲で入力してください。', 'executionDay');
-  }
-  if (executionDay < 1 || executionDay > 28) {
-    return fail('validation', '注文日は1〜28の範囲で入力してください。', 'executionDay');
+  // executionDayは「1〜28の範囲」という積立固有の制約があるため、専用バリデータで検証する。
+  const executionDayResult = validateRecurringDay(
+    executionDay,
+    '注文日は1〜28の範囲で入力してください。',
+    'executionDay'
+  );
+  if (!executionDayResult.success) {
+    return executionDayResult;
   }
   if (!isValidIsoDate(startDate)) {
     return fail('validation', '開始日はYYYY-MM-DD形式で入力してください。', 'startDate');
@@ -605,44 +613,6 @@ function findOrderDateFromSettlementDate(
 }
 
 /**
- * 指定した日付より後の最初の営業日を返す。
- * 営業日が存在しない場合はnullを返す。
- */
-function findNextBusinessDay(date: string, businessDates: string[]): string | null {
-  for (const businessDate of businessDates) {
-    if (businessDate > date) {
-      return businessDate;
-    }
-  }
-  return null;
-}
-
-/**
- * 指定した日付より前のN営業日前の日付を返す。
- * 営業日が不足している場合はnullを返す。
- */
-function subtractBusinessDays(
-  date: string,
-  businessDays: number,
-  businessDates: string[]
-): string | null {
-  if (businessDays === 0) {
-    return businessDates.includes(date) ? date : null;
-  }
-  let count = 0;
-  for (let i = businessDates.length - 1; i >= 0; i -= 1) {
-    if (businessDates[i] >= date) {
-      continue;
-    }
-    count += 1;
-    if (count === businessDays) {
-      return businessDates[i];
-    }
-  }
-  return null;
-}
-
-/**
  * 年月日をYYYY-MM-DD形式の文字列に整形する。
  */
 function formatIsoDate(year: number, month: number, day: number): string {
@@ -665,32 +635,6 @@ function isWithinRecurringPeriod(recurring: RecurringPurchase, orderDate: string
     }
   }
   return true;
-}
-
-/**
- * 注文日より後の営業日をカウントし、N営業日後の日付を返す。
- * 注文日の翌営業日を1日目としてカウントする。
- * N=0の場合は注文日が営業日カレンダーに存在する時のみ注文日を返す。
- */
-function addBusinessDays(
-  orderDate: string,
-  businessDays: number,
-  businessDates: string[]
-): string | null {
-  if (businessDays === 0) {
-    return businessDates.includes(orderDate) ? orderDate : null;
-  }
-  let count = 0;
-  for (const date of businessDates) {
-    if (date <= orderDate) {
-      continue;
-    }
-    count += 1;
-    if (count === businessDays) {
-      return date;
-    }
-  }
-  return null;
 }
 
 function parseIsoDate(value: string): Date {
