@@ -186,65 +186,16 @@ export function createPerformanceRepository(
     },
 
     listGlobalHistory: (): Result<PerformanceRecord[]> => {
-      const rowsResult = sheetRepository.readAllRows(PERFORMANCE_SHEET_NAME);
-      if (!rowsResult.success) {
-        return propagateFailure(rowsResult);
-      }
-
-      const records: PerformanceRecord[] = [];
-      for (const [index, row] of rowsResult.value.entries()) {
-        // 空行をスキップ
-        if (isEmptyRow(row)) {
-          continue;
-        }
-
-        const parsed = parseRow(row, index);
-        if (!parsed.success) {
-          // パースエラーの場合、その行をスキップして続行
-          // Logger.log()でエラーを記録するが、処理は継続
-          Logger.log(
-            `[PerformanceRepository] Skipping invalid row at index ${String(index)}: ${parsed.error.message}`
-          );
-          continue;
-        }
-        records.push(parsed.value);
-      }
-
-      // 日付昇順でソート
-      records.sort((a, b) => (a.date < b.date ? -1 : 1));
-      return { success: true, value: records };
+      // 全レコードを対象とするため、述語は常に true を返す。
+      return readGlobalRecords(sheetRepository, () => true);
     },
 
     findGlobalByDateRange: (startDate: string, endDate: string): Result<PerformanceRecord[]> => {
-      const rowsResult = sheetRepository.readAllRows(PERFORMANCE_SHEET_NAME);
-      if (!rowsResult.success) {
-        return propagateFailure(rowsResult);
-      }
-
-      const records: PerformanceRecord[] = [];
-      for (const [index, row] of rowsResult.value.entries()) {
-        // 空行をスキップ
-        if (isEmptyRow(row)) {
-          continue;
-        }
-
-        const parsed = parseRow(row, index);
-        if (!parsed.success) {
-          Logger.log(
-            `[PerformanceRepository] Skipping invalid row at index ${String(index)}: ${parsed.error.message}`
-          );
-          continue;
-        }
-
-        // 日付範囲でフィルタリング（startDate以上、endDate以下）
-        if (parsed.value.date >= startDate && parsed.value.date <= endDate) {
-          records.push(parsed.value);
-        }
-      }
-
-      // 日付昇順でソート
-      records.sort((a, b) => (a.date < b.date ? -1 : 1));
-      return { success: true, value: records };
+      // 日付範囲（startDate以上、endDate以下）に合致するレコードのみを対象とする。
+      return readGlobalRecords(
+        sheetRepository,
+        (record) => record.date >= startDate && record.date <= endDate
+      );
     },
 
     findByFundAndDateRange: (
@@ -292,6 +243,62 @@ export function createPerformanceRepository(
   };
 
   return repository;
+}
+
+/**
+ * 全体実績シート（{@link PERFORMANCE_SHEET_NAME}）を読み込み、述語に合致するレコードのみを
+ * 日付昇順で返す共通処理。
+ *
+ * 目的:
+ * - `listGlobalHistory()`（全件取得）と `findGlobalByDateRange()`（期間フィルタ）に
+ *   重複していた「全行読み込み → 空行スキップ → パース（失敗行は Logger 記録のうえスキップ）
+ *   → ソート」の処理を一本化する。両者の差分は「採用するレコードの条件」だけであるため、
+ *   その条件を述語 `shouldInclude` として外部から注入する。
+ *
+ * 既存挙動の踏襲（重要）:
+ * - 空行は {@link isEmptyRow} でスキップする。
+ * - パース失敗行はエラーで中断せず、`Logger.log` に記録して当該行のみスキップする
+ *   （シート全体の取得は継続する元挙動を保つ）。
+ * - 最終結果は date の昇順（文字列の辞書順＝時系列順）でソートして返す。
+ *
+ * @param sheetRepository シート入出力を担うリポジトリ。
+ * @param shouldInclude 各レコードを結果に含めるか判定する述語。true を返したレコードのみ採用する。
+ * @returns 述語に合致したレコードの配列（日付昇順）を持つ {@link Result}。
+ */
+function readGlobalRecords(
+  sheetRepository: SheetRepository,
+  shouldInclude: (record: PerformanceRecord) => boolean
+): Result<PerformanceRecord[]> {
+  const rowsResult = sheetRepository.readAllRows(PERFORMANCE_SHEET_NAME);
+  if (!rowsResult.success) {
+    return propagateFailure(rowsResult);
+  }
+
+  const records: PerformanceRecord[] = [];
+  for (const [index, row] of rowsResult.value.entries()) {
+    // 空行をスキップ
+    if (isEmptyRow(row)) {
+      continue;
+    }
+
+    const parsed = parseRow(row, index);
+    if (!parsed.success) {
+      // パースエラーの場合、その行をスキップして続行
+      // Logger.log()でエラーを記録するが、処理は継続
+      Logger.log(
+        `[PerformanceRepository] Skipping invalid row at index ${String(index)}: ${parsed.error.message}`
+      );
+      continue;
+    }
+
+    if (shouldInclude(parsed.value)) {
+      records.push(parsed.value);
+    }
+  }
+
+  // 日付昇順でソート
+  records.sort((a, b) => (a.date < b.date ? -1 : 1));
+  return { success: true, value: records };
 }
 
 /**

@@ -374,6 +374,37 @@ export function createTransactionUseCase(
 }
 
 /**
+ * スポット購入・売却の双方に共通する「銘柄ID（fundId）」と「日付（date）」を検証する。
+ *
+ * 目的:
+ * - {@link validateSpotPurchaseInput} と {@link validateSaleTransactionInput} に
+ *   完全に重複していた fundId・date の検証ブロックを一本化する。
+ *
+ * 既存挙動の踏襲（重要）:
+ * - 検証順序は「fundId（空でない文字列）→ date（YYYY-MM-DD 形式）」であり、
+ *   両ユースケースの元実装と同一である。先に失敗した項目のエラーをそのまま返す。
+ * - メッセージ・field キーも元実装と一致させる。
+ *
+ * @param input - 検証対象の fundId と date。
+ * @returns 検証に成功すれば fundId・date を持つ {@link Result}。
+ */
+function validateFundAndDate(input: {
+  fundId: string;
+  date: string;
+}): Result<{ fundId: string; date: string }> {
+  const { fundId, date } = input;
+
+  const fundIdResult = validateNonEmptyString(fundId, '銘柄を選択してください。', 'fundId');
+  if (!fundIdResult.success) {
+    return fundIdResult;
+  }
+  if (!isValidIsoDate(date)) {
+    return fail('validation', '日付はYYYY-MM-DD形式で入力してください。', 'date');
+  }
+  return { success: true, value: { fundId, date } };
+}
+
+/**
  * スポット購入の入力値を検証し、正規化済みの値を返す。
  */
 function validateSpotPurchaseInput(input: {
@@ -389,12 +420,9 @@ function validateSpotPurchaseInput(input: {
 }> {
   const { fundId, date, amount, navValue } = input;
 
-  const fundIdResult = validateNonEmptyString(fundId, '銘柄を選択してください。', 'fundId');
-  if (!fundIdResult.success) {
-    return fundIdResult;
-  }
-  if (!isValidIsoDate(date)) {
-    return fail('validation', '日付はYYYY-MM-DD形式で入力してください。', 'date');
+  const fundAndDateResult = validateFundAndDate({ fundId, date });
+  if (!fundAndDateResult.success) {
+    return fundAndDateResult;
   }
   const amountResult = validatePositiveNumber(
     amount,
@@ -434,12 +462,9 @@ function validateSaleTransactionInput(input: {
 }> {
   const { fundId, date, units, amount, navValue } = input;
 
-  const fundIdResult = validateNonEmptyString(fundId, '銘柄を選択してください。', 'fundId');
-  if (!fundIdResult.success) {
-    return fundIdResult;
-  }
-  if (!isValidIsoDate(date)) {
-    return fail('validation', '日付はYYYY-MM-DD形式で入力してください。', 'date');
+  const fundAndDateResult = validateFundAndDate({ fundId, date });
+  if (!fundAndDateResult.success) {
+    return fundAndDateResult;
   }
   const unitsResult = validatePositiveNumber(
     units,
