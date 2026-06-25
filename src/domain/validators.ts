@@ -83,3 +83,37 @@ export function validatePositiveNumber(
   }
   return { success: true, value };
 }
+
+/**
+ * 値が「積立設定の注文日（1〜28）」として妥当な数値であることを検証する共通バリデータ。
+ *
+ * 目的:
+ * - `RecurringUseCase.validateRecurringInput()` に直書きされていた
+ *   executionDay の範囲制約（1〜28）をドメイン層へ集約する。
+ *
+ * 内容・既存挙動の踏襲（重要）:
+ * - 判定は「数値であり（typeof number）」かつ「NaN でない」かつ「1以上28以下」である。
+ * - **整数判定は行わない**。これは元実装（RecurringUseCase 側の直書き検証）が
+ *   `Number.isInteger` を用いておらず、例えば `1.5` を許容していた挙動をそのまま保つためである。
+ *   仕様文言上は「1〜28の整数」と表現されるが、実コードの挙動を優先して非整数も通す。
+ * - 上限・下限を 1〜28 に固定するのは、月末日（29〜31）が存在しない月でも注文日が
+ *   破綻しないようにするという積立設定固有の制約に由来する。
+ *
+ * @param value - 検証対象の値（積立設定の注文日）。
+ * @param message - 失敗時に利用者へ提示するメッセージ。
+ * @param field - 失敗時に対象フィールドを示すキー。
+ * @returns 検証に成功すれば数値（1〜28）を持つ {@link Result}。
+ */
+export function validateRecurringDay(
+  value: unknown,
+  message: string,
+  field: string
+): Result<number> {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return fail('validation', message, field);
+  }
+  if (value < 1 || value > 28) {
+    return fail('validation', message, field);
+  }
+  return { success: true, value };
+}
