@@ -25,15 +25,24 @@ const ERROR_PREFIX = '[ERROR]';
 const WARN_PREFIX = '[WARN]';
 
 /**
+ * {@link logWithPrefix} が受け付ける重要度プレフィックスの型。
+ *
+ * 本モジュールが定義する定数（`ERROR_PREFIX` / `WARN_PREFIX`）のいずれかに限定することで、
+ * 任意文字列の混入（書式の揺れ）をコンパイル時に防ぐ。新たな重要度を追加する場合は、
+ * 対応する定数を本ユニオンへ加えること。
+ */
+type LogPrefix = typeof ERROR_PREFIX | typeof WARN_PREFIX;
+
+/**
  * 指定した重要度プレフィックスをメッセージ冒頭へ付与し、`Logger.log` へ出力する内部共通処理。
  *
  * 出力書式（`<prefix> <message>`）を1箇所に集約することで、将来プレフィックスの
  * 区切り文字や書式を変更する際の修正漏れ（重要度ごとの書式不整合）を防ぐ。
  *
- * @param prefix - 重要度を示すプレフィックス（例: `[ERROR]` / `[WARN]`）。
+ * @param prefix - 重要度を示すプレフィックス（`[ERROR]` / `[WARN]` のいずれか）。
  * @param message - 出力するログメッセージ（プレフィックスは付与済みでないこと）。
  */
-function logWithPrefix(prefix: string, message: string): void {
+function logWithPrefix(prefix: LogPrefix, message: string): void {
   Logger.log(`${prefix} ${message}`);
 }
 
