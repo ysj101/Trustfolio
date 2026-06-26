@@ -6,6 +6,7 @@ import {
 } from '../Config';
 import { fail, propagateFailure } from '../domain/result';
 import type { PerformanceRecord, Result } from '../domain/types';
+import { logWarn } from '../utils/logger';
 import { findRowByPredicate, isEmptyRow, parseSheetDate } from './SheetMapping';
 import type { SheetRepository } from './SheetRepository';
 
@@ -220,7 +221,7 @@ export function createPerformanceRepository(
 
         const parsed = parseRow(row, index);
         if (!parsed.success) {
-          Logger.log(
+          logWarn(
             `[PerformanceRepository] Skipping invalid row at index ${String(index)}: ${parsed.error.message}`
           );
           continue;
@@ -251,14 +252,14 @@ export function createPerformanceRepository(
  *
  * 目的:
  * - `listGlobalHistory()`（全件取得）と `findGlobalByDateRange()`（期間フィルタ）に
- *   重複していた「全行読み込み → 空行スキップ → パース（失敗行は Logger 記録のうえスキップ）
+ *   重複していた「全行読み込み → 空行スキップ → パース（失敗行は警告ログのうえスキップ）
  *   → ソート」の処理を一本化する。両者の差分は「採用するレコードの条件」だけであるため、
  *   その条件を述語 `shouldInclude` として外部から注入する。
  *
  * 既存挙動の踏襲（重要）:
  * - 空行は {@link isEmptyRow} でスキップする。
- * - パース失敗行はエラーで中断せず、`Logger.log` に記録して当該行のみスキップする
- *   （シート全体の取得は継続する元挙動を保つ）。
+ * - パース失敗行はエラーで中断せず、{@link logWarn}（`[WARN]` プレフィックス付きの
+ *   `Logger.log`）に記録して当該行のみスキップする（シート全体の取得は継続する元挙動を保つ）。
  * - 最終結果は date の昇順（文字列の辞書順＝時系列順）でソートして返す。
  *
  * @param sheetRepository シート入出力を担うリポジトリ。
@@ -284,8 +285,8 @@ function readGlobalRecords(
     const parsed = parseRow(row, index);
     if (!parsed.success) {
       // パースエラーの場合、その行をスキップして続行
-      // Logger.log()でエラーを記録するが、処理は継続
-      Logger.log(
+      // logWarn()でエラーを記録するが、処理は継続
+      logWarn(
         `[PerformanceRepository] Skipping invalid row at index ${String(index)}: ${parsed.error.message}`
       );
       continue;
