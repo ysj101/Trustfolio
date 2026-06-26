@@ -19,6 +19,7 @@ import { createEmailService } from './service/EmailService';
 import { createMarketIndexRepository } from './repository/MarketIndexRepository';
 import { openSheetRepository } from './repository/SheetRepository';
 import { createMarketIndexAlertUseCase } from './usecase/MarketIndexAlertUseCase';
+import { logError } from './utils/logger';
 
 /**
  * Webアプリのエントリーポイント（GET）。
@@ -125,7 +126,7 @@ function formatErrorDetail(error: AppError): string {
 export function fetchAllNavs(): void {
   const response = handleApiRequest({ action: 'fetchAllNavs' });
   if (!response.success) {
-    Logger.log(`基準価額の自動取得に失敗しました: ${response.error.message}`);
+    logError(`基準価額の自動取得に失敗しました: ${response.error.message}`);
     // エラー通知メールを送信
     sendErrorNotificationEmail(
       '基準価額自動取得',
@@ -136,7 +137,7 @@ export function fetchAllNavs(): void {
 
   const result = response.value;
   if (!isNavFetchResult(result)) {
-    Logger.log('基準価額の自動取得結果の形式が不正です');
+    logError('基準価額の自動取得結果の形式が不正です');
     // エラー通知メールを送信
     sendErrorNotificationEmail(
       '基準価額自動取得',
@@ -237,7 +238,7 @@ function logNavFetchFailures(items: NavFetchResultItem[]): void {
   }
 
   for (const item of failedItems) {
-    Logger.log(
+    logError(
       `基準価額取得に失敗しました: fundId=${item.fundId}, fundName=${item.fundName}, reason=${
         item.message ?? '不明なエラー'
       }`

@@ -5,6 +5,7 @@ import type { NavRepository } from '../repository/NavRepository';
 import type { PerformanceRepository } from '../repository/PerformanceRepository';
 import type { TransactionRepository } from '../repository/TransactionRepository';
 import type { RakutenService } from '../service/RakutenService';
+import { logWarn } from '../utils/logger';
 
 /**
  * 基準価額の自動取得結果（1銘柄分）。
@@ -106,7 +107,7 @@ export function createNavFetchUseCase(
           );
 
           if (!globalResult.success) {
-            Logger.log(`全体実績記録に失敗: ${globalResult.error.message}`);
+            logWarn(`全体実績記録に失敗: ${globalResult.error.message}`);
           } else {
             Logger.log(`全体実績記録成功: ${latestDate}`);
           }
@@ -216,7 +217,7 @@ function processFund(
   );
 
   if (!performanceResult.success) {
-    Logger.log(`[${fund.name}] ファンド別実績記録に失敗: ${performanceResult.error.message}`);
+    logWarn(`[${fund.name}] ファンド別実績記録に失敗: ${performanceResult.error.message}`);
   } else {
     Logger.log(`[${fund.name}] ファンド別実績記録成功: ${nav.date}`);
   }
