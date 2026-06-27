@@ -1,5 +1,5 @@
 import type { MarketIndex, Result } from '../domain/types';
-import { getLastBusinessDay, isUsMarketBusinessDay } from '../domain/UsMarketCalendar';
+import { getLastBusinessDay } from '../domain/UsMarketCalendar';
 import type { MarketIndexRepository } from '../repository/MarketIndexRepository';
 import type { MarketIndexService } from '../service/MarketIndexService';
 
@@ -61,12 +61,6 @@ export function createMarketIndexFetchUseCase(
           },
         };
       }
-
-      // 営業日チェック（デバッグ用にログ出力）
-      const isBusinessDay = isUsMarketBusinessDay(usDate);
-      Logger.log(
-        `市場指数取得: 現在日付=${usDate}, 営業日=${String(isBusinessDay)}, 対象日付=${lastBusinessDay}`
-      );
 
       // 既に同日のデータが存在するかチェック
       const existingResult = marketIndexRepository.findByDate(lastBusinessDay);
