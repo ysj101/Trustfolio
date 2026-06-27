@@ -107,8 +107,8 @@ function getPreviousWeekData(
   previousGlobalRecord: PerformanceRecord | null;
   previousFundRecordsMap: Map<string, PerformanceRecord>;
 } {
-  // 7日前を基準に、より古い日付だけを順番に探索する。
-  // 7日前より新しい日付を採用すると、前週比ではなく直近日次比較になるため許可しない。
+  // 探索順序の意図（過去方向のみを採用し、正のオフセットを含めない理由）は
+  // PREVIOUS_WEEK_SEARCH_OFFSETS の TSDoc を参照。
   const searchDates = PREVIOUS_WEEK_SEARCH_OFFSETS.map((offset) => {
     const date = new Date(targetDate);
     date.setDate(date.getDate() + offset);
