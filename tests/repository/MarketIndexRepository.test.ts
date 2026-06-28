@@ -240,6 +240,38 @@ describe('MarketIndexRepository', () => {
       }
       expect(setBackground).not.toHaveBeenCalled();
     });
+
+    it('行の読み取りに失敗した場合はそのエラーを伝播する', () => {
+      // 前提: getRequiredSheet（シート取得）は成功するが、その後の readAllRows が
+      //   unexpected エラーを返す（シート取得後に行データの読み取りで失敗するケースを模擬）。
+      //   後続の -5%ルール実装（MarketIndexAlertUseCase）でこのパスが通り得るため検証する。
+      // 検証: highlightAlertCell が readAllRows のエラーをそのまま伝播し
+      //   （success=false, error.type='unexpected', メッセージ一致）、
+      //   行特定以降の処理（セル背景色の設定）には到達しないこと。
+      const setBackground = vi.fn();
+      const getRange = vi.fn(() => ({ setBackground }));
+      const fakeSheet = { getRange } as unknown as GoogleAppsScript.Spreadsheet.Sheet;
+
+      const sheetRepository = createStubSheetRepository({
+        getRequiredSheet: () => ok(fakeSheet),
+        readAllRows: () => ({
+          success: false,
+          error: { type: 'unexpected', message: 'シートが存在しません: _market_indices' },
+        }),
+      });
+      const repository = createMarketIndexRepository(sheetRepository);
+
+      const result = repository.highlightAlertCell('2024-01-19', 'sp500');
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.type).toBe('unexpected');
+        expect(result.error.message).toBe('シートが存在しません: _market_indices');
+      }
+      // readAllRows 失敗時点で早期 return するため、対象行の特定・背景色設定には到達しない
+      expect(getRange).not.toHaveBeenCalled();
+      expect(setBackground).not.toHaveBeenCalled();
+    });
   });
 
   describe('異常系（行データのパース）', () => {
