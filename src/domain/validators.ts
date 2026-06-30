@@ -117,11 +117,28 @@ export function validateRecurringDay(
   message: string,
   field: string
 ): Result<number> {
-  if (typeof value !== 'number' || !Number.isInteger(value)) {
-    return fail('validation', message, field);
-  }
-  if (value < 1 || value > 28) {
+  if (!isValidRecurringDay(value)) {
     return fail('validation', message, field);
   }
   return { success: true, value };
+}
+
+/**
+ * 値が「積立設定の注文日（1〜28 の整数）」として妥当かを判定する型ガード述語。
+ *
+ * 目的:
+ * - 「整数であること」と「1〜28 の範囲であること」という注文日のルールを1箇所に集約し、
+ *   入力境界（{@link validateRecurringDay} 経由の作成・更新）と
+ *   読込境界（`RecurringPurchaseRepository.parseRow` での保存値検証）の双方から共有する。
+ *   これにより、片側だけ範囲チェックを欠くといった検証の非対称（#133 のレビュー指摘）を防ぐ。
+ *
+ * 判定内容:
+ * - 「数値であり（typeof number）」かつ「整数（{@link Number.isInteger}。NaN・±Infinity は false）」
+ *   かつ「1 以上 28 以下」のとき true を返す。
+ *
+ * @param value - 判定対象の値。
+ * @returns 注文日として妥当なら true（その場合 `value` は number に絞り込まれる）。
+ */
+export function isValidRecurringDay(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 28;
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   isValidIsoDate,
+  isValidRecurringDay,
   validateNonEmptyString,
   validatePositiveNumber,
   validateRecurringDay,
@@ -167,5 +168,24 @@ describe('validateRecurringDay', () => {
     expect(validateRecurringDay(28, メッセージ, 'executionDay').success).toBe(true);
     expect(validateRecurringDay(0.5, メッセージ, 'executionDay').success).toBe(false);
     expect(validateRecurringDay(28.5, メッセージ, 'executionDay').success).toBe(false);
+  });
+});
+
+describe('isValidRecurringDay', () => {
+  // isValidRecurringDay は注文日ルール（1〜28の整数）を判定する共有述語であり、
+  // 入力境界（validateRecurringDay）と読込境界（parseRow）の双方から利用される。
+  it('1〜28の整数のみ true を返し、非整数・範囲外・非数値は false を返す', () => {
+    // 前提: 整数の境界値・範囲内、非整数、範囲外整数、非数値・特殊値を与える
+    // 検証: 整数かつ1〜28のときのみ true（型ガードとして number へ絞り込まれる）
+    expect(isValidRecurringDay(1)).toBe(true);
+    expect(isValidRecurringDay(15)).toBe(true);
+    expect(isValidRecurringDay(28)).toBe(true);
+    expect(isValidRecurringDay(1.5)).toBe(false);
+    expect(isValidRecurringDay(0)).toBe(false);
+    expect(isValidRecurringDay(29)).toBe(false);
+    expect(isValidRecurringDay(99)).toBe(false);
+    expect(isValidRecurringDay(Number.NaN)).toBe(false);
+    expect(isValidRecurringDay(Number.POSITIVE_INFINITY)).toBe(false);
+    expect(isValidRecurringDay('15')).toBe(false);
   });
 });

@@ -2,6 +2,7 @@ import { SHEET_NAMES } from '../Config';
 import { formatDateToIso } from '../domain/dateFormat';
 import { fail } from '../domain/result';
 import type { RecurringPurchase, Result } from '../domain/types';
+import { isValidRecurringDay } from '../domain/validators';
 import { findRowByPredicate, parseAllRows, parseSheetDate } from './SheetMapping';
 import type { SheetRepository } from './SheetRepository';
 
@@ -133,10 +134,12 @@ function parseRow(row: unknown[], index: number): Result<RecurringPurchase> {
   if (typeof monthlyAmount !== 'number' || Number.isNaN(monthlyAmount)) {
     return fail('unexpected', `recurringの${String(index + 2)}行目のmonthlyAmountが不正です。`);
   }
-  // executionDayは「1〜28の整数」が仕様。非整数（例: 15.5）が保存値として混入していると、
-  // 約定日計算の formatIsoDate(year, month, day) が不正な日付文字列を生成するため、
-  // 読み取り段階で整数であることを fail fast に検証する（#133）。
-  if (typeof executionDay !== 'number' || !Number.isInteger(executionDay)) {
+  // executionDayは「1〜28の整数」が仕様。非整数（例: 15.5）や範囲外（例: 99）が保存値として
+  // 混入していると、約定日計算の formatIsoDate(year, month, day) が "2026-06-99" のような不正な
+  // 日付文字列を生成し、営業日カレンダーの辞書順比較で誤った結果を招く。読み取り段階で
+  // 整数判定・範囲判定の両方を fail fast に弾く。判定ルールは入力境界の validateRecurringDay と
+  // 共有するため、ドメイン層の isValidRecurringDay に集約している（#133）。
+  if (!isValidRecurringDay(executionDay)) {
     return fail('unexpected', `recurringの${String(index + 2)}行目のexecutionDayが不正です。`);
   }
 
