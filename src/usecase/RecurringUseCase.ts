@@ -475,10 +475,10 @@ function validateRecurringInput(input: {
   if (!monthlyAmountResult.success) {
     return monthlyAmountResult;
   }
-  // executionDayは「1〜28の範囲」という積立固有の制約があるため、専用バリデータで検証する。
+  // executionDayは「1〜28の整数」という積立固有の制約があるため、専用バリデータで検証する。
   const executionDayResult = validateRecurringDay(
     executionDay,
-    '注文日は1〜28の範囲で入力してください。',
+    '注文日は1〜28の整数で入力してください。',
     'executionDay'
   );
   if (!executionDayResult.success) {

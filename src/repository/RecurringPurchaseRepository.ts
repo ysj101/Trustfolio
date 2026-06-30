@@ -133,7 +133,10 @@ function parseRow(row: unknown[], index: number): Result<RecurringPurchase> {
   if (typeof monthlyAmount !== 'number' || Number.isNaN(monthlyAmount)) {
     return fail('unexpected', `recurringの${String(index + 2)}行目のmonthlyAmountが不正です。`);
   }
-  if (typeof executionDay !== 'number' || Number.isNaN(executionDay)) {
+  // executionDayは「1〜28の整数」が仕様。非整数（例: 15.5）が保存値として混入していると、
+  // 約定日計算の formatIsoDate(year, month, day) が不正な日付文字列を生成するため、
+  // 読み取り段階で整数であることを fail fast に検証する（#133）。
+  if (typeof executionDay !== 'number' || !Number.isInteger(executionDay)) {
     return fail('unexpected', `recurringの${String(index + 2)}行目のexecutionDayが不正です。`);
   }
 

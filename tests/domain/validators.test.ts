@@ -104,7 +104,7 @@ describe('validatePositiveNumber', () => {
 });
 
 describe('validateRecurringDay', () => {
-  const メッセージ = '注文日は1〜28の範囲で入力してください。';
+  const メッセージ = '注文日は1〜28の整数で入力してください。';
 
   it('範囲内（1〜28）の数値はそのまま返す', () => {
     // 前提: 下限1・上限28・中間値15を与える
@@ -132,21 +132,40 @@ describe('validateRecurringDay', () => {
     }
   });
 
-  it('NaN・数値以外はvalidationエラーを返す', () => {
-    // 前提: NaN と文字列を与える
-    // 検証: いずれも validation エラーが返る
+  it('NaN・数値以外・無限大はvalidationエラーを返す', () => {
+    // 前提: NaN・文字列・無限大（整数ではない特殊な数値）を与える
+    // 事前条件: Number.isInteger は NaN・Infinity をいずれも false と判定する
+    // 検証: いずれも整数判定で弾かれ validation エラーが返る
     expect(validateRecurringDay(Number.NaN, メッセージ, 'executionDay').success).toBe(false);
     expect(validateRecurringDay('15', メッセージ, 'executionDay').success).toBe(false);
+    expect(validateRecurringDay(Number.POSITIVE_INFINITY, メッセージ, 'executionDay').success).toBe(
+      false
+    );
+    expect(validateRecurringDay(Number.NEGATIVE_INFINITY, メッセージ, 'executionDay').success).toBe(
+      false
+    );
   });
 
-  it('範囲内の非整数（例: 1.5）は元実装の挙動どおり許容する', () => {
-    // 前提: 1.5 を与える（仕様文言は「整数」だが、元実装は整数判定をしていなかった）
-    // 事前条件: 既存挙動の互換性維持のため Number.isInteger では弾かない
-    // 検証: 成功し、入力値 1.5 がそのまま返る
+  it('範囲内でも非整数（例: 1.5）は validation エラーを返す', () => {
+    // 前提: 範囲(1〜28)内だが非整数の 1.5 を与える
+    // 事前条件: 仕様文言「1〜28の整数」・UI(step="1")に合わせ、#133 で整数必須へ統一した。
+    //   非整数が約定日計算 formatIsoDate へ到達すると不正な日付文字列を生むため入力境界で弾く。
+    // 検証: validation エラーに指定の message/field が設定される
     const result = validateRecurringDay(1.5, メッセージ, 'executionDay');
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.value).toBe(1.5);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.type).toBe('validation');
+      expect(result.error.message).toBe(メッセージ);
+      expect(result.error.field).toBe('executionDay');
     }
+  });
+
+  it('境界値の整数（1・28）は許容し、その近傍の非整数（0.5・28.5）は弾く', () => {
+    // 前提: 境界の整数と、範囲端付近の非整数を与える
+    // 検証: 1・28 は成功、0.5・28.5 は失敗（整数かつ範囲内の両条件を満たす必要がある）
+    expect(validateRecurringDay(1, メッセージ, 'executionDay').success).toBe(true);
+    expect(validateRecurringDay(28, メッセージ, 'executionDay').success).toBe(true);
+    expect(validateRecurringDay(0.5, メッセージ, 'executionDay').success).toBe(false);
+    expect(validateRecurringDay(28.5, メッセージ, 'executionDay').success).toBe(false);
   });
 });
