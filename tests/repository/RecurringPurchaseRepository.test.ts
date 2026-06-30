@@ -101,4 +101,65 @@ describe('RecurringPurchaseRepository', () => {
       expect(result.value[0]?.endDate).toBe('2024-06-01');
     }
   });
+
+  it('executionDayが非整数（例: 15.5）の行は unexpected エラーを返す', () => {
+    // 前提: recurringシートの executionDay 列に非整数 15.5 が保存されている
+    //   （仕様は「1〜28の整数」。手動編集や不正データ混入を想定）
+    // 事前条件: 非整数のまま約定日計算へ流れると formatIsoDate が不正な日付文字列を生むため、
+    //   読み取り段階で fail fast に弾く必要がある（#133）。
+    // 検証: listAll が unexpected エラーを返し、メッセージに executionDay が含まれる
+    const sheetRepository = createInMemorySheetRepository({
+      [SHEET_NAMES.RECURRING]: [
+        [
+          'id',
+          'fundId',
+          'monthlyAmount',
+          'executionDay',
+          'startDate',
+          'endDate',
+          'isActive',
+          'createdAt',
+        ],
+        ['rec-1', 'fund-1', 10000, 15.5, '2024-01-01', '', 'TRUE', '2024-01-01T00:00:00.000Z'],
+      ],
+    });
+    const repository = createRecurringPurchaseRepository(sheetRepository);
+    const result = repository.listAll();
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.type).toBe('unexpected');
+      expect(result.error.message).toContain('executionDay');
+    }
+  });
+
+  it('executionDayが範囲外の整数（例: 99）の行は unexpected エラーを返す', () => {
+    // 前提: recurringシートの executionDay 列に範囲外の整数 99 が保存されている
+    //   （仕様は「1〜28の整数」。手動編集等による範囲外データ混入を想定）
+    // 事前条件: 範囲外整数のまま約定日計算へ流れると formatIsoDate が "2026-06-99" のような
+    //   不正な日付文字列を生み、営業日カレンダーの辞書順比較で誤った結果を招くため、
+    //   読み取り段階で整数判定だけでなく範囲(1〜28)判定でも弾く必要がある（#133 レビュー指摘）。
+    // 検証: listAll が unexpected エラーを返し、メッセージに executionDay が含まれる
+    const sheetRepository = createInMemorySheetRepository({
+      [SHEET_NAMES.RECURRING]: [
+        [
+          'id',
+          'fundId',
+          'monthlyAmount',
+          'executionDay',
+          'startDate',
+          'endDate',
+          'isActive',
+          'createdAt',
+        ],
+        ['rec-1', 'fund-1', 10000, 99, '2024-01-01', '', 'TRUE', '2024-01-01T00:00:00.000Z'],
+      ],
+    });
+    const repository = createRecurringPurchaseRepository(sheetRepository);
+    const result = repository.listAll();
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.type).toBe('unexpected');
+      expect(result.error.message).toContain('executionDay');
+    }
+  });
 });
