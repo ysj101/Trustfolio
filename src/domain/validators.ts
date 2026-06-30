@@ -85,35 +85,60 @@ export function validatePositiveNumber(
 }
 
 /**
- * 値が「積立設定の注文日（1〜28）」として妥当な数値であることを検証する共通バリデータ。
+ * 値が「積立設定の注文日（1〜28 の整数）」として妥当であることを検証する共通バリデータ。
  *
  * 目的:
  * - `RecurringUseCase.validateRecurringInput()` に直書きされていた
- *   executionDay の範囲制約（1〜28）をドメイン層へ集約する。
+ *   executionDay の制約（1〜28 の整数）をドメイン層へ集約する。
  *
- * 内容・既存挙動の踏襲（重要）:
- * - 判定は「数値であり（typeof number）」かつ「NaN でない」かつ「1以上28以下」である。
- * - **整数判定は行わない**。これは元実装（RecurringUseCase 側の直書き検証）が
- *   `Number.isInteger` を用いておらず、例えば `1.5` を許容していた挙動をそのまま保つためである。
- *   仕様文言上は「1〜28の整数」と表現されるが、実コードの挙動を優先して非整数も通す。
+ * 検証内容:
+ * - 「数値であり（typeof number）」かつ「NaN でない」かつ「整数（{@link Number.isInteger}）」
+ *   かつ「1 以上 28 以下」であることを要求する。
+ * - **整数であることを必須とする**。注文日は「毎月N日」を表す値であり、`15.5` のような
+ *   非整数は意味を成さない。さらに非整数が約定日計算
+ *   （`RecurringUseCase` の `formatIsoDate(year, month, day)`）へ到達すると
+ *   `2025-01-15.5` のような不正な日付文字列を生成し、営業日カレンダーに一致せず
+ *   静かに想定外の結果を招く。これを入力境界で fail fast に弾く（#133）。
  * - 上限・下限を 1〜28 に固定するのは、月末日（29〜31）が存在しない月でも注文日が
  *   破綻しないようにするという積立設定固有の制約に由来する。
+ *
+ * 注意（挙動変更の経緯）:
+ * - 以前は `Number.isInteger` 判定が無く `1.5` 等の非整数も通していたが、
+ *   仕様文言「1〜28 の整数」・UI 入力（`<input type="number" step="1" min="1" max="28">`）と
+ *   コードの乖離を解消するため、#133 で整数必須へ統一した。
  *
  * @param value - 検証対象の値（積立設定の注文日）。
  * @param message - 失敗時に利用者へ提示するメッセージ。
  * @param field - 失敗時に対象フィールドを示すキー。
- * @returns 検証に成功すれば数値（1〜28）を持つ {@link Result}。
+ * @returns 検証に成功すれば整数（1〜28）を持つ {@link Result}。
  */
 export function validateRecurringDay(
   value: unknown,
   message: string,
   field: string
 ): Result<number> {
-  if (typeof value !== 'number' || Number.isNaN(value)) {
-    return fail('validation', message, field);
-  }
-  if (value < 1 || value > 28) {
+  if (!isValidRecurringDay(value)) {
     return fail('validation', message, field);
   }
   return { success: true, value };
+}
+
+/**
+ * 値が「積立設定の注文日（1〜28 の整数）」として妥当かを判定する型ガード述語。
+ *
+ * 目的:
+ * - 「整数であること」と「1〜28 の範囲であること」という注文日のルールを1箇所に集約し、
+ *   入力境界（{@link validateRecurringDay} 経由の作成・更新）と
+ *   読込境界（`RecurringPurchaseRepository.parseRow` での保存値検証）の双方から共有する。
+ *   これにより、片側だけ範囲チェックを欠くといった検証の非対称（#133 のレビュー指摘）を防ぐ。
+ *
+ * 判定内容:
+ * - 「数値であり（typeof number）」かつ「整数（{@link Number.isInteger}。NaN・±Infinity は false）」
+ *   かつ「1 以上 28 以下」のとき true を返す。
+ *
+ * @param value - 判定対象の値。
+ * @returns 注文日として妥当なら true（その場合 `value` は number に絞り込まれる）。
+ */
+export function isValidRecurringDay(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 28;
 }
