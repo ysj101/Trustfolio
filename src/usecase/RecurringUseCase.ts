@@ -145,6 +145,8 @@ export function createRecurringUseCase(
       if (!idResult.success) {
         return idResult;
       }
+      // 入力バリデータの検証済み戻り値(.value)を以降で使用する（元の input.id は使い続けない）。
+      const validId = idResult.value;
 
       const validateResult = validateRecurringInput(input);
       if (!validateResult.success) {
@@ -154,7 +156,7 @@ export function createRecurringUseCase(
       const { fundId, monthlyAmount, executionDay, startDate, endDate, isActive } =
         validateResult.value;
 
-      const existingResult = recurringRepository.findById(input.id);
+      const existingResult = recurringRepository.findById(validId);
       if (!existingResult.success) {
         return propagateFailure(existingResult);
       }
@@ -193,8 +195,10 @@ export function createRecurringUseCase(
       if (!idResult.success) {
         return idResult;
       }
+      // 入力バリデータの検証済み戻り値(.value)を以降で使用する（元の recurringId は使い続けない）。
+      const validId = idResult.value;
 
-      const existingResult = recurringRepository.findById(recurringId);
+      const existingResult = recurringRepository.findById(validId);
       if (!existingResult.success) {
         return propagateFailure(existingResult);
       }
@@ -205,7 +209,7 @@ export function createRecurringUseCase(
         };
       }
 
-      const deleteResult = recurringRepository.deleteRecurringPurchase(recurringId);
+      const deleteResult = recurringRepository.deleteRecurringPurchase(validId);
       if (!deleteResult.success) {
         return propagateFailure(deleteResult);
       }
@@ -497,12 +501,15 @@ function validateRecurringInput(input: {
     return fail('validation', 'アクティブ設定が不正です。', 'isActive');
   }
 
+  // Result を返す入力バリデータ（fundId・monthlyAmount・executionDay）は検証済み戻り値(.value)を
+  // 用いる。startDate・endDate は isValidIsoDate、isActive は typeof での判定であり Result を
+  // 返さないため元の値を用いる（本方針は Result を返す入力バリデータの戻り値を対象とする）。
   return {
     success: true,
     value: {
-      fundId,
-      monthlyAmount,
-      executionDay,
+      fundId: fundIdResult.value,
+      monthlyAmount: monthlyAmountResult.value,
+      executionDay: executionDayResult.value,
       startDate,
       endDate: endDate !== null && endDate !== '' ? endDate : null,
       isActive,
