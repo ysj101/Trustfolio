@@ -76,13 +76,15 @@ export function createTransactionUseCase(
       if (!fundIdResult.success) {
         return fundIdResult;
       }
+      // 入力バリデータの検証済み戻り値(.value)を以降で使用する（元の入力変数は使い続けない）。
+      const validFundId = fundIdResult.value;
 
-      const fundResult = assertFundExists(fundRepository, fundId);
+      const fundResult = assertFundExists(fundRepository, validFundId);
       if (!fundResult.success) {
         return fundResult;
       }
 
-      return transactionRepository.listByFundId(fundId);
+      return transactionRepository.listByFundId(validFundId);
     },
     listAll: (): Result<Transaction[]> => {
       const fundsResult = fundRepository.listFunds();
@@ -191,6 +193,8 @@ export function createTransactionUseCase(
       if (!idResult.success) {
         return idResult;
       }
+      // 入力バリデータの検証済み戻り値(.value)を以降で使用する（元の input.id は使い続けない）。
+      const validId = idResult.value;
 
       const validateResult = validateSpotPurchaseInput(input);
       if (!validateResult.success) {
@@ -199,7 +203,7 @@ export function createTransactionUseCase(
 
       const { fundId, date, amount, navValue } = validateResult.value;
 
-      const existingResult = transactionRepository.findById(input.id, fundId);
+      const existingResult = transactionRepository.findById(validId, fundId);
       if (!existingResult.success) {
         return propagateFailure(existingResult);
       }
@@ -260,6 +264,8 @@ export function createTransactionUseCase(
       if (!idResult.success) {
         return idResult;
       }
+      // 入力バリデータの検証済み戻り値(.value)を以降で使用する（元の input.id は使い続けない）。
+      const validId = idResult.value;
 
       const validateResult = validateSaleTransactionInput(input);
       if (!validateResult.success) {
@@ -268,7 +274,7 @@ export function createTransactionUseCase(
 
       const { fundId, date, units, amount, navValue } = validateResult.value;
 
-      const existingResult = transactionRepository.findById(input.id, fundId);
+      const existingResult = transactionRepository.findById(validId, fundId);
       if (!existingResult.success) {
         return propagateFailure(existingResult);
       }
@@ -317,7 +323,7 @@ export function createTransactionUseCase(
       // 更新後の売却取引を含めて、全期間で保有口数がマイナスにならないことを検証
       const validationResult = validateHoldingsAcrossAllDates(
         [...transactionsResult.value, transaction],
-        input.id // 更新対象の取引IDを除外
+        validId // 更新対象の取引IDを除外
       );
 
       if (!validationResult.success) {
@@ -340,8 +346,11 @@ export function createTransactionUseCase(
       if (!fundIdResult.success) {
         return fundIdResult;
       }
+      // 入力バリデータの検証済み戻り値(.value)を以降で使用する（元の入力変数は使い続けない）。
+      const validTransactionId = transactionIdResult.value;
+      const validFundId = fundIdResult.value;
 
-      const existingResult = transactionRepository.findById(transactionId, fundId);
+      const existingResult = transactionRepository.findById(validTransactionId, validFundId);
       if (!existingResult.success) {
         return propagateFailure(existingResult);
       }
@@ -363,7 +372,7 @@ export function createTransactionUseCase(
         };
       }
 
-      const deleteResult = transactionRepository.deleteTransaction(transactionId, fundId);
+      const deleteResult = transactionRepository.deleteTransaction(validTransactionId, validFundId);
       if (!deleteResult.success) {
         return propagateFailure(deleteResult);
       }
@@ -401,7 +410,9 @@ function validateFundAndDate(input: {
   if (!isValidIsoDate(date)) {
     return fail('validation', '日付はYYYY-MM-DD形式で入力してください。', 'date');
   }
-  return { success: true, value: { fundId, date } };
+  // fundId は検証済み戻り値(.value)を用いる。date は Result を返さない isValidIsoDate で
+  // 判定するため元の値を用いる（本方針は Result を返す入力バリデータの戻り値を対象とする）。
+  return { success: true, value: { fundId: fundIdResult.value, date } };
 }
 
 /**
@@ -441,7 +452,16 @@ function validateSpotPurchaseInput(input: {
     return navValueResult;
   }
 
-  return { success: true, value: { fundId, date, amount, navValue } };
+  // 各入力バリデータの検証済み戻り値(.value)を集約して返す（元の入力変数は使い続けない）。
+  // fundId・date は validateFundAndDate の検証済み value をそのまま展開する。
+  return {
+    success: true,
+    value: {
+      ...fundAndDateResult.value,
+      amount: amountResult.value,
+      navValue: navValueResult.value,
+    },
+  };
 }
 
 /**
@@ -491,7 +511,17 @@ function validateSaleTransactionInput(input: {
     return navValueResult;
   }
 
-  return { success: true, value: { fundId, date, units, amount, navValue } };
+  // 各入力バリデータの検証済み戻り値(.value)を集約して返す（元の入力変数は使い続けない）。
+  // fundId・date は validateFundAndDate の検証済み value をそのまま展開する。
+  return {
+    success: true,
+    value: {
+      ...fundAndDateResult.value,
+      units: unitsResult.value,
+      amount: amountResult.value,
+      navValue: navValueResult.value,
+    },
+  };
 }
 
 /**
