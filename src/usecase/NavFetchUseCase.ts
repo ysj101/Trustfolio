@@ -5,7 +5,7 @@ import type { NavRepository } from '../repository/NavRepository';
 import type { PerformanceRepository } from '../repository/PerformanceRepository';
 import type { TransactionRepository } from '../repository/TransactionRepository';
 import type { RakutenService } from '../service/RakutenService';
-import { logWarn } from '../utils/logger';
+import { logError } from '../utils/logger';
 
 /**
  * 基準価額の自動取得結果（1銘柄分）。
@@ -107,7 +107,11 @@ export function createNavFetchUseCase(
           );
 
           if (!globalResult.success) {
-            logWarn(`全体実績記録に失敗: ${globalResult.error.message}`);
+            // 基準価額の取得・登録は成功したが全体実績シートへの永続化に失敗したケース。
+            // 同一日付の再実行は NAV が「既存」と判定され実績記録が再試行されないため、
+            // この日付の全体実績行は自動回復されず欠落する（手動復旧が必要なデータロスト）。
+            // 気付きにくい静かな欠落を grep・目視で検知できるよう [ERROR] で記録する（#137）。
+            logError(`全体実績記録に失敗: ${globalResult.error.message}`);
           } else {
             Logger.log(`全体実績記録成功: ${latestDate}`);
           }
@@ -217,7 +221,11 @@ function processFund(
   );
 
   if (!performanceResult.success) {
-    logWarn(`[${fund.name}] ファンド別実績記録に失敗: ${performanceResult.error.message}`);
+    // 基準価額の取得・登録は成功したがファンド別実績シートへの永続化に失敗したケース。
+    // 同一日付の再実行は NAV が「既存」と判定され processFund が early return するため、
+    // この日付のファンド別実績行は自動回復されず欠落する（手動復旧が必要なデータロスト）。
+    // 気付きにくい静かな欠落を grep・目視で検知できるよう [ERROR] で記録する（#137）。
+    logError(`[${fund.name}] ファンド別実績記録に失敗: ${performanceResult.error.message}`);
   } else {
     Logger.log(`[${fund.name}] ファンド別実績記録成功: ${nav.date}`);
   }
