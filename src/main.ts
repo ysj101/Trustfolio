@@ -184,9 +184,10 @@ export function fetchAllNavs(): void {
   if (result.performanceFailures.length > 0) {
     const failureDetails = result.performanceFailures
       .map((failure) =>
+        // scope で銘柄情報の有無が型上保証される（global は銘柄なし、fund は fundId/fundName が非 null）。
         failure.scope === 'global'
           ? `- 全体実績: ${failure.message}`
-          : `- ${failure.fundName ?? '不明な銘柄'} (${failure.fundId ?? '不明'}): ${failure.message}`
+          : `- ${failure.fundName} (${failure.fundId}): ${failure.message}`
       )
       .join('\n');
     sendErrorNotificationEmail(

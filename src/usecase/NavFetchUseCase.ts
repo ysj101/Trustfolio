@@ -30,17 +30,29 @@ export type NavFetchResultItem = {
  * このケースは同一日付の再実行では自動回復されない（NAV が「既存」と判定され実績記録が再試行
  * されない）ため、手動復旧が必要な静かなデータロストとなる。運用者への通知（`main.ts` の
  * `fetchAllNavs`）で用いるため、失敗した種別・銘柄・理由を保持する。
+ *
+ * `scope` を判別子とする判別可能ユニオンで表現する。「全体実績失敗は銘柄に紐づかない（fundId・
+ * fundName は null）」「ファンド別実績失敗は銘柄に紐づく（fundId・fundName は非 null の文字列）」
+ * という不変条件を型自身にエンコードすることで、通知整形時に銘柄情報の有無を型で保証し、
+ * 到達不能なフォールバック（暗黙のフォールバック）を排除する。
  */
-export type PerformanceRecordFailure = {
-  /** 失敗した実績記録の種別。'global' = 全体実績シート、'fund' = ファンド別実績シート。 */
-  scope: 'global' | 'fund';
-  /** ファンド別実績失敗時の銘柄ID。全体実績失敗時は null。 */
-  fundId: string | null;
-  /** ファンド別実績失敗時の銘柄名。全体実績失敗時は null。 */
-  fundName: string | null;
-  /** 失敗理由（元の {@link Result} 失敗時のエラーメッセージ）。 */
-  message: string;
-};
+export type PerformanceRecordFailure =
+  | {
+      /** 全体実績シートへの記録失敗。銘柄に紐づかないため fundId・fundName は null。 */
+      scope: 'global';
+      fundId: null;
+      fundName: null;
+      /** 失敗理由（元の {@link Result} 失敗時のエラーメッセージ）。 */
+      message: string;
+    }
+  | {
+      /** ファンド別実績シートへの記録失敗。対象銘柄の fundId・fundName を保持する。 */
+      scope: 'fund';
+      fundId: string;
+      fundName: string;
+      /** 失敗理由（元の {@link Result} 失敗時のエラーメッセージ）。 */
+      message: string;
+    };
 
 /**
  * 基準価額の自動取得結果（全体）。
