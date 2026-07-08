@@ -282,6 +282,17 @@ describe('NavFetchUseCase', () => {
     expect(logSpy).toHaveBeenCalledWith(
       '[ERROR] [成功ファンド] ファンド別実績記録に失敗: ファンド別実績シートの読み取りに失敗しました。'
     );
+    // 実績記録失敗が結果の performanceFailures に scope='fund' として集約される（#144、通知連携用）。
+    if (result.success) {
+      expect(result.value.performanceFailures).toEqual([
+        {
+          scope: 'fund',
+          fundId: 'fund-success',
+          fundName: '成功ファンド',
+          message: 'ファンド別実績シートの読み取りに失敗しました。',
+        },
+      ]);
+    }
   });
 
   it('全体実績記録に失敗した場合は [ERROR] 重要度でログ出力される', () => {
@@ -376,5 +387,16 @@ describe('NavFetchUseCase', () => {
     expect(logSpy).toHaveBeenCalledWith(
       '[ERROR] 全体実績記録に失敗: 全体実績シートの読み取りに失敗しました。'
     );
+    // 実績記録失敗が結果の performanceFailures に scope='global' として集約される（#144、通知連携用）。
+    if (result.success) {
+      expect(result.value.performanceFailures).toEqual([
+        {
+          scope: 'global',
+          fundId: null,
+          fundName: null,
+          message: '全体実績シートの読み取りに失敗しました。',
+        },
+      ]);
+    }
   });
 });

@@ -235,6 +235,7 @@ describe('main', () => {
             nav: { fundId: 'fund-002', date: '2024-03-05', value: 10000, createdAt: '' },
           },
         ],
+        performanceFailures: [],
       },
     });
 
@@ -251,6 +252,192 @@ describe('main', () => {
       '基準価額自動取得（一部失敗）',
       expect.stringContaining('失敗した銘柄'),
       'notify@example.com'
+    );
+  });
+
+  it('実績記録に失敗した場合は実績記録失敗の通知を送信する', async () => {
+    // 前提: NAV の取得・登録は全件成功だが、実績シートへの記録（全体・ファンド別）に失敗する。
+    //   これは自動回復されないデータロストであり、取得失敗（failedCount）とは別件の通知を送る（#144）。
+    // 事前条件: 送信先メールアドレスが設定されている。failedCount は 0（取得失敗は無い）。
+    // 検証: 「基準価額自動取得（実績記録失敗）」の通知メールが、失敗した銘柄名・理由を含めて送信される。
+    const { handleApiRequest } = vi.mocked(await import('../src/api/router'));
+    handleApiRequest.mockReturnValue({
+      success: true,
+      value: {
+        totalCount: 1,
+        successCount: 1,
+        alreadyExistsCount: 0,
+        skippedCount: 0,
+        failedCount: 0,
+        items: [
+          {
+            fundId: 'fund-002',
+            fundName: '海外株式',
+            status: 'success',
+            nav: { fundId: 'fund-002', date: '2024-03-05', value: 10000, createdAt: '' },
+          },
+        ],
+        // NAV 登録は成功したが、ファンド別・全体の実績記録が失敗したケース。
+        performanceFailures: [
+          {
+            scope: 'fund',
+            fundId: 'fund-002',
+            fundName: '海外株式',
+            message: 'ファンド別実績シートの書き込みに失敗しました。',
+          },
+          {
+            scope: 'global',
+            fundId: null,
+            fundName: null,
+            message: '全体実績シートの書き込みに失敗しました。',
+          },
+        ],
+      },
+    });
+
+    const { getWeeklyReportEmail } = vi.mocked(await import('../src/Config'));
+    getWeeklyReportEmail.mockReturnValue('notify@example.com');
+
+    const sendErrorNotification = vi.fn(() => ({ success: true as const, value: undefined }));
+    const { createEmailService } = vi.mocked(await import('../src/service/EmailService'));
+    createEmailService.mockReturnValue({ sendErrorNotification } as EmailService);
+
+    fetchAllNavs();
+
+    // 実績記録失敗の通知が、ファンド別失敗（銘柄名）・全体失敗の内訳を含めて送信される。
+    expect(sendErrorNotification).toHaveBeenCalledWith(
+      '基準価額自動取得（実績記録失敗）',
+      expect.stringContaining('海外株式'),
+      'notify@example.com'
+    );
+    expect(sendErrorNotification).toHaveBeenCalledWith(
+      '基準価額自動取得（実績記録失敗）',
+      expect.stringContaining('全体実績'),
+      'notify@example.com'
+    );
+    // 取得失敗（一部失敗）の通知は送られない（failedCount が 0 のため）。
+    expect(sendErrorNotification).not.toHaveBeenCalledWith(
+      '基準価額自動取得（一部失敗）',
+      expect.anything(),
+      expect.anything()
+    );
+  });
+
+  it('取得失敗と実績記録失敗が同時に発生した場合は両方の通知を送信する', async () => {
+    // 前提: 一部の銘柄は取得に失敗し（failedCount>0）、別途 実績記録にも失敗した（performanceFailures>0）。
+    //   両者は原因も対処も異なるため、独立した2通の通知（一部失敗・実績記録失敗）を送る設計を固定する。
+    // 事前条件: 送信先メールアドレスが設定されている。
+    // 検証: 「一部失敗」通知と「実績記録失敗」通知の両方が送信される。
+    const { handleApiRequest } = vi.mocked(await import('../src/api/router'));
+    handleApiRequest.mockReturnValue({
+      success: true,
+      value: {
+        totalCount: 2,
+        successCount: 1,
+        alreadyExistsCount: 0,
+        skippedCount: 0,
+        failedCount: 1,
+        items: [
+          {
+            fundId: 'fund-001',
+            fundName: '国内株式',
+            status: 'failed',
+            message: '取得に失敗しました。',
+          },
+          {
+            fundId: 'fund-002',
+            fundName: '海外株式',
+            status: 'success',
+            nav: { fundId: 'fund-002', date: '2024-03-05', value: 10000, createdAt: '' },
+          },
+        ],
+        performanceFailures: [
+          {
+            scope: 'fund',
+            fundId: 'fund-002',
+            fundName: '海外株式',
+            message: 'ファンド別実績シートの書き込みに失敗しました。',
+          },
+        ],
+      },
+    });
+
+    const { getWeeklyReportEmail } = vi.mocked(await import('../src/Config'));
+    getWeeklyReportEmail.mockReturnValue('notify@example.com');
+
+    const sendErrorNotification = vi.fn(() => ({ success: true as const, value: undefined }));
+    const { createEmailService } = vi.mocked(await import('../src/service/EmailService'));
+    createEmailService.mockReturnValue({ sendErrorNotification } as EmailService);
+
+    fetchAllNavs();
+
+    // 取得失敗の通知（一部失敗）と、実績記録失敗の通知の両方が送信される。
+    expect(sendErrorNotification).toHaveBeenCalledWith(
+      '基準価額自動取得（一部失敗）',
+      expect.stringContaining('失敗した銘柄'),
+      'notify@example.com'
+    );
+    expect(sendErrorNotification).toHaveBeenCalledWith(
+      '基準価額自動取得（実績記録失敗）',
+      expect.stringContaining('海外株式'),
+      'notify@example.com'
+    );
+  });
+
+  it('実績記録失敗の内訳が不正な構造の場合は形式不正として通知する', async () => {
+    // 前提: NavFetchResult の performanceFailures に、型不変条件を満たさない不正要素が含まれる。
+    //   （scope='fund' なのに fundId/fundName が null 等）。型ガードはこれを fail fast で弾く。
+    // 事前条件: 送信先メールアドレスが設定されている。
+    // 検証: 実績記録失敗の通知ではなく「結果形式が不正」の通知が送信される（不正値の通知混入を防ぐ）。
+    const { handleApiRequest } = vi.mocked(await import('../src/api/router'));
+    handleApiRequest.mockReturnValue({
+      success: true,
+      value: {
+        totalCount: 1,
+        successCount: 1,
+        alreadyExistsCount: 0,
+        skippedCount: 0,
+        failedCount: 0,
+        items: [
+          {
+            fundId: 'fund-002',
+            fundName: '海外株式',
+            status: 'success',
+            nav: { fundId: 'fund-002', date: '2024-03-05', value: 10000, createdAt: '' },
+          },
+        ],
+        // scope='fund' だが fundId/fundName が null（不変条件違反）の不正要素。
+        performanceFailures: [
+          {
+            scope: 'fund',
+            fundId: null,
+            fundName: null,
+            message: 'ファンド別実績シートの書き込みに失敗しました。',
+          },
+        ],
+      },
+    });
+
+    const { getWeeklyReportEmail } = vi.mocked(await import('../src/Config'));
+    getWeeklyReportEmail.mockReturnValue('notify@example.com');
+
+    const sendErrorNotification = vi.fn(() => ({ success: true as const, value: undefined }));
+    const { createEmailService } = vi.mocked(await import('../src/service/EmailService'));
+    createEmailService.mockReturnValue({ sendErrorNotification } as EmailService);
+
+    fetchAllNavs();
+
+    // 型ガードが不正要素を弾き、形式不正の通知が送られる。
+    expect(sendErrorNotification).toHaveBeenCalledWith(
+      '基準価額自動取得',
+      expect.stringContaining('結果の形式が不正'),
+      'notify@example.com'
+    );
+    // 不正値を含む実績記録失敗の通知は送られない。
+    expect(sendErrorNotification).not.toHaveBeenCalledWith(
+      '基準価額自動取得（実績記録失敗）',
+      expect.anything(),
+      expect.anything()
     );
   });
 

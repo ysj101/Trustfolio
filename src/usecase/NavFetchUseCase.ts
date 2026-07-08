@@ -24,6 +24,25 @@ export type NavFetchResultItem = {
 };
 
 /**
+ * 実績記録（パフォーマンスシートへの永続化）失敗の内訳。
+ *
+ * 「基準価額（NAV）の取得・登録は成功したが、実績シートへの書き込みに失敗した」ケースを表す。
+ * このケースは同一日付の再実行では自動回復されない（NAV が「既存」と判定され実績記録が再試行
+ * されない）ため、手動復旧が必要な静かなデータロストとなる。運用者への通知（`main.ts` の
+ * `fetchAllNavs`）で用いるため、失敗した種別・銘柄・理由を保持する。
+ */
+export type PerformanceRecordFailure = {
+  /** 失敗した実績記録の種別。'global' = 全体実績シート、'fund' = ファンド別実績シート。 */
+  scope: 'global' | 'fund';
+  /** ファンド別実績失敗時の銘柄ID。全体実績失敗時は null。 */
+  fundId: string | null;
+  /** ファンド別実績失敗時の銘柄名。全体実績失敗時は null。 */
+  fundName: string | null;
+  /** 失敗理由（元の {@link Result} 失敗時のエラーメッセージ）。 */
+  message: string;
+};
+
+/**
  * 基準価額の自動取得結果（全体）。
  */
 export type NavFetchResult = {
@@ -39,6 +58,14 @@ export type NavFetchResult = {
   failedCount: number;
   /** 各銘柄の処理結果 */
   items: NavFetchResultItem[];
+  /**
+   * 実績記録に失敗した内訳（全体実績・ファンド別実績）。
+   *
+   * ここに含まれる失敗は「NAV の取得・登録は成功したが実績シートへの永続化に失敗」したもので、
+   * 自動回復されないデータロストである。空配列の場合は実績記録失敗が無かったことを表す。
+   * `main.ts` の `fetchAllNavs` はこの配列が空でなければ運用者へエラー通知メールを送信する。
+   */
+  performanceFailures: PerformanceRecordFailure[];
 };
 
 export type NavFetchUseCase = {
@@ -70,16 +97,21 @@ export function createNavFetchUseCase(
 
       const funds = fundsResult.value;
       const items: NavFetchResultItem[] = [];
+      // 実績記録失敗の内訳を蓄積する（全体実績・ファンド別実績の双方を集約する）。
+      const performanceFailures: PerformanceRecordFailure[] = [];
 
       for (const fund of funds) {
-        const item = processFund(
+        const outcome = processFund(
           fund,
           navRepository,
           transactionRepository,
           performanceRepository,
           rakutenService
         );
-        items.push(item);
+        items.push(outcome.item);
+        if (outcome.performanceFailure !== null) {
+          performanceFailures.push(outcome.performanceFailure);
+        }
       }
 
       // 集計
@@ -112,6 +144,13 @@ export function createNavFetchUseCase(
             // この日付の全体実績行は自動回復されず欠落する（手動復旧が必要なデータロスト）。
             // 気付きにくい静かな欠落を grep・目視で検知できるよう [ERROR] で記録する（#137）。
             logError(`全体実績記録に失敗: ${globalResult.error.message}`);
+            // 運用者への通知（#144）のため、全体実績失敗を内訳へ記録する。
+            performanceFailures.push({
+              scope: 'global',
+              fundId: null,
+              fundName: null,
+              message: globalResult.error.message,
+            });
           } else {
             Logger.log(`全体実績記録成功: ${latestDate}`);
           }
@@ -127,11 +166,27 @@ export function createNavFetchUseCase(
           alreadyExistsCount,
           failedCount,
           items,
+          performanceFailures,
         },
       };
     },
   };
 }
+
+/**
+ * {@link processFund} の処理結果。
+ *
+ * 銘柄単位の処理結果（{@link NavFetchResultItem}）に加えて、
+ * 「NAV 登録は成功したがファンド別実績記録に失敗した」場合の失敗内訳を併せて返す。
+ * 実績記録失敗は NAV 取得自体の成否（`item.status`）とは独立した事象であるため、
+ * `item` に混ぜず別フィールドとして表現する（成功時も `item.status` は 'success' のまま）。
+ */
+type ProcessFundOutcome = {
+  /** 銘柄単位の処理結果。 */
+  item: NavFetchResultItem;
+  /** ファンド別実績記録の失敗内訳。失敗が無い場合は null。 */
+  performanceFailure: PerformanceRecordFailure | null;
+};
 
 /**
  * 1銘柄の基準価額取得・登録処理を実行する。
@@ -142,14 +197,17 @@ function processFund(
   transactionRepository: TransactionRepository,
   performanceRepository: PerformanceRepository,
   rakutenService: RakutenService
-): NavFetchResultItem {
+): ProcessFundOutcome {
   // 楽天ファンドIDが未設定の場合はスキップ
   if (fund.rakutenFundId === null) {
     return {
-      fundId: fund.id,
-      fundName: fund.name,
-      status: 'skipped',
-      message: '楽天ファンドIDが設定されていません。',
+      item: {
+        fundId: fund.id,
+        fundName: fund.name,
+        status: 'skipped',
+        message: '楽天ファンドIDが設定されていません。',
+      },
+      performanceFailure: null,
     };
   }
 
@@ -157,20 +215,26 @@ function processFund(
   const fetchResult = rakutenService.fetchLatestNav(fund.rakutenFundId);
   if (!fetchResult.success) {
     return {
-      fundId: fund.id,
-      fundName: fund.name,
-      status: 'failed',
-      message: fetchResult.error.message,
+      item: {
+        fundId: fund.id,
+        fundName: fund.name,
+        status: 'failed',
+        message: fetchResult.error.message,
+      },
+      performanceFailure: null,
     };
   }
 
   const navData = fetchResult.value.nav;
   if (navData === null) {
     return {
-      fundId: fund.id,
-      fundName: fund.name,
-      status: 'failed',
-      message: '基準価額データを取得できませんでした。',
+      item: {
+        fundId: fund.id,
+        fundName: fund.name,
+        status: 'failed',
+        message: '基準価額データを取得できませんでした。',
+      },
+      performanceFailure: null,
     };
   }
 
@@ -178,19 +242,25 @@ function processFund(
   const existingResult = navRepository.findByFundAndDate(fund.id, navData.date);
   if (!existingResult.success) {
     return {
-      fundId: fund.id,
-      fundName: fund.name,
-      status: 'failed',
-      message: existingResult.error.message,
+      item: {
+        fundId: fund.id,
+        fundName: fund.name,
+        status: 'failed',
+        message: existingResult.error.message,
+      },
+      performanceFailure: null,
     };
   }
 
   if (existingResult.value !== null) {
     return {
-      fundId: fund.id,
-      fundName: fund.name,
-      status: 'already_exists',
-      message: `${navData.date}の基準価額は既に登録されています。`,
+      item: {
+        fundId: fund.id,
+        fundName: fund.name,
+        status: 'already_exists',
+        message: `${navData.date}の基準価額は既に登録されています。`,
+      },
+      performanceFailure: null,
     };
   }
 
@@ -205,10 +275,13 @@ function processFund(
   const createResult = navRepository.createNav(nav);
   if (!createResult.success) {
     return {
-      fundId: fund.id,
-      fundName: fund.name,
-      status: 'failed',
-      message: createResult.error.message,
+      item: {
+        fundId: fund.id,
+        fundName: fund.name,
+        status: 'failed',
+        message: createResult.error.message,
+      },
+      performanceFailure: null,
     };
   }
 
@@ -220,21 +293,32 @@ function processFund(
     performanceRepository
   );
 
+  let performanceFailure: PerformanceRecordFailure | null = null;
   if (!performanceResult.success) {
     // 基準価額の取得・登録は成功したがファンド別実績シートへの永続化に失敗したケース。
     // 同一日付の再実行は NAV が「既存」と判定され processFund が early return するため、
     // この日付のファンド別実績行は自動回復されず欠落する（手動復旧が必要なデータロスト）。
     // 気付きにくい静かな欠落を grep・目視で検知できるよう [ERROR] で記録する（#137）。
     logError(`[${fund.name}] ファンド別実績記録に失敗: ${performanceResult.error.message}`);
+    // 運用者への通知（#144）のため、ファンド別実績失敗を内訳へ記録する。
+    performanceFailure = {
+      scope: 'fund',
+      fundId: fund.id,
+      fundName: fund.name,
+      message: performanceResult.error.message,
+    };
   } else {
     Logger.log(`[${fund.name}] ファンド別実績記録成功: ${nav.date}`);
   }
 
   return {
-    fundId: fund.id,
-    fundName: fund.name,
-    status: 'success',
-    nav,
+    item: {
+      fundId: fund.id,
+      fundName: fund.name,
+      status: 'success',
+      nav,
+    },
+    performanceFailure,
   };
 }
 
