@@ -2,10 +2,14 @@ import type { ApiRequest } from './api/router';
 import { handleApiRequest } from './api/router';
 export { handleApiRequest } from './api/router';
 export { runRakutenIntegrationTest } from './integration/RakutenIntegrationTest';
-export type { NavFetchResult } from './usecase/NavFetchUseCase';
+export type { NavFetchResult, PerformanceRecordFailure } from './usecase/NavFetchUseCase';
 import type { AppError, Result } from './domain/types';
 import { propagateFailure } from './domain/result';
-import type { NavFetchResult, NavFetchResultItem } from './usecase/NavFetchUseCase';
+import type {
+  NavFetchResult,
+  NavFetchResultItem,
+  PerformanceRecordFailure,
+} from './usecase/NavFetchUseCase';
 import type { ExecuteRecurringResult } from './usecase/RecurringUseCase';
 import {
   getWeeklyReportEmail,
@@ -170,6 +174,27 @@ export function fetchAllNavs(): void {
         `成功: ${String(result.successCount)}\n` +
         `失敗: ${String(result.failedCount)}\n\n` +
         `失敗した銘柄:\n${errorDetails}`
+    );
+  }
+
+  // 実績記録に失敗した場合はメール通知（#144）。
+  // これは「NAV の取得・登録は成功したが実績シートへの永続化に失敗」したケースであり、
+  // 同一日付の再実行では自動回復されない静かなデータロストである。取得失敗（上記の failedCount）
+  // とは原因も対処も異なるため、別件の通知として運用者へ手動復旧を促す。
+  if (result.performanceFailures.length > 0) {
+    const failureDetails = result.performanceFailures
+      .map((failure) =>
+        // scope で銘柄情報の有無が型上保証される（global は銘柄なし、fund は fundId/fundName が非 null）。
+        failure.scope === 'global'
+          ? `- 全体実績: ${failure.message}`
+          : `- ${failure.fundName} (${failure.fundId}): ${failure.message}`
+      )
+      .join('\n');
+    sendErrorNotificationEmail(
+      '基準価額自動取得（実績記録失敗）',
+      `基準価額の取得・登録に成功した銘柄のうち、実績シートへの記録に失敗したものがあります。\n` +
+        `該当日付の実績は自動的には再記録されないため、手動での復旧が必要です。\n\n` +
+        `失敗した実績記録:\n${failureDetails}`
     );
   }
 }
@@ -421,7 +446,45 @@ function isNavFetchResult(value: unknown): value is NavFetchResult {
     typeof obj.alreadyExistsCount === 'number' &&
     typeof obj.skippedCount === 'number' &&
     typeof obj.failedCount === 'number' &&
-    Array.isArray(obj.items)
+    Array.isArray(obj.items) &&
+    Array.isArray(obj.performanceFailures) &&
+    obj.performanceFailures.every(isPerformanceRecordFailure)
+  );
+}
+
+/**
+ * PerformanceRecordFailure（実績記録失敗の内訳）の型ガード関数。
+ *
+ * `fetchAllNavs` は実績記録失敗の内訳を運用者通知メールの本文へ整形するため、想定外の構造
+ * （scope 不正・message 欠落・scope と fundId/fundName の不整合）が混入した状態で本文整形へ
+ * 進むと、undefined 等の不正値を含む通知を送ってしまう。これを防ぐため、要素構造を fail fast で
+ * 検証し、不正要素があれば {@link isNavFetchResult} を通じて NavFetchResult 全体を不正と判定する。
+ *
+ * 検証規則（{@link PerformanceRecordFailure} の不変条件に一致させる）:
+ * - `scope` は 'global' または 'fund' のいずれか。
+ * - `message` は空でない文字列。
+ * - `scope='global'`（全体実績失敗）は銘柄に紐づかないため `fundId`・`fundName` はともに null。
+ * - `scope='fund'`（ファンド別実績失敗）は銘柄に紐づくため `fundId`・`fundName` は空でない文字列。
+ */
+function isPerformanceRecordFailure(value: unknown): value is PerformanceRecordFailure {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const obj = value as Record<string, unknown>;
+  if (obj.scope !== 'global' && obj.scope !== 'fund') {
+    return false;
+  }
+  if (typeof obj.message !== 'string' || obj.message === '') {
+    return false;
+  }
+  if (obj.scope === 'global') {
+    return obj.fundId === null && obj.fundName === null;
+  }
+  return (
+    typeof obj.fundId === 'string' &&
+    obj.fundId !== '' &&
+    typeof obj.fundName === 'string' &&
+    obj.fundName !== ''
   );
 }
 
