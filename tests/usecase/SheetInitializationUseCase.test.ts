@@ -24,7 +24,7 @@ import { createStubSheetRepository, ok, fail } from '../fakes';
  */
 
 /** テスト用の銘柄を生成する。id 以外は共通の実データに近い値を用いる。 */
-function 銘柄(id: string, name: string): Fund {
+function createTestFund(id: string, name: string): Fund {
   return {
     id,
     name,
@@ -75,8 +75,8 @@ describe('initializeAllSheets', () => {
     const { repository, ensuredDefinitions } = createRecordingSheetRepository();
     const fundRepository = createFundRepositoryStub(() =>
       ok([
-        銘柄('fund-001', '全世界株式インデックスファンド'),
-        銘柄('fund-002', '先進国債券ファンド'),
+        createTestFund('fund-001', '全世界株式インデックスファンド'),
+        createTestFund('fund-002', '先進国債券ファンド'),
       ])
     );
 
@@ -110,8 +110,8 @@ describe('initializeAllSheets', () => {
     const { repository, ensuredDefinitions } = createRecordingSheetRepository();
     const fundRepository = createFundRepositoryStub(() =>
       ok([
-        銘柄('fund-001', '全世界株式インデックスファンド'),
-        銘柄('other-001', '新興国株式ファンド'),
+        createTestFund('fund-001', '全世界株式インデックスファンド'),
+        createTestFund('other-001', '新興国株式ファンド'),
       ])
     );
 
