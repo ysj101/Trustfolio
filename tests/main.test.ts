@@ -644,8 +644,9 @@ describe('main', () => {
     expect(() => {
       sendWeeklyReport();
     }).not.toThrow();
+    // コンテナ生成失敗は logError 経由（[ERROR] プレフィックス付き）で記録される（#148）
     expect(logMock).toHaveBeenCalledWith(
-      '[checkAndSendMarketIndexAlert] シートリポジトリの取得に失敗: スプレッドシートを開けませんでした。'
+      '[ERROR] [checkAndSendMarketIndexAlert] シートリポジトリの取得に失敗: スプレッドシートを開けませんでした。'
     );
   });
 

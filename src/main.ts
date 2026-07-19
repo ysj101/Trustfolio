@@ -492,7 +492,7 @@ export function sendWeeklyReport(): void {
  * S&P500またはNASDAQが前週比-5%以上下落した場合に通知を行う。
  *
  * 判定 → メール送信 → セルハイライトのビジネスオーケストレーションは
- * {@link createMarketIndexAlertUseCase} の `checkAndNotify` へ集約済みであり（H2 #148）、
+ * `MarketIndexAlertUseCase.checkAndNotify`（usecase 層）へ集約済みであり（H2 #148）、
  * 本関数はエントリポイント層の責務（設定取得・コンテナ生成・シート保証・委譲）のみを担う。
  * 各ステップの失敗はログ出力のみで正常終了する（トリガー実行を失敗させない移設前の挙動を維持）。
  */
@@ -502,7 +502,8 @@ function checkAndSendMarketIndexAlert(): void {
   // メールアドレスを取得
   const recipientEmail = getWeeklyReportEmail();
   if (recipientEmail === null) {
-    Logger.log(
+    // 送信先未設定は「アラート判定をスキップして処理は継続する」状態のため WARN で記録する（#148）
+    logWarn(
       '[checkAndSendMarketIndexAlert] WEEKLY_REPORT_EMAILが設定されていないためスキップします。'
     );
     return;
@@ -511,7 +512,7 @@ function checkAndSendMarketIndexAlert(): void {
   // 依存を組み立てる（コンテナ生成の失敗 = スプレッドシート接続の失敗）
   const containerResult = createAppContainer();
   if (!containerResult.success) {
-    Logger.log(
+    logError(
       `[checkAndSendMarketIndexAlert] シートリポジトリの取得に失敗: ${containerResult.error.message}`
     );
     return;
@@ -521,7 +522,7 @@ function checkAndSendMarketIndexAlert(): void {
   // 市場指数シートの存在確認
   const ensureResult = container.sheetInitializationUseCase.ensureMarketIndexSheet();
   if (!ensureResult.success) {
-    Logger.log(
+    logError(
       `[checkAndSendMarketIndexAlert] 市場指数シートの確認に失敗: ${ensureResult.error.message}`
     );
     return;
