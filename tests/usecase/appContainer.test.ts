@@ -23,7 +23,7 @@ describe('createAppContainer', () => {
   it('シート接続に成功した場合は全ユースケース・サービスが生成される', () => {
     // 前提: スプレッドシートへの接続が成功する
     // 事前条件: openSheetRepository がスタブの SheetRepository を返す
-    // 検証: AppContainer が公開する全プロパティ（ユースケース10種＋emailService）が
+    // 検証: AppContainer が公開する全ユースケース（11種）が
     //   定義されており、代表的なメソッドを持つ（配線漏れがないこと）
     vi.mocked(openSheetRepository).mockReturnValue(ok(createStubSheetRepository()));
 
@@ -43,10 +43,13 @@ describe('createAppContainer', () => {
       expect(typeof container.recurringUseCase.executeRecurringPurchases).toBe('function');
       expect(typeof container.navFetchUseCase.fetchAndRegisterAllNavs).toBe('function');
       expect(typeof container.weeklyReportUseCase.generateWeeklyReport).toBe('function');
+      expect(typeof container.weeklyReportUseCase.sendReport).toBe('function');
       expect(typeof container.marketIndexFetchUseCase.fetchAndRecordLatestIndices).toBe('function');
+      expect(typeof container.marketIndexAlertUseCase.checkAndNotify).toBe('function');
 
-      // サービス層: メール送信サービスが生成されている
-      expect(typeof container.emailService.sendErrorNotification).toBe('function');
+      // メール送信サービスは composition root 内部でユースケースへ注入されるのみで、
+      // コンテナの公開プロパティとしては露出しない（H2 #148。router からの直接利用を防ぐ）。
+      expect('emailService' in container).toBe(false);
     }
   });
 

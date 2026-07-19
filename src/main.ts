@@ -5,25 +5,13 @@ export { runRakutenIntegrationTest } from './integration/RakutenIntegrationTest'
 export type { NavFetchResult, PerformanceRecordFailure } from './usecase/NavFetchUseCase';
 import type { AppError, Result } from './domain/types';
 import { propagateFailure } from './domain/result';
-import type {
-  NavFetchResult,
-  NavFetchResultItem,
-  PerformanceRecordFailure,
-} from './usecase/NavFetchUseCase';
-import type { ExecuteRecurringResult } from './usecase/RecurringUseCase';
-import {
-  getWeeklyReportEmail,
-  SHEET_HEADERS,
-  SHEET_NAMES,
-  TRIGGER_SCHEDULES,
-  type SheetDefinition,
-  type TriggerSchedule,
-} from './Config';
+import { isNavFetchResult, type NavFetchResultItem } from './usecase/NavFetchUseCase';
+import { isExecuteRecurringResult, type ExecuteRecurringResult } from './usecase/RecurringUseCase';
+import { isMarketIndexFetchResult } from './usecase/MarketIndexFetchUseCase';
+import { createAppContainer } from './usecase/appContainer';
+import { getWeeklyReportEmail, TRIGGER_SCHEDULES, type TriggerSchedule } from './Config';
 import { createEmailService } from './service/EmailService';
-import { createMarketIndexRepository } from './repository/MarketIndexRepository';
-import { openSheetRepository } from './repository/SheetRepository';
-import { createMarketIndexAlertUseCase } from './usecase/MarketIndexAlertUseCase';
-import { logError } from './utils/logger';
+import { logError, logWarn } from './utils/logger';
 
 /**
  * Webアプリのエントリーポイント（GET）。
@@ -50,9 +38,41 @@ export function doPost(e: GoogleAppsScript.Events.DoPost): GoogleAppsScript.Cont
     });
   }
 
-  const request = JSON.parse(contents) as ApiRequest;
-  const response = handleApiRequest(request);
+  // 外部 POST 入力を無検証で ApiRequest として扱わない（H2 #148）。
+  // ここでは「action プロパティを持つ JSON オブジェクトである」ことのみを fail fast に検証し、
+  // action 値の妥当性（対応アクションかどうか）は従来どおり router の default 分岐が担う。
+  const parsed: unknown = JSON.parse(contents);
+  if (!hasActionProperty(parsed)) {
+    return createJsonResponse({
+      success: false,
+      error: {
+        type: 'validation',
+        message: 'リクエスト形式が不正です。action を含むJSONオブジェクトを送信してください。',
+      },
+    });
+  }
+
+  // 形状検証済みの値を ApiRequest として router へ渡す境界キャスト。
+  // 本ガードが保証するのは「action（文字列）を持つオブジェクト」までであり、
+  // action 値の妥当性は router の default 分岐（「未対応のアクションです。」）が、
+  // アクション固有フィールドの妥当性は usecase 層の入力バリデーションが担う。
+  const response = handleApiRequest(parsed as ApiRequest);
   return createJsonResponse(response);
+}
+
+/**
+ * POST ボディのパース結果が「action プロパティ（文字列）を持つオブジェクト」であることを検証する。
+ *
+ * 型述語は意図的に「action を持つオブジェクト」までしか主張しない（ApiRequest 全体を
+ * 主張すると、ランタイム検証の範囲より強い型契約となり嘘になるため）。ApiRequest への
+ * 絞り込みは呼び出し側の境界キャストとコメントで明示する。
+ */
+function hasActionProperty(value: unknown): value is { action: string } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as Record<string, unknown>).action === 'string'
+  );
 }
 
 /**
@@ -96,7 +116,8 @@ function createJsonResponse(response: unknown): GoogleAppsScript.Content.TextOut
 function sendErrorNotificationEmail(taskName: string, errorMessage: string): void {
   const recipient = getWeeklyReportEmail();
   if (recipient === null) {
-    Logger.log('エラー通知メールの送信先が設定されていません（WEEKLY_REPORT_EMAIL）');
+    // 送信先未設定は「通知をスキップして処理は継続する」状態のため WARN で記録する（#148）
+    logWarn('エラー通知メールの送信先が設定されていません（WEEKLY_REPORT_EMAIL）');
     return;
   }
 
@@ -104,7 +125,8 @@ function sendErrorNotificationEmail(taskName: string, errorMessage: string): voi
   const result = emailService.sendErrorNotification(taskName, errorMessage, recipient);
 
   if (!result.success) {
-    Logger.log(`エラー通知メールの送信に失敗しました: ${result.error.message}`);
+    // 通知メール自体の送信失敗は運用者への到達手段を失う重大事象のため ERROR で記録する（#148）
+    logError(`エラー通知メールの送信に失敗しました: ${result.error.message}`);
   }
 }
 
@@ -213,7 +235,7 @@ export function executeRecurringPurchasesDaily(): Result<ExecuteRecurringResult>
   });
 
   if (!response.success) {
-    Logger.log(
+    logError(
       `[executeRecurringPurchasesDaily] 失敗: ${response.error.message} (${response.error.type})`
     );
     // エラー通知メールを送信
@@ -225,7 +247,7 @@ export function executeRecurringPurchasesDaily(): Result<ExecuteRecurringResult>
   }
 
   if (!isExecuteRecurringResult(response.value)) {
-    Logger.log('[executeRecurringPurchasesDaily] 失敗: 実行結果の形式が不正です。');
+    logError('[executeRecurringPurchasesDaily] 失敗: 実行結果の形式が不正です。');
     // エラー通知メールを送信
     sendErrorNotificationEmail(
       '積立自動実行',
@@ -433,86 +455,6 @@ export function deleteNavFetchTrigger(): void {
 }
 
 /**
- * NavFetchResultの型ガード関数。
- */
-function isNavFetchResult(value: unknown): value is NavFetchResult {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-  const obj = value as Record<string, unknown>;
-  return (
-    typeof obj.totalCount === 'number' &&
-    typeof obj.successCount === 'number' &&
-    typeof obj.alreadyExistsCount === 'number' &&
-    typeof obj.skippedCount === 'number' &&
-    typeof obj.failedCount === 'number' &&
-    Array.isArray(obj.items) &&
-    Array.isArray(obj.performanceFailures) &&
-    obj.performanceFailures.every(isPerformanceRecordFailure)
-  );
-}
-
-/**
- * PerformanceRecordFailure（実績記録失敗の内訳）の型ガード関数。
- *
- * `fetchAllNavs` は実績記録失敗の内訳を運用者通知メールの本文へ整形するため、想定外の構造
- * （scope 不正・message 欠落・scope と fundId/fundName の不整合）が混入した状態で本文整形へ
- * 進むと、undefined 等の不正値を含む通知を送ってしまう。これを防ぐため、要素構造を fail fast で
- * 検証し、不正要素があれば {@link isNavFetchResult} を通じて NavFetchResult 全体を不正と判定する。
- *
- * 検証規則（{@link PerformanceRecordFailure} の不変条件に一致させる）:
- * - `scope` は 'global' または 'fund' のいずれか。
- * - `message` は空でない文字列。
- * - `scope='global'`（全体実績失敗）は銘柄に紐づかないため `fundId`・`fundName` はともに null。
- * - `scope='fund'`（ファンド別実績失敗）は銘柄に紐づくため `fundId`・`fundName` は空でない文字列。
- */
-function isPerformanceRecordFailure(value: unknown): value is PerformanceRecordFailure {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-  const obj = value as Record<string, unknown>;
-  if (obj.scope !== 'global' && obj.scope !== 'fund') {
-    return false;
-  }
-  if (typeof obj.message !== 'string' || obj.message === '') {
-    return false;
-  }
-  if (obj.scope === 'global') {
-    return obj.fundId === null && obj.fundName === null;
-  }
-  return (
-    typeof obj.fundId === 'string' &&
-    obj.fundId !== '' &&
-    typeof obj.fundName === 'string' &&
-    obj.fundName !== ''
-  );
-}
-
-/**
- * executeRecurringPurchasesの結果形式を検証する。
- */
-function isExecuteRecurringResult(value: unknown): value is ExecuteRecurringResult {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-  const obj = value as Record<string, unknown>;
-  if (!Array.isArray(obj.executed) || !Array.isArray(obj.skipped)) {
-    return false;
-  }
-  return obj.skipped.every((item) => {
-    if (typeof item !== 'object' || item === null) {
-      return false;
-    }
-    const record = item as Record<string, unknown>;
-    return (
-      typeof record.recurringPurchaseId === 'string' &&
-      typeof record.reason === 'string' &&
-      record.recurringPurchaseId !== ''
-    );
-  });
-}
-
-/**
  * スキップ理由の内訳を集計する。
  */
 function summarizeSkippedReasons(
@@ -535,7 +477,7 @@ export function sendWeeklyReport(): void {
   const response = handleApiRequest({ action: 'sendWeeklyReport' });
 
   if (!response.success) {
-    Logger.log(`[sendWeeklyReport] 失敗: ${response.error.message} (${response.error.type})`);
+    logError(`[sendWeeklyReport] 失敗: ${response.error.message} (${response.error.type})`);
     return;
   }
 
@@ -548,6 +490,11 @@ export function sendWeeklyReport(): void {
 /**
  * -5%ルールアラートを判定し、条件を満たせばアラートメールを送信する。
  * S&P500またはNASDAQが前週比-5%以上下落した場合に通知を行う。
+ *
+ * 判定 → メール送信 → セルハイライトのビジネスオーケストレーションは
+ * {@link createMarketIndexAlertUseCase} の `checkAndNotify` へ集約済みであり（H2 #148）、
+ * 本関数はエントリポイント層の責務（設定取得・コンテナ生成・シート保証・委譲）のみを担う。
+ * 各ステップの失敗はログ出力のみで正常終了する（トリガー実行を失敗させない移設前の挙動を維持）。
  */
 function checkAndSendMarketIndexAlert(): void {
   Logger.log('[checkAndSendMarketIndexAlert] -5%ルール判定を開始します。');
@@ -561,23 +508,18 @@ function checkAndSendMarketIndexAlert(): void {
     return;
   }
 
-  // SheetRepositoryを開く
-  const sheetRepositoryResult = openSheetRepository();
-  if (!sheetRepositoryResult.success) {
+  // 依存を組み立てる（コンテナ生成の失敗 = スプレッドシート接続の失敗）
+  const containerResult = createAppContainer();
+  if (!containerResult.success) {
     Logger.log(
-      `[checkAndSendMarketIndexAlert] シートリポジトリの取得に失敗: ${sheetRepositoryResult.error.message}`
+      `[checkAndSendMarketIndexAlert] シートリポジトリの取得に失敗: ${containerResult.error.message}`
     );
     return;
   }
-
-  const sheetRepository = sheetRepositoryResult.value;
+  const container = containerResult.value;
 
   // 市場指数シートの存在確認
-  const marketIndicesDefinition: SheetDefinition = {
-    name: SHEET_NAMES.MARKET_INDICES,
-    headers: SHEET_HEADERS[SHEET_NAMES.MARKET_INDICES],
-  };
-  const ensureResult = sheetRepository.ensureSheet(marketIndicesDefinition);
+  const ensureResult = container.sheetInitializationUseCase.ensureMarketIndexSheet();
   if (!ensureResult.success) {
     Logger.log(
       `[checkAndSendMarketIndexAlert] 市場指数シートの確認に失敗: ${ensureResult.error.message}`
@@ -585,68 +527,8 @@ function checkAndSendMarketIndexAlert(): void {
     return;
   }
 
-  // MarketIndexRepositoryとUseCaseを作成
-  const marketIndexRepository = createMarketIndexRepository(sheetRepository);
-  const marketIndexAlertUseCase = createMarketIndexAlertUseCase(marketIndexRepository);
-
-  // -5%ルール判定を実行
-  const alertResult = marketIndexAlertUseCase.checkAlert();
-  if (!alertResult.success) {
-    Logger.log(`[checkAndSendMarketIndexAlert] アラート判定に失敗: ${alertResult.error.message}`);
-    return;
-  }
-
-  const result = alertResult.value;
-  Logger.log(
-    `[checkAndSendMarketIndexAlert] 判定完了: isAlertTriggered=${String(result.isAlertTriggered)}, ` +
-      `S&P500=${result.sp500?.changeRate.toFixed(2) ?? 'N/A'}%, ` +
-      `NASDAQ=${result.nasdaq?.changeRate.toFixed(2) ?? 'N/A'}%`
-  );
-
-  // アラートがトリガーされていない場合は終了
-  if (!result.isAlertTriggered) {
-    Logger.log('[checkAndSendMarketIndexAlert] アラート条件を満たしていないためスキップします。');
-    return;
-  }
-
-  // アラートメールを送信
-  const emailService = createEmailService();
-  const sendResult = emailService.sendMarketIndexAlert(result, recipientEmail);
-  if (!sendResult.success) {
-    Logger.log(
-      `[checkAndSendMarketIndexAlert] アラートメール送信に失敗: ${sendResult.error.message}`
-    );
-    return;
-  }
-
-  Logger.log('[checkAndSendMarketIndexAlert] アラートメールを送信しました。');
-
-  // -5%以上下落した指数のセルを色付け
-  if (result.sp500?.isTriggered) {
-    const highlightResult = marketIndexRepository.highlightAlertCell(result.alertDate, 'sp500');
-    if (highlightResult.success) {
-      Logger.log(
-        `[checkAndSendMarketIndexAlert] S&P500セルをハイライトしました: ${result.alertDate}`
-      );
-    } else {
-      Logger.log(
-        `[checkAndSendMarketIndexAlert] S&P500セルのハイライトに失敗: ${highlightResult.error.message}`
-      );
-    }
-  }
-
-  if (result.nasdaq?.isTriggered) {
-    const highlightResult = marketIndexRepository.highlightAlertCell(result.alertDate, 'nasdaq');
-    if (highlightResult.success) {
-      Logger.log(
-        `[checkAndSendMarketIndexAlert] NASDAQセルをハイライトしました: ${result.alertDate}`
-      );
-    } else {
-      Logger.log(
-        `[checkAndSendMarketIndexAlert] NASDAQセルのハイライトに失敗: ${highlightResult.error.message}`
-      );
-    }
-  }
+  // 判定・通知・ハイライトは usecase へ委譲する（失敗ログは usecase 内で出力済み）
+  container.marketIndexAlertUseCase.checkAndNotify(recipientEmail);
 }
 
 /**
@@ -671,23 +553,6 @@ export function deleteWeeklyReportTrigger(): void {
 // ============================================
 
 /**
- * 市場指数取得結果の型ガード関数。
- */
-function isMarketIndexFetchResult(
-  value: unknown
-): value is { status: string; date: string; message: string } {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-  const obj = value as Record<string, unknown>;
-  return (
-    typeof obj.status === 'string' &&
-    typeof obj.date === 'string' &&
-    typeof obj.message === 'string'
-  );
-}
-
-/**
  * S&P500およびNASDAQ Composite指数の終値を取得し、シートに記録する。
  * Google Apps Scriptのトリガーから呼び出すための関数。
  * 毎日7:00-8:00（JST）に実行することを推奨（米国市場閉場後）。
@@ -696,7 +561,7 @@ export function fetchMarketIndices(): void {
   const response = handleApiRequest({ action: 'fetchMarketIndices' });
 
   if (!response.success) {
-    Logger.log(`[fetchMarketIndices] 失敗: ${response.error.message} (${response.error.type})`);
+    logError(`[fetchMarketIndices] 失敗: ${response.error.message} (${response.error.type})`);
     sendErrorNotificationEmail(
       '市場指数取得',
       `市場指数の取得に失敗しました。\n\n${formatErrorDetail(response.error)}`
@@ -705,7 +570,7 @@ export function fetchMarketIndices(): void {
   }
 
   if (!isMarketIndexFetchResult(response.value)) {
-    Logger.log('[fetchMarketIndices] 失敗: 実行結果の形式が不正です。');
+    logError('[fetchMarketIndices] 失敗: 実行結果の形式が不正です。');
     sendErrorNotificationEmail('市場指数取得', '市場指数の取得結果の形式が不正です。');
     return;
   }

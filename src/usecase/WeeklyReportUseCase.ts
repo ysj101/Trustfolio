@@ -1,7 +1,9 @@
 import { enrichPortfolioWithWeekOverWeek } from '../domain/WeekOverWeekCalculator';
 import type { PerformanceRecord, PortfolioWithWeekOverWeek, Result } from '../domain/types';
-import { propagateFailure } from '../domain/result';
+import { fail, propagateFailure } from '../domain/result';
 import type { PerformanceRepository } from '../repository/PerformanceRepository';
+import type { EmailService } from '../service/EmailService';
+import { getWeeklyReportEmail } from '../Config';
 import type { PortfolioUseCase } from './PortfolioUseCase';
 
 /**
@@ -24,6 +26,21 @@ export type WeeklyReportUseCase = {
    * ポートフォリオ全体と各保有銘柄の情報を取得し、レポート形式に整形する。
    */
   generateWeeklyReport: () => Result<WeeklyReport>;
+
+  /**
+   * 週次レポートを生成し、設定済みの宛先へメール送信する。
+   *
+   * 処理内容（従来 api/router.ts の `sendWeeklyReport` ケースに直書きされていた
+   * オーケストレーションを usecase 層へ集約したもの。H2 #148）:
+   * 1. スクリプトプロパティから送信先メールアドレスを取得する（未設定なら validation エラー）。
+   * 2. {@link generateWeeklyReport} でレポートを生成する。
+   * 3. メールを送信する。
+   *
+   * エラーメッセージ・成功メッセージは移設前の router 実装と完全に一致させている（外部挙動不変）。
+   *
+   * @returns 成功時は完了メッセージ、失敗時は各段階のエラー
+   */
+  sendReport: () => Result<{ message: string }>;
 };
 
 /**
@@ -41,50 +58,86 @@ const PREVIOUS_WEEK_SEARCH_OFFSETS = [0, -1, -2, -3, -4, -5, -6, -7];
  *
  * @param portfolioUseCase - ポートフォリオのユースケース
  * @param performanceRepository - パフォーマンスリポジトリ
+ * @param emailService - メール送信サービス（{@link WeeklyReportUseCase.sendReport} で使用）
  * @returns 週次レポートのユースケース
  */
 export function createWeeklyReportUseCase(
   portfolioUseCase: PortfolioUseCase,
-  performanceRepository: PerformanceRepository
+  performanceRepository: PerformanceRepository,
+  emailService: EmailService
 ): WeeklyReportUseCase {
+  const generateWeeklyReport = (): Result<WeeklyReport> => {
+    // ポートフォリオサマリーを取得
+    const portfolioResult = portfolioUseCase.getPortfolioSummary();
+    if (!portfolioResult.success) {
+      return propagateFailure(portfolioResult);
+    }
+
+    // 現在日時を取得（JST）
+    const now = new Date();
+    const generatedAt = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss');
+
+    // 7日前の日付を計算（前週のデータを取得するため）
+    const previousWeekDate = new Date(now);
+    previousWeekDate.setDate(previousWeekDate.getDate() - 7);
+
+    // 前週のデータを取得（祝日・連休対応: 7日前から14日前まで過去方向に検索）
+    const { previousGlobalRecord, previousFundRecordsMap } = getPreviousWeekData(
+      performanceRepository,
+      previousWeekDate,
+      portfolioResult.value.holdings
+    );
+
+    // 前週比を計算してポートフォリオに追加
+    const portfolioWithWoW = enrichPortfolioWithWeekOverWeek(
+      portfolioResult.value,
+      previousGlobalRecord,
+      previousFundRecordsMap
+    );
+
+    return {
+      success: true,
+      value: {
+        portfolio: portfolioWithWoW,
+        generatedAt,
+      },
+    };
+  };
+
+  /**
+   * 週次レポートの生成とメール送信のオーケストレーション。
+   * エラーメッセージ・成功メッセージは移設前の router 実装（api/router.ts の
+   * `sendWeeklyReport` ケース）と完全に一致させている。
+   */
+  const sendReport = (): Result<{ message: string }> => {
+    // メールアドレスを取得
+    const recipientEmail = getWeeklyReportEmail();
+    if (recipientEmail === null) {
+      return fail(
+        'validation',
+        'WEEKLY_REPORT_EMAILが設定されていません。スクリプトプロパティに設定してください。',
+        'WEEKLY_REPORT_EMAIL'
+      );
+    }
+
+    // 週次レポートを生成
+    const reportResult = generateWeeklyReport();
+    if (!reportResult.success) {
+      return reportResult;
+    }
+
+    // メールを送信
+    const sendResult = emailService.sendWeeklyReport(reportResult.value, recipientEmail);
+    if (!sendResult.success) {
+      return sendResult;
+    }
+
+    return { success: true, value: { message: '週次レポートを送信しました。' } };
+  };
+
   return {
-    generateWeeklyReport: (): Result<WeeklyReport> => {
-      // ポートフォリオサマリーを取得
-      const portfolioResult = portfolioUseCase.getPortfolioSummary();
-      if (!portfolioResult.success) {
-        return propagateFailure(portfolioResult);
-      }
-
-      // 現在日時を取得（JST）
-      const now = new Date();
-      const generatedAt = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss');
-
-      // 7日前の日付を計算（前週のデータを取得するため）
-      const previousWeekDate = new Date(now);
-      previousWeekDate.setDate(previousWeekDate.getDate() - 7);
-
-      // 前週のデータを取得（祝日・連休対応: 7日前から14日前まで過去方向に検索）
-      const { previousGlobalRecord, previousFundRecordsMap } = getPreviousWeekData(
-        performanceRepository,
-        previousWeekDate,
-        portfolioResult.value.holdings
-      );
-
-      // 前週比を計算してポートフォリオに追加
-      const portfolioWithWoW = enrichPortfolioWithWeekOverWeek(
-        portfolioResult.value,
-        previousGlobalRecord,
-        previousFundRecordsMap
-      );
-
-      return {
-        success: true,
-        value: {
-          portfolio: portfolioWithWoW,
-          generatedAt,
-        },
-      };
-    },
+    generateWeeklyReport,
+    sendReport,
   };
 }
 
