@@ -650,6 +650,63 @@ describe('main', () => {
     );
   });
 
+  it('アラート判定はメールアドレス未設定の場合 WARN でスキップし、コンテナを生成しない', async () => {
+    // 前提: 週次レポート送信は成功するが、WEEKLY_REPORT_EMAIL が未設定である
+    // 事前条件: getWeeklyReportEmail が null を返す
+    // 検証: スキップが logWarn 経由（[WARN] プレフィックス付き）で記録され、
+    //   コンテナ生成（後続処理）は実行されない（#148 の severity 統一の固定）
+    const { handleApiRequest } = vi.mocked(await import('../src/api/router'));
+    handleApiRequest.mockReturnValue({ success: true, value: { message: 'ok' } });
+
+    const { getWeeklyReportEmail } = vi.mocked(await import('../src/Config'));
+    getWeeklyReportEmail.mockReturnValue(null);
+
+    const { createAppContainer } = vi.mocked(await import('../src/usecase/appContainer'));
+    const logMock = vi.spyOn(globalThis.Logger, 'log');
+
+    sendWeeklyReport();
+
+    expect(logMock).toHaveBeenCalledWith(
+      '[WARN] [checkAndSendMarketIndexAlert] WEEKLY_REPORT_EMAILが設定されていないためスキップします。'
+    );
+    expect(createAppContainer).not.toHaveBeenCalled();
+  });
+
+  it('アラート判定の前段でシート保証に失敗した場合は ERROR を記録し判定通知を呼ばない', async () => {
+    // 前提: 週次レポート送信・コンテナ生成は成功するが、市場指数シートの保証が失敗する
+    // 事前条件: ensureMarketIndexSheet が失敗を返す
+    // 検証: 失敗が logError 経由（[ERROR] プレフィックス付き）で記録され、
+    //   後続の checkAndNotify は実行されない（#148 の severity 統一の固定）
+    const { handleApiRequest } = vi.mocked(await import('../src/api/router'));
+    handleApiRequest.mockReturnValue({ success: true, value: { message: 'ok' } });
+
+    const { getWeeklyReportEmail } = vi.mocked(await import('../src/Config'));
+    getWeeklyReportEmail.mockReturnValue('notify@example.com');
+
+    const checkAndNotify = vi.fn(() => ({ success: true as const, value: undefined }));
+    const { createAppContainer } = vi.mocked(await import('../src/usecase/appContainer'));
+    createAppContainer.mockReturnValue({
+      success: true,
+      value: {
+        sheetInitializationUseCase: {
+          ensureMarketIndexSheet: () => ({
+            success: false as const,
+            error: { type: 'unexpected' as const, message: 'シートの作成に失敗しました。' },
+          }),
+        },
+        marketIndexAlertUseCase: { checkAndNotify },
+      } as unknown as AppContainer,
+    });
+    const logMock = vi.spyOn(globalThis.Logger, 'log');
+
+    sendWeeklyReport();
+
+    expect(logMock).toHaveBeenCalledWith(
+      '[ERROR] [checkAndSendMarketIndexAlert] 市場指数シートの確認に失敗: シートの作成に失敗しました。'
+    );
+    expect(checkAndNotify).not.toHaveBeenCalled();
+  });
+
   it('積立自動発注トリガー設定で既存トリガーが削除される', () => {
     // 前提: executeRecurringPurchasesDailyのトリガーが存在する
     // 事前条件: getProjectTriggersが対象トリガーを返す
