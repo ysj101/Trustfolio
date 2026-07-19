@@ -79,6 +79,16 @@ vi.mock('../../src/service/RakutenService', () => ({
   }),
 }));
 
+// WeeklyReportUseCase は sendWeeklyReport ケースの委譲検証のためモックする。
+// sendReport スパイを共有し、router が委譲先を取り違えないことを直接固定する（H2 #148）。
+const sendReportSpy = vi.fn(() => ok({ message: '週次レポートを送信しました。' }));
+vi.mock('../../src/usecase/WeeklyReportUseCase', () => ({
+  createWeeklyReportUseCase: () => ({
+    generateWeeklyReport: vi.fn(),
+    sendReport: sendReportSpy,
+  }),
+}));
+
 describe('router', () => {
   it('シート接続に失敗した場合はエラーを返す', async () => {
     // 前提: openSheetRepositoryが失敗を返す
@@ -92,6 +102,20 @@ describe('router', () => {
     if (!result.success) {
       expect(result.error.message).toContain('シート接続');
     }
+  });
+
+  it('sendWeeklyReport アクションは WeeklyReportUseCase.sendReport へ委譲し結果をそのまま返す', async () => {
+    // 前提: シート接続が成功する
+    // 事前条件: WeeklyReportUseCase.sendReport が成功結果を返すようモックされている
+    // 検証: router が sendReport を1回呼び、その Result を変更せずそのまま返す（H2 #148 の委譲固定）
+    const { openSheetRepository } = vi.mocked(await import('../../src/repository/SheetRepository'));
+    openSheetRepository.mockReturnValue(ok(createStubSheetRepository()));
+    sendReportSpy.mockClear();
+
+    const result = handleApiRequest({ action: 'sendWeeklyReport' });
+
+    expect(sendReportSpy).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ success: true, value: { message: '週次レポートを送信しました。' } });
   });
 
   it('シート初期化でシート作成に失敗した場合はエラーを返す', async () => {

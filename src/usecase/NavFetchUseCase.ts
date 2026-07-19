@@ -80,6 +80,70 @@ export type NavFetchResult = {
   performanceFailures: PerformanceRecordFailure[];
 };
 
+/**
+ * {@link PerformanceRecordFailure}（実績記録失敗の内訳）の型ガード関数。
+ *
+ * `main.ts` の `fetchAllNavs` は実績記録失敗の内訳を運用者通知メールの本文へ整形するため、
+ * 想定外の構造（scope 不正・message 欠落・scope と fundId/fundName の不整合）が混入した状態で
+ * 本文整形へ進むと、undefined 等の不正値を含む通知を送ってしまう。これを防ぐため、要素構造を
+ * fail fast で検証し、不正要素があれば {@link isNavFetchResult} を通じて NavFetchResult 全体を
+ * 不正と判定する。
+ *
+ * 検証規則（{@link PerformanceRecordFailure} の不変条件に一致させる）:
+ * - `scope` は 'global' または 'fund' のいずれか。
+ * - `message` は空でない文字列。
+ * - `scope='global'`（全体実績失敗）は銘柄に紐づかないため `fundId`・`fundName` はともに null。
+ * - `scope='fund'`（ファンド別実績失敗）は銘柄に紐づくため `fundId`・`fundName` は空でない文字列。
+ *
+ * 配置について: 本型ガードは結果型を定義する本モジュールに同居させる（H2 #148）。
+ * 型の不変条件が変わった際に、型定義と検証規則を同一ファイル内で同期させるためである。
+ */
+export function isPerformanceRecordFailure(value: unknown): value is PerformanceRecordFailure {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const obj = value as Record<string, unknown>;
+  if (obj.scope !== 'global' && obj.scope !== 'fund') {
+    return false;
+  }
+  if (typeof obj.message !== 'string' || obj.message === '') {
+    return false;
+  }
+  if (obj.scope === 'global') {
+    return obj.fundId === null && obj.fundName === null;
+  }
+  return (
+    typeof obj.fundId === 'string' &&
+    obj.fundId !== '' &&
+    typeof obj.fundName === 'string' &&
+    obj.fundName !== ''
+  );
+}
+
+/**
+ * {@link NavFetchResult} の型ガード関数。
+ *
+ * `main.ts` の `fetchAllNavs` が API レスポンス（unknown）を結果型として扱う前の
+ * ランタイム検証に用いる。`performanceFailures` は要素構造まで
+ * {@link isPerformanceRecordFailure} で fail fast に検証する。
+ */
+export function isNavFetchResult(value: unknown): value is NavFetchResult {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const obj = value as Record<string, unknown>;
+  return (
+    typeof obj.totalCount === 'number' &&
+    typeof obj.successCount === 'number' &&
+    typeof obj.alreadyExistsCount === 'number' &&
+    typeof obj.skippedCount === 'number' &&
+    typeof obj.failedCount === 'number' &&
+    Array.isArray(obj.items) &&
+    Array.isArray(obj.performanceFailures) &&
+    obj.performanceFailures.every(isPerformanceRecordFailure)
+  );
+}
+
 export type NavFetchUseCase = {
   /**
    * 全銘柄の最新基準価額を楽天証券から取得し、登録する。

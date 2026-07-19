@@ -14,6 +14,7 @@ import {
   include,
 } from '../src/main';
 import type { EmailService } from '../src/service/EmailService';
+import type { AppContainer } from '../src/usecase/appContainer';
 
 vi.mock('../src/api/router', () => ({
   handleApiRequest: vi.fn(),
@@ -28,6 +29,12 @@ vi.mock('../src/Config', async (importOriginal) => {
 
 vi.mock('../src/service/EmailService', () => ({
   createEmailService: vi.fn(),
+}));
+
+// appContainer は checkAndSendMarketIndexAlert（sendWeeklyReport から呼ばれる）の委譲経路
+// 検証のためにモックする。委譲経路を検証しないテストでは呼び出されないため影響しない。
+vi.mock('../src/usecase/appContainer', () => ({
+  createAppContainer: vi.fn(),
 }));
 
 describe('main', () => {
@@ -61,6 +68,57 @@ describe('main', () => {
       expect(json.success).toBe(false);
       expect(json.error.message).toContain('POSTデータが空');
     }
+  });
+
+  it('POSTデータが action を持たない場合はバリデーションエラーを返す', async () => {
+    // 前提: JSON としては正しいが、action プロパティを持たないリクエストボディが届く
+    // 事前条件: なし（router へ到達する前に doPost の形状検証で弾かれることを確認する）
+    // 検証: 形式不正の validation エラーが返り、handleApiRequest は呼ばれない（H2 #148）
+    const { handleApiRequest } = vi.mocked(await import('../src/api/router'));
+
+    const output = doPost({
+      postData: { contents: '{"foo": "bar"}' },
+    } as GoogleAppsScript.Events.DoPost);
+    const json = JSON.parse((output as unknown as { text: string }).text) as unknown;
+
+    expect(isErrorResponse(json)).toBe(true);
+    if (isErrorResponse(json)) {
+      expect(json.error.message).toContain('リクエスト形式が不正です');
+    }
+    expect(handleApiRequest).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['JSON の null', 'null'],
+    ['JSON の配列', '["listFunds"]'],
+    ['action が数値', '{"action": 123}'],
+  ])('POSTデータが %s の場合はバリデーションエラーを返す', async (_label, contents) => {
+    // 前提: JSON としては正しいが「action（文字列）を持つオブジェクト」でないボディが届く
+    // 事前条件: なし
+    // 検証: 形状検証で弾かれて validation エラーが返り、handleApiRequest は呼ばれない
+    const { handleApiRequest } = vi.mocked(await import('../src/api/router'));
+
+    const output = doPost({ postData: { contents } } as GoogleAppsScript.Events.DoPost);
+    const json = JSON.parse((output as unknown as { text: string }).text) as unknown;
+
+    expect(isErrorResponse(json)).toBe(true);
+    expect(handleApiRequest).not.toHaveBeenCalled();
+  });
+
+  it('POSTデータが文字列 action を持つ場合は handleApiRequest へ渡される', async () => {
+    // 前提: 「action（文字列）を持つオブジェクト」の正しい形状のボディが届く
+    // 事前条件: handleApiRequest が成功結果を返す
+    // 検証: パース結果がそのまま handleApiRequest へ渡り、そのレスポンスが JSON で返る（成功境界）
+    const { handleApiRequest } = vi.mocked(await import('../src/api/router'));
+    handleApiRequest.mockReturnValue({ success: true, value: { message: 'ok' } });
+
+    const output = doPost({
+      postData: { contents: '{"action": "listFunds"}' },
+    } as GoogleAppsScript.Events.DoPost);
+    const json = JSON.parse((output as unknown as { text: string }).text) as unknown;
+
+    expect(handleApiRequest).toHaveBeenCalledWith({ action: 'listFunds' });
+    expect(json).toEqual({ success: true, value: { message: 'ok' } });
   });
 
   it('doGetはテンプレートを評価してタイトルを設定する', () => {
@@ -526,6 +584,127 @@ describe('main', () => {
     sendWeeklyReport();
 
     expect(logMock).toHaveBeenCalledWith('[sendWeeklyReport] 週次レポートを送信しました。');
+  });
+
+  it('週次レポート送信成功後、シート保証とアラート判定通知が順に委譲される', async () => {
+    // 前提: 週次レポート送信が成功し、メールアドレスも設定されている
+    // 事前条件: createAppContainer が成功し、ensureMarketIndexSheet・checkAndNotify とも成功する
+    // 検証: ensureMarketIndexSheet → checkAndNotify が各1回この順で呼ばれ、
+    //   宛先が checkAndNotify へ渡される（H2 #148 で薄くした委譲経路の固定）
+    const { handleApiRequest } = vi.mocked(await import('../src/api/router'));
+    handleApiRequest.mockReturnValue({ success: true, value: { message: 'ok' } });
+
+    const { getWeeklyReportEmail } = vi.mocked(await import('../src/Config'));
+    getWeeklyReportEmail.mockReturnValue('notify@example.com');
+
+    const callOrder: string[] = [];
+    const ensureMarketIndexSheet = vi.fn(() => {
+      callOrder.push('ensureMarketIndexSheet');
+      return { success: true as const, value: undefined };
+    });
+    const checkAndNotify = vi.fn(() => {
+      callOrder.push('checkAndNotify');
+      return { success: true as const, value: undefined };
+    });
+    const { createAppContainer } = vi.mocked(await import('../src/usecase/appContainer'));
+    // 委譲経路の検証に必要な2ユースケースのみを持つ部分スタブ
+    // （EmailService モックと同じ部分キャストの慣例に従う）
+    createAppContainer.mockReturnValue({
+      success: true,
+      value: {
+        sheetInitializationUseCase: { ensureMarketIndexSheet },
+        marketIndexAlertUseCase: { checkAndNotify },
+      } as unknown as AppContainer,
+    });
+
+    sendWeeklyReport();
+
+    expect(callOrder).toEqual(['ensureMarketIndexSheet', 'checkAndNotify']);
+    expect(checkAndNotify).toHaveBeenCalledWith('notify@example.com');
+  });
+
+  it('アラート判定の前段でコンテナ生成に失敗した場合は後続処理を呼ばない', async () => {
+    // 前提: 週次レポート送信は成功するが、スプレッドシート接続（コンテナ生成）が失敗する
+    // 事前条件: createAppContainer が失敗を返す
+    // 検証: 失敗ログのみで正常終了し、後続（シート保証・判定通知）は実行されない
+    const { handleApiRequest } = vi.mocked(await import('../src/api/router'));
+    handleApiRequest.mockReturnValue({ success: true, value: { message: 'ok' } });
+
+    const { getWeeklyReportEmail } = vi.mocked(await import('../src/Config'));
+    getWeeklyReportEmail.mockReturnValue('notify@example.com');
+
+    const { createAppContainer } = vi.mocked(await import('../src/usecase/appContainer'));
+    createAppContainer.mockReturnValue({
+      success: false,
+      error: { type: 'unexpected', message: 'スプレッドシートを開けませんでした。' },
+    });
+    const logMock = vi.spyOn(globalThis.Logger, 'log');
+
+    // 失敗してもトリガー実行自体は例外にならず正常終了する
+    expect(() => {
+      sendWeeklyReport();
+    }).not.toThrow();
+    // コンテナ生成失敗は logError 経由（[ERROR] プレフィックス付き）で記録される（#148）
+    expect(logMock).toHaveBeenCalledWith(
+      '[ERROR] [checkAndSendMarketIndexAlert] シートリポジトリの取得に失敗: スプレッドシートを開けませんでした。'
+    );
+  });
+
+  it('アラート判定はメールアドレス未設定の場合 WARN でスキップし、コンテナを生成しない', async () => {
+    // 前提: 週次レポート送信は成功するが、WEEKLY_REPORT_EMAIL が未設定である
+    // 事前条件: getWeeklyReportEmail が null を返す
+    // 検証: スキップが logWarn 経由（[WARN] プレフィックス付き）で記録され、
+    //   コンテナ生成（後続処理）は実行されない（#148 の severity 統一の固定）
+    const { handleApiRequest } = vi.mocked(await import('../src/api/router'));
+    handleApiRequest.mockReturnValue({ success: true, value: { message: 'ok' } });
+
+    const { getWeeklyReportEmail } = vi.mocked(await import('../src/Config'));
+    getWeeklyReportEmail.mockReturnValue(null);
+
+    const { createAppContainer } = vi.mocked(await import('../src/usecase/appContainer'));
+    const logMock = vi.spyOn(globalThis.Logger, 'log');
+
+    sendWeeklyReport();
+
+    expect(logMock).toHaveBeenCalledWith(
+      '[WARN] [checkAndSendMarketIndexAlert] WEEKLY_REPORT_EMAILが設定されていないためスキップします。'
+    );
+    expect(createAppContainer).not.toHaveBeenCalled();
+  });
+
+  it('アラート判定の前段でシート保証に失敗した場合は ERROR を記録し判定通知を呼ばない', async () => {
+    // 前提: 週次レポート送信・コンテナ生成は成功するが、市場指数シートの保証が失敗する
+    // 事前条件: ensureMarketIndexSheet が失敗を返す
+    // 検証: 失敗が logError 経由（[ERROR] プレフィックス付き）で記録され、
+    //   後続の checkAndNotify は実行されない（#148 の severity 統一の固定）
+    const { handleApiRequest } = vi.mocked(await import('../src/api/router'));
+    handleApiRequest.mockReturnValue({ success: true, value: { message: 'ok' } });
+
+    const { getWeeklyReportEmail } = vi.mocked(await import('../src/Config'));
+    getWeeklyReportEmail.mockReturnValue('notify@example.com');
+
+    const checkAndNotify = vi.fn(() => ({ success: true as const, value: undefined }));
+    const { createAppContainer } = vi.mocked(await import('../src/usecase/appContainer'));
+    createAppContainer.mockReturnValue({
+      success: true,
+      value: {
+        sheetInitializationUseCase: {
+          ensureMarketIndexSheet: () => ({
+            success: false as const,
+            error: { type: 'unexpected' as const, message: 'シートの作成に失敗しました。' },
+          }),
+        },
+        marketIndexAlertUseCase: { checkAndNotify },
+      } as unknown as AppContainer,
+    });
+    const logMock = vi.spyOn(globalThis.Logger, 'log');
+
+    sendWeeklyReport();
+
+    expect(logMock).toHaveBeenCalledWith(
+      '[ERROR] [checkAndSendMarketIndexAlert] 市場指数シートの確認に失敗: シートの作成に失敗しました。'
+    );
+    expect(checkAndNotify).not.toHaveBeenCalled();
   });
 
   it('積立自動発注トリガー設定で既存トリガーが削除される', () => {

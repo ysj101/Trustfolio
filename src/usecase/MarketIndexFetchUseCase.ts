@@ -18,6 +18,41 @@ export type MarketIndexFetchResult = {
 };
 
 /**
+ * {@link MarketIndexFetchResult} が取りうる処理ステータスの一覧。
+ * 型ガード（{@link isMarketIndexFetchResult}）のランタイム検証で用いる。
+ */
+const MARKET_INDEX_FETCH_STATUSES: readonly MarketIndexFetchResult['status'][] = [
+  'success',
+  'already_exists',
+  'skipped',
+  'failed',
+];
+
+/**
+ * {@link MarketIndexFetchResult} の型ガード関数。
+ *
+ * `main.ts` の `fetchMarketIndices` が API レスポンス（unknown）を取得結果として扱う前の
+ * ランタイム検証に用いる。status は文字列一般ではなく、本結果型が定義する4値
+ * （{@link MARKET_INDEX_FETCH_STATUSES}）のいずれかであることまで検証する
+ * （未知のステータスを通すと後段の 'failed' 判定・通知が静かに素通りするため fail fast に弾く）。
+ *
+ * 配置について: 本型ガードは結果型を定義する本モジュールに同居させる（H2 #148）。
+ * 型の構造が変わった際に、型定義と検証規則を同一ファイル内で同期させるためである。
+ */
+export function isMarketIndexFetchResult(value: unknown): value is MarketIndexFetchResult {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const obj = value as Record<string, unknown>;
+  return (
+    typeof obj.status === 'string' &&
+    (MARKET_INDEX_FETCH_STATUSES as readonly string[]).includes(obj.status) &&
+    typeof obj.date === 'string' &&
+    typeof obj.message === 'string'
+  );
+}
+
+/**
  * 市場指数取得ユースケース。
  * S&P500およびNASDAQ Compositeの終値を取得し、シートに記録する。
  */

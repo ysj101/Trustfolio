@@ -3,7 +3,15 @@ import { createWeeklyReportUseCase } from '../../src/usecase/WeeklyReportUseCase
 import type { PortfolioUseCase } from '../../src/usecase/PortfolioUseCase';
 import type { PerformanceRepository } from '../../src/repository/PerformanceRepository';
 import type { PerformanceRecord } from '../../src/domain/types';
-import { ok } from '../fakes';
+import { getWeeklyReportEmail } from '../../src/Config';
+import { ok, fail, createStubEmailService } from '../fakes';
+
+// Config は getWeeklyReportEmail（sendReport が宛先取得に使用）のみモックし、
+// 他の実定義は実体をそのまま使う（tests/main.test.ts と同じ手法）。
+vi.mock('../../src/Config', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/Config')>();
+  return { ...actual, getWeeklyReportEmail: vi.fn() };
+});
 
 /**
  * テスト用にDateをJST文字列へ変換する。
@@ -91,7 +99,11 @@ describe('WeeklyReportUseCase', () => {
 
     mockUtilitiesFormatDate();
 
-    const useCase = createWeeklyReportUseCase(portfolioUseCase, performanceRepository);
+    const useCase = createWeeklyReportUseCase(
+      portfolioUseCase,
+      performanceRepository,
+      createStubEmailService()
+    );
     const result = useCase.generateWeeklyReport();
     expect(result.success).toBe(true);
     if (result.success) {
@@ -187,7 +199,11 @@ describe('WeeklyReportUseCase', () => {
 
     mockUtilitiesFormatDate();
 
-    const useCase = createWeeklyReportUseCase(portfolioUseCase, performanceRepository);
+    const useCase = createWeeklyReportUseCase(
+      portfolioUseCase,
+      performanceRepository,
+      createStubEmailService()
+    );
     const result = useCase.generateWeeklyReport();
     expect(result.success).toBe(true);
     if (result.success) {
@@ -268,7 +284,11 @@ describe('WeeklyReportUseCase', () => {
 
     mockUtilitiesFormatDate();
 
-    const useCase = createWeeklyReportUseCase(portfolioUseCase, performanceRepository);
+    const useCase = createWeeklyReportUseCase(
+      portfolioUseCase,
+      performanceRepository,
+      createStubEmailService()
+    );
     const result = useCase.generateWeeklyReport();
     expect(result.success).toBe(true);
     if (result.success) {
@@ -331,7 +351,11 @@ describe('WeeklyReportUseCase', () => {
 
     mockUtilitiesFormatDate();
 
-    const useCase = createWeeklyReportUseCase(portfolioUseCase, performanceRepository);
+    const useCase = createWeeklyReportUseCase(
+      portfolioUseCase,
+      performanceRepository,
+      createStubEmailService()
+    );
     const result = useCase.generateWeeklyReport();
     expect(result.success).toBe(true);
     if (result.success) {
@@ -346,5 +370,150 @@ describe('WeeklyReportUseCase', () => {
       '2024-03-30',
       '2024-03-29',
     ]);
+  });
+
+  describe('sendReport', () => {
+    /**
+     * sendReport 検証用の共通セットアップ。
+     * ポートフォリオ取得は成功・前週データなしの最小構成でレポート生成が成功する状態を作る。
+     */
+    function createSendReportFixture(): {
+      portfolioUseCase: PortfolioUseCase;
+      performanceRepository: PerformanceRepository;
+    } {
+      const portfolioUseCase: PortfolioUseCase = {
+        getPortfolioSummary: () =>
+          ok({
+            totalInvestment: 10000,
+            totalSaleAmount: 0,
+            realizedGain: 0,
+            remainingInvestment: 10000,
+            totalCurrentValue: 10000,
+            totalUnrealizedGain: 0,
+            totalUnrealizedGainRate: 0,
+            totalGain: 0,
+            totalGainRate: 0,
+            holdings: [],
+          }),
+      };
+      const performanceRepository: PerformanceRepository = {
+        createPerformance: vi.fn(),
+        createGlobalPerformance: vi.fn(),
+        findByFundAndDate: vi.fn(),
+        findGlobalByDate: () => ok(null),
+        findLatestByFundId: vi.fn(),
+        listGlobalHistory: vi.fn(),
+        findGlobalByDateRange: vi.fn(),
+        findByFundAndDateRange: vi.fn(),
+      };
+      return { portfolioUseCase, performanceRepository };
+    }
+
+    it('宛先が設定されている場合はレポートを生成してメール送信し、完了メッセージを返す', () => {
+      // 前提: WEEKLY_REPORT_EMAIL が設定されており、レポート生成・メール送信とも成功する
+      // 事前条件: ポートフォリオ取得成功・前週データなし（生成は成功する最小構成）
+      // 検証: 生成したレポートと宛先で sendWeeklyReport が1回呼ばれ、
+      //   移設前の router 実装と同一の完了メッセージが返る
+      vi.mocked(getWeeklyReportEmail).mockReturnValue('notify@example.com');
+      const { portfolioUseCase, performanceRepository } = createSendReportFixture();
+      const sendWeeklyReport = vi.fn(() => ok<void>(undefined));
+      mockUtilitiesFormatDate();
+
+      const useCase = createWeeklyReportUseCase(
+        portfolioUseCase,
+        performanceRepository,
+        createStubEmailService({ sendWeeklyReport })
+      );
+      const result = useCase.sendReport();
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.value.message).toBe('週次レポートを送信しました。');
+      }
+      expect(sendWeeklyReport).toHaveBeenCalledTimes(1);
+      expect(sendWeeklyReport).toHaveBeenCalledWith(
+        expect.objectContaining({ generatedAt: '2024-04-08 09:00:00' }),
+        'notify@example.com'
+      );
+    });
+
+    it('宛先が未設定の場合は validation エラーを返し、レポート生成もメール送信も行わない', () => {
+      // 前提: WEEKLY_REPORT_EMAIL が設定されていない
+      // 事前条件: なし
+      // 検証: 移設前の router 実装と同一メッセージ・field の validation エラーが返り、
+      //   ポートフォリオ取得（レポート生成）とメール送信は実行されない
+      vi.mocked(getWeeklyReportEmail).mockReturnValue(null);
+      const getPortfolioSummary = vi.fn();
+      const portfolioUseCase: PortfolioUseCase = { getPortfolioSummary };
+      const { performanceRepository } = createSendReportFixture();
+      const sendWeeklyReport = vi.fn(() => ok<void>(undefined));
+
+      const useCase = createWeeklyReportUseCase(
+        portfolioUseCase,
+        performanceRepository,
+        createStubEmailService({ sendWeeklyReport })
+      );
+      const result = useCase.sendReport();
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toEqual({
+          type: 'validation',
+          message:
+            'WEEKLY_REPORT_EMAILが設定されていません。スクリプトプロパティに設定してください。',
+          field: 'WEEKLY_REPORT_EMAIL',
+        });
+      }
+      expect(getPortfolioSummary).not.toHaveBeenCalled();
+      expect(sendWeeklyReport).not.toHaveBeenCalled();
+    });
+
+    it('レポート生成に失敗した場合はそのエラーを伝播し、メール送信を行わない', () => {
+      // 前提: 宛先は設定済みだが、ポートフォリオ取得（レポート生成）が失敗する
+      // 事前条件: getPortfolioSummary が失敗を返す
+      // 検証: 生成失敗のエラーが伝播し、メール送信は実行されない
+      vi.mocked(getWeeklyReportEmail).mockReturnValue('notify@example.com');
+      const portfolioUseCase: PortfolioUseCase = {
+        getPortfolioSummary: () => fail('unexpected', 'ポートフォリオの取得に失敗しました。'),
+      };
+      const { performanceRepository } = createSendReportFixture();
+      const sendWeeklyReport = vi.fn(() => ok<void>(undefined));
+
+      const useCase = createWeeklyReportUseCase(
+        portfolioUseCase,
+        performanceRepository,
+        createStubEmailService({ sendWeeklyReport })
+      );
+      const result = useCase.sendReport();
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.message).toBe('ポートフォリオの取得に失敗しました。');
+      }
+      expect(sendWeeklyReport).not.toHaveBeenCalled();
+    });
+
+    it('メール送信に失敗した場合はそのエラーを伝播する', () => {
+      // 前提: 宛先設定済み・レポート生成成功だが、メール送信が失敗する
+      // 事前条件: sendWeeklyReport が失敗を返す
+      // 検証: 送信失敗のエラーがそのまま返る
+      vi.mocked(getWeeklyReportEmail).mockReturnValue('notify@example.com');
+      const { portfolioUseCase, performanceRepository } = createSendReportFixture();
+      mockUtilitiesFormatDate();
+
+      const useCase = createWeeklyReportUseCase(
+        portfolioUseCase,
+        performanceRepository,
+        createStubEmailService({
+          sendWeeklyReport: () => fail('unexpected', 'メールの送信に失敗しました。'),
+        })
+      );
+      const result = useCase.sendReport();
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.message).toBe('メールの送信に失敗しました。');
+      }
+    });
   });
 });
