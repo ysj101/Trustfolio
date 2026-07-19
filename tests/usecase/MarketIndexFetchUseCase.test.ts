@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createMarketIndexFetchUseCase } from '../../src/usecase/MarketIndexFetchUseCase';
+import {
+  createMarketIndexFetchUseCase,
+  isMarketIndexFetchResult,
+} from '../../src/usecase/MarketIndexFetchUseCase';
 import type { MarketIndexRepository } from '../../src/repository/MarketIndexRepository';
 import type { MarketIndexData, MarketIndexService } from '../../src/service/MarketIndexService';
 import type { MarketIndex, Result } from '../../src/domain/types';
@@ -270,5 +273,38 @@ describe('MarketIndexFetchUseCase', () => {
     const dayOfWeek = new Date(`${requestedDate}T00:00:00Z`).getUTCDay();
     expect(dayOfWeek).not.toBe(0); // 日曜でない
     expect(dayOfWeek).not.toBe(6); // 土曜でない
+  });
+});
+
+describe('isMarketIndexFetchResult', () => {
+  it('正しい構造の取得結果は true と判定される', () => {
+    // 前提: fetchAndRecordLatestIndices が返す実際の結果と同じ構造を与える
+    // 事前条件: status は結果型が定義する4値のいずれかである
+    // 検証: 4値すべてが型ガードを通過する
+    for (const status of ['success', 'already_exists', 'skipped', 'failed']) {
+      expect(
+        isMarketIndexFetchResult({ status, date: '2024-03-05', message: '記録しました。' })
+      ).toBe(true);
+    }
+  });
+
+  it('未知のステータスを持つ値は false と判定される（fail fast）', () => {
+    // 前提: status が文字列ではあるが、結果型が定義しない未知の値である
+    // 事前条件: date・message は正しい形である
+    // 検証: 未知ステータスを通すと後段の 'failed' 判定・通知が静かに素通りするため、
+    //   形式不正として弾かれる（H2 #148 で追加した検証規則の固定）
+    expect(
+      isMarketIndexFetchResult({ status: 'unknown', date: '2024-03-05', message: 'メッセージ' })
+    ).toBe(false);
+  });
+
+  it('必須フィールドが欠落した値・オブジェクトでない値は false と判定される', () => {
+    // 前提: date 欠落・message 欠落・null・文字列の各パターンを与える
+    // 事前条件: なし
+    // 検証: いずれも形式不正として弾かれる
+    expect(isMarketIndexFetchResult({ status: 'success', message: 'メッセージ' })).toBe(false);
+    expect(isMarketIndexFetchResult({ status: 'success', date: '2024-03-05' })).toBe(false);
+    expect(isMarketIndexFetchResult(null)).toBe(false);
+    expect(isMarketIndexFetchResult('success')).toBe(false);
   });
 });

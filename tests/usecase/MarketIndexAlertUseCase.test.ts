@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createMarketIndexAlertUseCase } from '../../src/usecase/MarketIndexAlertUseCase';
 import type { MarketIndexRepository } from '../../src/repository/MarketIndexRepository';
 import type { MarketIndex } from '../../src/domain/types';
-import { ok, fail } from '../fakes';
+import { ok, fail, createStubEmailService } from '../fakes';
 
 describe('MarketIndexAlertUseCase', () => {
   /**
@@ -37,7 +37,7 @@ describe('MarketIndexAlertUseCase', () => {
       ];
 
       const repository = createMockRepository(records);
-      const useCase = createMarketIndexAlertUseCase(repository);
+      const useCase = createMarketIndexAlertUseCase(repository, createStubEmailService());
       const result = useCase.checkAlert();
 
       expect(result.success).toBe(true);
@@ -61,7 +61,7 @@ describe('MarketIndexAlertUseCase', () => {
       ];
 
       const repository = createMockRepository(records);
-      const useCase = createMarketIndexAlertUseCase(repository);
+      const useCase = createMarketIndexAlertUseCase(repository, createStubEmailService());
       const result = useCase.checkAlert();
 
       expect(result.success).toBe(true);
@@ -82,7 +82,7 @@ describe('MarketIndexAlertUseCase', () => {
       ];
 
       const repository = createMockRepository(records);
-      const useCase = createMarketIndexAlertUseCase(repository);
+      const useCase = createMarketIndexAlertUseCase(repository, createStubEmailService());
       const result = useCase.checkAlert();
 
       expect(result.success).toBe(true);
@@ -102,7 +102,7 @@ describe('MarketIndexAlertUseCase', () => {
       ];
 
       const repository = createMockRepository(records);
-      const useCase = createMarketIndexAlertUseCase(repository);
+      const useCase = createMarketIndexAlertUseCase(repository, createStubEmailService());
       const result = useCase.checkAlert();
 
       expect(result.success).toBe(true);
@@ -122,7 +122,7 @@ describe('MarketIndexAlertUseCase', () => {
       ];
 
       const repository = createMockRepository(records);
-      const useCase = createMarketIndexAlertUseCase(repository);
+      const useCase = createMarketIndexAlertUseCase(repository, createStubEmailService());
       const result = useCase.checkAlert();
 
       expect(result.success).toBe(true);
@@ -143,7 +143,7 @@ describe('MarketIndexAlertUseCase', () => {
         ];
 
         const repository = createMockRepository(records);
-        const useCase = createMarketIndexAlertUseCase(repository);
+        const useCase = createMarketIndexAlertUseCase(repository, createStubEmailService());
         const result = useCase.checkAlert();
 
         expect(result.success).toBe(true);
@@ -163,7 +163,7 @@ describe('MarketIndexAlertUseCase', () => {
         ];
 
         const repository = createMockRepository(records);
-        const useCase = createMarketIndexAlertUseCase(repository);
+        const useCase = createMarketIndexAlertUseCase(repository, createStubEmailService());
         const result = useCase.checkAlert();
 
         expect(result.success).toBe(true);
@@ -183,7 +183,7 @@ describe('MarketIndexAlertUseCase', () => {
         ];
 
         const repository = createMockRepository(records);
-        const useCase = createMarketIndexAlertUseCase(repository);
+        const useCase = createMarketIndexAlertUseCase(repository, createStubEmailService());
         const result = useCase.checkAlert();
 
         expect(result.success).toBe(true);
@@ -205,7 +205,7 @@ describe('MarketIndexAlertUseCase', () => {
         ];
 
         const repository = createMockRepository(records);
-        const useCase = createMarketIndexAlertUseCase(repository);
+        const useCase = createMarketIndexAlertUseCase(repository, createStubEmailService());
         const result = useCase.checkAlert();
 
         expect(result.success).toBe(true);
@@ -224,7 +224,7 @@ describe('MarketIndexAlertUseCase', () => {
         ];
 
         const repository = createMockRepository(records);
-        const useCase = createMarketIndexAlertUseCase(repository);
+        const useCase = createMarketIndexAlertUseCase(repository, createStubEmailService());
         const result = useCase.checkAlert();
 
         expect(result.success).toBe(true);
@@ -241,7 +241,7 @@ describe('MarketIndexAlertUseCase', () => {
         ];
 
         const repository = createMockRepository(records);
-        const useCase = createMarketIndexAlertUseCase(repository);
+        const useCase = createMarketIndexAlertUseCase(repository, createStubEmailService());
         const result = useCase.checkAlert();
 
         expect(result.success).toBe(false);
@@ -257,7 +257,7 @@ describe('MarketIndexAlertUseCase', () => {
         // 前提: シートにデータが存在しない
         // 検証: not_foundエラーが返る
         const repository = createMockRepository([]);
-        const useCase = createMarketIndexAlertUseCase(repository);
+        const useCase = createMarketIndexAlertUseCase(repository, createStubEmailService());
         const result = useCase.checkAlert();
 
         expect(result.success).toBe(false);
@@ -277,7 +277,7 @@ describe('MarketIndexAlertUseCase', () => {
           highlightAlertCell: () => ok(undefined),
         };
 
-        const useCase = createMarketIndexAlertUseCase(repository);
+        const useCase = createMarketIndexAlertUseCase(repository, createStubEmailService());
         const result = useCase.checkAlert();
 
         expect(result.success).toBe(false);
@@ -286,6 +286,125 @@ describe('MarketIndexAlertUseCase', () => {
           expect(result.error.message).toBe('シートの読み取りに失敗しました');
         }
       });
+    });
+  });
+
+  describe('checkAndNotify', () => {
+    it('アラート発火時はメールを送信し、発火した指数のセルのみハイライトする', () => {
+      // 前提: S&P500 は -6% 下落（発火）、NASDAQ は -2% 下落（非発火）
+      // 事前条件: メール送信・ハイライトはともに成功する
+      // 検証: アラートメールが宛先へ1回送信され、ハイライトは sp500 列のみに実行される
+      const records: MarketIndex[] = [
+        { date: '2024-01-20', sp500: 4700, nasdaq: 14700, createdAt: '2024-01-20T00:00:00Z' },
+        { date: '2024-01-13', sp500: 5000, nasdaq: 15000, createdAt: '2024-01-13T00:00:00Z' },
+      ];
+      const highlighted: { date: string; column: string }[] = [];
+      const repository: MarketIndexRepository = {
+        ...createMockRepository(records),
+        highlightAlertCell: (date, column) => {
+          highlighted.push({ date, column });
+          return ok(undefined);
+        },
+      };
+      const sendMarketIndexAlert = vi.fn(() => ok<void>(undefined));
+      const emailService = createStubEmailService({ sendMarketIndexAlert });
+
+      const useCase = createMarketIndexAlertUseCase(repository, emailService);
+      const result = useCase.checkAndNotify('notify@example.com');
+
+      expect(result.success).toBe(true);
+      expect(sendMarketIndexAlert).toHaveBeenCalledTimes(1);
+      expect(sendMarketIndexAlert).toHaveBeenCalledWith(
+        expect.objectContaining({ isAlertTriggered: true, alertDate: '2024-01-20' }),
+        'notify@example.com'
+      );
+      // 発火した S&P500 のみハイライトされ、非発火の NASDAQ はハイライトされない
+      expect(highlighted).toEqual([{ date: '2024-01-20', column: 'sp500' }]);
+    });
+
+    it('アラート非発火時はメール送信もハイライトも行わず成功を返す', () => {
+      // 前提: S&P500・NASDAQ とも -5% 未満の下落（アラート条件を満たさない）
+      // 事前条件: なし
+      // 検証: メール送信・ハイライトが一切呼ばれず、処理はスキップとして成功する
+      const records: MarketIndex[] = [
+        { date: '2024-01-20', sp500: 4900, nasdaq: 14700, createdAt: '2024-01-20T00:00:00Z' },
+        { date: '2024-01-13', sp500: 5000, nasdaq: 15000, createdAt: '2024-01-13T00:00:00Z' },
+      ];
+      const highlighted: string[] = [];
+      const repository: MarketIndexRepository = {
+        ...createMockRepository(records),
+        highlightAlertCell: (_date, column) => {
+          highlighted.push(column);
+          return ok(undefined);
+        },
+      };
+      const sendMarketIndexAlert = vi.fn(() => ok<void>(undefined));
+      const emailService = createStubEmailService({ sendMarketIndexAlert });
+
+      const useCase = createMarketIndexAlertUseCase(repository, emailService);
+      const result = useCase.checkAndNotify('notify@example.com');
+
+      expect(result.success).toBe(true);
+      expect(sendMarketIndexAlert).not.toHaveBeenCalled();
+      expect(highlighted).toEqual([]);
+    });
+
+    it('アラートメール送信に失敗した場合はエラーを返し、ハイライトを実行しない', () => {
+      // 前提: 両指数が -5% 以上下落してアラートが発火する
+      // 事前条件: メール送信が失敗する
+      // 検証: 送信失敗のエラーが伝播し、後続のセルハイライトは実行されない
+      const records: MarketIndex[] = [
+        { date: '2024-01-20', sp500: 4600, nasdaq: 13500, createdAt: '2024-01-20T00:00:00Z' },
+        { date: '2024-01-13', sp500: 5000, nasdaq: 15000, createdAt: '2024-01-13T00:00:00Z' },
+      ];
+      const highlighted: string[] = [];
+      const repository: MarketIndexRepository = {
+        ...createMockRepository(records),
+        highlightAlertCell: (_date, column) => {
+          highlighted.push(column);
+          return ok(undefined);
+        },
+      };
+      const emailService = createStubEmailService({
+        sendMarketIndexAlert: () => fail('unexpected', 'メールの送信に失敗しました。'),
+      });
+
+      const useCase = createMarketIndexAlertUseCase(repository, emailService);
+      const result = useCase.checkAndNotify('notify@example.com');
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.message).toBe('メールの送信に失敗しました。');
+      }
+      expect(highlighted).toEqual([]);
+    });
+
+    it('両指数が発火した場合は両方のセルをハイライトし、片方の失敗でも処理全体は成功する', () => {
+      // 前提: S&P500・NASDAQ とも -5% 以上下落して両方発火する
+      // 事前条件: sp500 列のハイライトは失敗し、nasdaq 列は成功する
+      // 検証: 両列へハイライトが試行され、ハイライト失敗はログのみで処理全体は成功する
+      //   （移設前の main.ts 実装と同じく、ハイライト失敗は致命的でない）
+      const records: MarketIndex[] = [
+        { date: '2024-01-20', sp500: 4600, nasdaq: 13500, createdAt: '2024-01-20T00:00:00Z' },
+        { date: '2024-01-13', sp500: 5000, nasdaq: 15000, createdAt: '2024-01-13T00:00:00Z' },
+      ];
+      const attempted: string[] = [];
+      const repository: MarketIndexRepository = {
+        ...createMockRepository(records),
+        highlightAlertCell: (_date, column) => {
+          attempted.push(column);
+          if (column === 'sp500') {
+            return fail('unexpected', 'セルの更新に失敗しました。');
+          }
+          return ok(undefined);
+        },
+      };
+
+      const useCase = createMarketIndexAlertUseCase(repository, createStubEmailService());
+      const result = useCase.checkAndNotify('notify@example.com');
+
+      expect(result.success).toBe(true);
+      expect(attempted).toEqual(['sp500', 'nasdaq']);
     });
   });
 });

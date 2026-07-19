@@ -27,6 +27,37 @@ export type ExecuteRecurringResult = {
   skipped: { recurringPurchaseId: string; reason: SkipReason }[];
 };
 
+/**
+ * {@link ExecuteRecurringResult} の型ガード関数。
+ *
+ * `main.ts` の `executeRecurringPurchasesDaily` が API レスポンス（unknown）を
+ * 実行結果として扱う前のランタイム検証に用いる。`skipped` の各要素は
+ * recurringPurchaseId（空でない文字列）と reason（文字列）を持つことを検証する。
+ *
+ * 配置について: 本型ガードは結果型を定義する本モジュールに同居させる（H2 #148）。
+ * 型の構造が変わった際に、型定義と検証規則を同一ファイル内で同期させるためである。
+ */
+export function isExecuteRecurringResult(value: unknown): value is ExecuteRecurringResult {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const obj = value as Record<string, unknown>;
+  if (!Array.isArray(obj.executed) || !Array.isArray(obj.skipped)) {
+    return false;
+  }
+  return obj.skipped.every((item) => {
+    if (typeof item !== 'object' || item === null) {
+      return false;
+    }
+    const record = item as Record<string, unknown>;
+    return (
+      typeof record.recurringPurchaseId === 'string' &&
+      typeof record.reason === 'string' &&
+      record.recurringPurchaseId !== ''
+    );
+  });
+}
+
 type NavCalendar = {
   businessDates: string[];
   byDate: Map<string, Nav>;

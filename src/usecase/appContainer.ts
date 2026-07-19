@@ -6,11 +6,15 @@ import { createPerformanceRepository } from '../repository/PerformanceRepository
 import { createRecurringPurchaseRepository } from '../repository/RecurringPurchaseRepository';
 import { openSheetRepository } from '../repository/SheetRepository';
 import { createTransactionRepository } from '../repository/TransactionRepository';
-import { createEmailService, type EmailService } from '../service/EmailService';
+import { createEmailService } from '../service/EmailService';
 import { createMarketIndexService } from '../service/MarketIndexService';
 import { createRakutenService } from '../service/RakutenService';
 import { createFundUseCase, type FundUseCase } from './FundUseCase';
 import { createHoldingUseCase, type HoldingUseCase } from './HoldingUseCase';
+import {
+  createMarketIndexAlertUseCase,
+  type MarketIndexAlertUseCase,
+} from './MarketIndexAlertUseCase';
 import {
   createMarketIndexFetchUseCase,
   type MarketIndexFetchUseCase,
@@ -54,8 +58,8 @@ export type AppContainer = {
   readonly weeklyReportUseCase: WeeklyReportUseCase;
   /** 市場指数取得ユースケース。 */
   readonly marketIndexFetchUseCase: MarketIndexFetchUseCase;
-  /** メール送信サービス（週次レポート送信に使用）。 */
-  readonly emailService: EmailService;
+  /** -5%ルールアラートユースケース。 */
+  readonly marketIndexAlertUseCase: MarketIndexAlertUseCase;
 };
 
 /**
@@ -119,12 +123,16 @@ export function createAppContainer(): Result<AppContainer> {
         performanceRepository,
         rakutenService
       ),
-      weeklyReportUseCase: createWeeklyReportUseCase(portfolioUseCase, performanceRepository),
+      weeklyReportUseCase: createWeeklyReportUseCase(
+        portfolioUseCase,
+        performanceRepository,
+        emailService
+      ),
       marketIndexFetchUseCase: createMarketIndexFetchUseCase(
         marketIndexRepository,
         marketIndexService
       ),
-      emailService,
+      marketIndexAlertUseCase: createMarketIndexAlertUseCase(marketIndexRepository, emailService),
     },
   };
 }

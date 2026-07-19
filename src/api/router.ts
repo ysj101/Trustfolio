@@ -1,4 +1,3 @@
-import { getWeeklyReportEmail } from '../Config';
 import { fail } from '../domain/result';
 import type { Result } from '../domain/types';
 import { createAppContainer } from '../usecase/appContainer';
@@ -281,34 +280,10 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
       }
       return container.navFetchUseCase.fetchAndRegisterAllNavs();
     }
-    case 'sendWeeklyReport': {
-      // メールアドレスを取得
-      const recipientEmail = getWeeklyReportEmail();
-      if (recipientEmail === null) {
-        return fail(
-          'validation',
-          'WEEKLY_REPORT_EMAILが設定されていません。スクリプトプロパティに設定してください。',
-          'WEEKLY_REPORT_EMAIL'
-        );
-      }
-
-      // 週次レポートを生成
-      const reportResult = container.weeklyReportUseCase.generateWeeklyReport();
-      if (!reportResult.success) {
-        return reportResult;
-      }
-
-      // メールを送信
-      const sendResult = container.emailService.sendWeeklyReport(
-        reportResult.value,
-        recipientEmail
-      );
-      if (!sendResult.success) {
-        return sendResult;
-      }
-
-      return { success: true, value: { message: '週次レポートを送信しました。' } };
-    }
+    case 'sendWeeklyReport':
+      // 宛先取得 → レポート生成 → メール送信のオーケストレーションは
+      // WeeklyReportUseCase.sendReport へ集約済み（H2 #148）。router は委譲のみを担う。
+      return container.weeklyReportUseCase.sendReport();
     case 'getPortfolioPerformanceHistory':
       return container.portfolioUseCase.getPortfolioPerformanceHistory();
     case 'fetchMarketIndices': {

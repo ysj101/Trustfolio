@@ -1,6 +1,7 @@
 import type { Result, AppError } from '../src/domain/types';
 import { SHEET_HEADERS, type SheetDefinition } from '../src/Config';
 import type { SheetRepository } from '../src/repository/SheetRepository';
+import type { EmailService } from '../src/service/EmailService';
 
 export function ok<T>(value: T): Result<T> {
   return { success: true, value };
@@ -290,5 +291,28 @@ export function createInMemorySheetRepository(
       target.splice(dataIndex, 1);
       return ok(undefined);
     },
+  };
+}
+
+/**
+ * EmailService のスタブを生成するテスト用ファクトリ。
+ *
+ * 目的:
+ * - MarketIndexAlertUseCase / WeeklyReportUseCase のテストなどで繰り返し定義していた
+ *   「全メソッドが成功を返す EmailService」のボイラープレートを一本化し、
+ *   各テストは関心のあるメソッドだけを overrides で差し替える。
+ *
+ * 既定の挙動:
+ * - sendWeeklyReport / sendErrorNotification / sendMarketIndexAlert は全て ok(undefined) を返す。
+ *
+ * @param overrides - 差し替えたいメソッドのみを指定する。
+ * @returns EmailService のスタブ。
+ */
+export function createStubEmailService(overrides: Partial<EmailService> = {}): EmailService {
+  return {
+    sendWeeklyReport: () => ok(undefined),
+    sendErrorNotification: () => ok(undefined),
+    sendMarketIndexAlert: () => ok(undefined),
+    ...overrides,
   };
 }
