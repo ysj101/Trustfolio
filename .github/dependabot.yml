@@ -19,3 +19,11 @@ updates:
         dependency-type: "production"
         update-types:
           - "patch"
+
+  # GitHub Actions のアクション更新を監視する（#162）。
+  # 全アクションはコミットハッシュ＋バージョンコメント（# vX.Y.Z）でピン留めしており、
+  # dependabot はコメントの semver を解釈して新しいハッシュへの更新PRを作成する。
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
