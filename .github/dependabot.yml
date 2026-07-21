@@ -1,6 +1,9 @@
 version: 2
 updates:
-  - package-ecosystem: "pnpm"
+  # pnpm を利用しているが、Dependabot の仕様では npm / yarn / pnpm はまとめて
+  # package-ecosystem "npm" を指定する（"pnpm" という値は存在せずパースエラーになる）。
+  # 参照: https://docs.github.com/en/code-security/dependabot/ecosystems-supported-by-dependabot/supported-ecosystems-and-repositories
+  - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "weekly"
