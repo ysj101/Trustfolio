@@ -189,6 +189,63 @@ describe('MarketIndexRepository', () => {
       expect(setBackground).toHaveBeenCalledWith('#FFCDD2');
     });
 
+    it('途中に不正なデータ行がある場合は fail fast にエラーを返す（H3 #149 の厳密化）', () => {
+      // 前提: 対象日付より前の行に、sp500 が数値でない不正行が混入している
+      // 事前条件: H3 #149 で日付マッチを parseRow 経由（findRowByPredicate）へ統一した
+      // 検証: 従来は不正行を素通りして対象行をハイライトしていたが、統一後は
+      //   シート破損の静かな見逃しを防ぐため、不正行を検出した時点でエラーを返す
+      const dataRows = [
+        ['2024-01-18', '数値でない値', 14900, '2024-01-19T00:00:00.000Z'],
+        ['2024-01-19', sp500FridayValue, nasdaqFridayValue, '2024-01-20T00:00:00.000Z'],
+      ];
+
+      const setBackground = vi.fn();
+      const getRange = vi.fn(() => ({ setBackground }));
+      const fakeSheet = { getRange } as unknown as GoogleAppsScript.Spreadsheet.Sheet;
+
+      const sheetRepository = createStubSheetRepository({
+        getRequiredSheet: () => ok(fakeSheet),
+        readAllRows: () => ok(dataRows),
+      });
+      const repository = createMarketIndexRepository(sheetRepository);
+
+      const result = repository.highlightAlertCell('2024-01-19', 'sp500');
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.message).toContain('sp500が不正です');
+      }
+      // ハイライトは実行されない
+      expect(setBackground).not.toHaveBeenCalled();
+    });
+
+    it('空行を挟んでも行番号はシート上の実位置を指す', () => {
+      // 前提: データ行の間に空行が混入しており、対象日付はその後の行にある
+      // 事前条件: findRowByPredicate の rowIndex は空行を含む生の行インデックスである
+      // 検証: 空行スキップ後も、ハイライト対象はシート上の実際の行番号（生 index+2）になる
+      const dataRows = [
+        ['2024-01-18', 4950, 14900, '2024-01-19T00:00:00.000Z'],
+        ['', '', '', ''],
+        ['2024-01-19', sp500FridayValue, nasdaqFridayValue, '2024-01-20T00:00:00.000Z'],
+      ];
+
+      const setBackground = vi.fn();
+      const getRange = vi.fn(() => ({ setBackground }));
+      const fakeSheet = { getRange } as unknown as GoogleAppsScript.Spreadsheet.Sheet;
+
+      const sheetRepository = createStubSheetRepository({
+        getRequiredSheet: () => ok(fakeSheet),
+        readAllRows: () => ok(dataRows),
+      });
+      const repository = createMarketIndexRepository(sheetRepository);
+
+      const result = repository.highlightAlertCell('2024-01-19', 'sp500');
+
+      expect(result.success).toBe(true);
+      // 2024-01-19 は生インデックス2（空行含む）→ シート行番号4
+      expect(getRange).toHaveBeenCalledWith(4, 2);
+    });
+
     it('nasdaq列を指定すると列番号3が対象になる', () => {
       // 前提: 1行のデータがあり、その nasdaq 列をハイライト対象とする
       // 検証: 列番号3（nasdaq）に対して背景色が設定される

@@ -3,7 +3,15 @@ import { formatDateToIso } from '../domain/dateFormat';
 import { fail } from '../domain/result';
 import type { RecurringPurchase, Result } from '../domain/types';
 import { isValidRecurringDay } from '../domain/validators';
-import { findRowByPredicate, parseAllRows, parseSheetDate } from './SheetMapping';
+import {
+  findRowByPredicate,
+  normalizeBoolean,
+  normalizeOptionalString,
+  parseAllRows,
+  parseNumberCell,
+  parseRequiredStringCell,
+  parseSheetDate,
+} from './SheetMapping';
 import type { SheetRepository } from './SheetRepository';
 
 export type RecurringPurchaseRepository = {
@@ -125,14 +133,17 @@ function findRecurringRow(
 function parseRow(row: unknown[], index: number): Result<RecurringPurchase> {
   const [id, fundId, monthlyAmount, executionDay, startDate, endDate, isActive, createdAt] = row;
 
-  if (typeof id !== 'string' || id === '') {
-    return fail('unexpected', `recurringの${String(index + 2)}行目のidが不正です。`);
+  const idResult = parseRequiredStringCell(id, 'recurring', 'id', index);
+  if (!idResult.success) {
+    return idResult;
   }
-  if (typeof fundId !== 'string' || fundId === '') {
-    return fail('unexpected', `recurringの${String(index + 2)}行目のfundIdが不正です。`);
+  const fundIdResult = parseRequiredStringCell(fundId, 'recurring', 'fundId', index);
+  if (!fundIdResult.success) {
+    return fundIdResult;
   }
-  if (typeof monthlyAmount !== 'number' || Number.isNaN(monthlyAmount)) {
-    return fail('unexpected', `recurringの${String(index + 2)}行目のmonthlyAmountが不正です。`);
+  const monthlyAmountResult = parseNumberCell(monthlyAmount, 'recurring', 'monthlyAmount', index);
+  if (!monthlyAmountResult.success) {
+    return monthlyAmountResult;
   }
   // executionDayは「1〜28の整数」が仕様。非整数（例: 15.5）や範囲外（例: 99）が保存値として
   // 混入していると、約定日計算の formatIsoDate(year, month, day) が "2026-06-99" のような不正な
@@ -172,39 +183,22 @@ function parseRow(row: unknown[], index: number): Result<RecurringPurchase> {
     endDateStr = normalizeOptionalString(endDate);
   }
 
-  if (typeof createdAt !== 'string' || createdAt === '') {
-    return fail('unexpected', `recurringの${String(index + 2)}行目のcreatedAtが不正です。`);
+  const createdAtResult = parseRequiredStringCell(createdAt, 'recurring', 'createdAt', index);
+  if (!createdAtResult.success) {
+    return createdAtResult;
   }
 
   return {
     success: true,
     value: {
-      id,
-      fundId,
-      monthlyAmount,
+      id: idResult.value,
+      fundId: fundIdResult.value,
+      monthlyAmount: monthlyAmountResult.value,
       executionDay,
       startDate: startDateStr,
       endDate: endDateStr,
       isActive: normalizeBoolean(isActive),
-      createdAt,
+      createdAt: createdAtResult.value,
     },
   };
-}
-
-function normalizeOptionalString(value: unknown): string | null {
-  if (typeof value !== 'string') {
-    return null;
-  }
-  const trimmed = value.trim();
-  return trimmed === '' ? null : trimmed;
-}
-
-function normalizeBoolean(value: unknown): boolean {
-  if (typeof value === 'boolean') {
-    return value;
-  }
-  if (typeof value === 'string') {
-    return value.toLowerCase() === 'true';
-  }
-  return false;
 }

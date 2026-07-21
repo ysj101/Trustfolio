@@ -6,7 +6,14 @@ import {
 } from '../Config';
 import { fail } from '../domain/result';
 import type { Result, Transaction } from '../domain/types';
-import { findRowByPredicate, parseAllRows, parseSheetDate } from './SheetMapping';
+import {
+  findRowByPredicate,
+  normalizeOptionalString,
+  parseAllRows,
+  parseNumberCell,
+  parseRequiredStringCell,
+  parseSheetDate,
+} from './SheetMapping';
 import type { SheetRepository } from './SheetRepository';
 
 export type TransactionRepository = {
@@ -263,11 +270,13 @@ function parseRow(row: unknown[], index: number): Result<Transaction> {
     createdAt,
   ] = row;
 
-  if (typeof id !== 'string' || id === '') {
-    return fail('unexpected', `transactionsの${String(index + 2)}行目のidが不正です。`);
+  const idResult = parseRequiredStringCell(id, 'transactions', 'id', index);
+  if (!idResult.success) {
+    return idResult;
   }
-  if (typeof fundId !== 'string' || fundId === '') {
-    return fail('unexpected', `transactionsの${String(index + 2)}行目のfundIdが不正です。`);
+  const fundIdResult = parseRequiredStringCell(fundId, 'transactions', 'fundId', index);
+  if (!fundIdResult.success) {
+    return fundIdResult;
   }
   if (type !== 'SPOT_PURCHASE' && type !== 'RECURRING_PURCHASE' && type !== 'REDEMPTION') {
     return fail('unexpected', `transactionsの${String(index + 2)}行目のtypeが不正です。`);
@@ -286,40 +295,36 @@ function parseRow(row: unknown[], index: number): Result<Transaction> {
   }
   const dateStr = dateResult.value;
 
-  if (typeof amount !== 'number' || Number.isNaN(amount)) {
-    return fail('unexpected', `transactionsの${String(index + 2)}行目のamountが不正です。`);
+  const amountResult = parseNumberCell(amount, 'transactions', 'amount', index);
+  if (!amountResult.success) {
+    return amountResult;
   }
-  if (typeof navValue !== 'number' || Number.isNaN(navValue)) {
-    return fail('unexpected', `transactionsの${String(index + 2)}行目のnavValueが不正です。`);
+  const navValueResult = parseNumberCell(navValue, 'transactions', 'navValue', index);
+  if (!navValueResult.success) {
+    return navValueResult;
   }
-  if (typeof units !== 'number' || Number.isNaN(units)) {
-    return fail('unexpected', `transactionsの${String(index + 2)}行目のunitsが不正です。`);
+  const unitsResult = parseNumberCell(units, 'transactions', 'units', index);
+  if (!unitsResult.success) {
+    return unitsResult;
   }
-  if (typeof createdAt !== 'string' || createdAt === '') {
-    return fail('unexpected', `transactionsの${String(index + 2)}行目のcreatedAtが不正です。`);
+  const createdAtResult = parseRequiredStringCell(createdAt, 'transactions', 'createdAt', index);
+  if (!createdAtResult.success) {
+    return createdAtResult;
   }
 
   return {
     success: true,
     value: {
-      id,
-      fundId,
+      id: idResult.value,
+      fundId: fundIdResult.value,
       type,
       date: dateStr,
-      amount,
-      navValue,
-      units,
+      amount: amountResult.value,
+      navValue: navValueResult.value,
+      units: unitsResult.value,
       recurringPurchaseId: normalizeOptionalString(recurringPurchaseId),
       idempotencyKey: normalizeOptionalString(idempotencyKey),
-      createdAt,
+      createdAt: createdAtResult.value,
     },
   };
-}
-
-function normalizeOptionalString(value: unknown): string | null {
-  if (typeof value !== 'string') {
-    return null;
-  }
-  const trimmed = value.trim();
-  return trimmed === '' ? null : trimmed;
 }

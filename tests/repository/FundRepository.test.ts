@@ -22,6 +22,27 @@ describe('FundRepository', () => {
     }
   });
 
+  it('空行はスキップして残りの銘柄を返す（他リポジトリと同じ parseAllRows へ統一）', () => {
+    // 前提: fundsシートのデータ行の間に空行が混入している
+    // 事前条件: 空行を挟んで2件の銘柄データがある
+    // 検証: 空行はエラーにならずスキップされ、2件の銘柄が取得できる
+    //   （H3 #149 以前は本リポジトリだけ空行をスキップせず id 不正エラーになっていた）
+    const sheetRepository = createInMemorySheetRepository({
+      [SHEET_NAMES.FUNDS]: [
+        ['id', 'name', 'rakutenFundId', 'settlementBusinessDays', 'createdAt'],
+        ['fund-1', '日本株ファンド', '', '', '2024-01-01T00:00:00.000Z'],
+        ['', '', '', '', ''],
+        ['fund-2', '先進国株ファンド', '', '', '2024-01-02T00:00:00.000Z'],
+      ],
+    });
+    const repository = createFundRepository(sheetRepository);
+    const result = repository.listFunds();
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.value.map((fund) => fund.id)).toEqual(['fund-1', 'fund-2']);
+    }
+  });
+
   it('不正なsettlementBusinessDaysの場合はエラーになる', () => {
     // 前提: settlementBusinessDaysが不正な文字列である
     // 事前条件: fundsシートに不正データがある

@@ -1,8 +1,12 @@
-import { SHEET_NAMES } from '../Config';
-import { formatDateToIso } from '../domain/dateFormat';
+import { SHEET_HEADERS, SHEET_NAMES } from '../Config';
 import { fail } from '../domain/result';
 import type { MarketIndex, Result } from '../domain/types';
-import { findRowByPredicate, parseAllRows, parseSheetDate } from './SheetMapping';
+import {
+  findRowByPredicate,
+  parseAllRows,
+  parseRequiredStringCell,
+  parseSheetDate,
+} from './SheetMapping';
 import type { SheetRepository } from './SheetRepository';
 
 /**
@@ -118,33 +122,35 @@ export function createMarketIndexRepository(
         return rowsResult;
       }
 
-      // 対象日付の行インデックスを検索（0始まり、データ行基準）
-      let targetRowIndex: number | null = null;
-      for (const [index, row] of rowsResult.value.entries()) {
-        const dateValue = row[0];
-        let rowDate: string | null = null;
-
-        if (dateValue instanceof Date) {
-          rowDate = formatDateToIso(dateValue);
-        } else if (typeof dateValue === 'string') {
-          rowDate = dateValue.trim();
-        }
-
-        if (rowDate === date) {
-          targetRowIndex = index;
-          break;
-        }
+      // 対象日付の行を、他メソッド（findByDate 等）と同じ parseRow 経由で検索する（H3 #149）。
+      // 従来は date セルの Date/文字列判定を本メソッド内で再実装しており、パース規則が
+      // 二重管理になっていた。統一により、途中に不正行があれば fail fast にエラーを返す
+      // （従来は不正行を素通りしていたが、シート破損の静かな見逃しを防ぐ方向の厳密化）。
+      const found = findRowByPredicate(
+        rowsResult.value,
+        parseRow,
+        (record) => record.date === date
+      );
+      if (!found.success) {
+        return found;
       }
 
-      if (targetRowIndex === null) {
+      if (found.value === null) {
         return fail('not_found', `指定された日付のデータが見つかりません: ${date}`);
       }
 
       // シート上の実際の行番号を計算（ヘッダー行が1行目、データは2行目から）
-      const sheetRowNumber = targetRowIndex + 2;
+      const sheetRowNumber = found.value.rowIndex + 2;
 
-      // 列番号を決定（date=1, sp500=2, nasdaq=3, createdAt=4）
-      const columnNumber = column === 'sp500' ? 2 : 3;
+      // 列番号はヘッダー定義（['date','sp500','nasdaq','createdAt']）から導出する（1始まり）。
+      // マジックナンバー（sp500=2, nasdaq=3）の直書きを排し、列定義の変更へ自動追随させる。
+      // 将来ヘッダー定義から対象列が外れた場合に列番号0で getRange 例外になるのを防ぐため、
+      // 定義に存在しない列は設定不整合として fail fast にエラーを返す。
+      const columnIndex = SHEET_HEADERS[SHEET_NAMES.MARKET_INDICES].indexOf(column);
+      if (columnIndex === -1) {
+        return fail('unexpected', `市場指数シートのヘッダー定義に列が存在しません: ${column}`);
+      }
+      const columnNumber = columnIndex + 1;
 
       // セルの背景色を設定
       sheet.getRange(sheetRowNumber, columnNumber).setBackground(ALERT_CELL_COLOR);
@@ -196,8 +202,14 @@ function parseRow(row: unknown[], index: number): Result<MarketIndex> {
   }
 
   // createdAtの検証
-  if (typeof createdAtValue !== 'string' || createdAtValue === '') {
-    return fail('unexpected', `_market_indicesの${String(index + 2)}行目のcreatedAtが不正です。`);
+  const createdAtResult = parseRequiredStringCell(
+    createdAtValue,
+    '_market_indices',
+    'createdAt',
+    index
+  );
+  if (!createdAtResult.success) {
+    return createdAtResult;
   }
 
   return {
@@ -206,7 +218,7 @@ function parseRow(row: unknown[], index: number): Result<MarketIndex> {
       date,
       sp500: sp500Value,
       nasdaq: nasdaqValue,
-      createdAt: createdAtValue,
+      createdAt: createdAtResult.value,
     },
   };
 }
