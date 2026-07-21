@@ -1,6 +1,7 @@
 import { SHEET_NAMES } from '../Config';
 import { fail } from '../domain/result';
 import type { Fund, Result } from '../domain/types';
+import { parseAllRows, parseRequiredStringCell } from './SheetMapping';
 import type { SheetRepository } from './SheetRepository';
 
 export type FundRepository = {
@@ -22,16 +23,10 @@ export function createFundRepository(sheetRepository: SheetRepository): FundRepo
         return rowsResult;
       }
 
-      const funds: Fund[] = [];
-      for (const [index, row] of rowsResult.value.entries()) {
-        const parsed = parseRow(row, index);
-        if (!parsed.success) {
-          return parsed;
-        }
-        funds.push(parsed.value);
-      }
-
-      return { success: true, value: funds };
+      // 他リポジトリと同じ parseAllRows（空行スキップ付き）へ統一する（H3 #149）。
+      // 従来は本リポジトリだけ手書きループで空行をスキップしておらず、空行が混入すると
+      // id 不正エラーになっていた。統一により空行は他リポジトリ同様スキップされる。
+      return parseAllRows(rowsResult.value, parseRow);
     },
     findByName: (name: string): Result<Fund | null> => {
       const listResult = repository.listFunds();
@@ -52,15 +47,7 @@ export function createFundRepository(sheetRepository: SheetRepository): FundRepo
       return { success: true, value: fund };
     },
     createFund: (fund: Fund): Result<void> => {
-      return sheetRepository.appendRows(SHEET_NAMES.FUNDS, [
-        [
-          fund.id,
-          fund.name,
-          fund.rakutenFundId ?? '',
-          fund.settlementBusinessDays ?? '',
-          fund.createdAt,
-        ],
-      ]);
+      return sheetRepository.appendRows(SHEET_NAMES.FUNDS, [toRow(fund)]);
     },
     updateFund: (fund: Fund): Result<void> => {
       const rowsResult = sheetRepository.readAllRows(SHEET_NAMES.FUNDS);
@@ -73,30 +60,41 @@ export function createFundRepository(sheetRepository: SheetRepository): FundRepo
         return fail('not_found', `対象の銘柄が見つかりません: id=${fund.id}`);
       }
 
-      return sheetRepository.updateRow(SHEET_NAMES.FUNDS, rowIndex, [
-        fund.id,
-        fund.name,
-        fund.rakutenFundId ?? '',
-        fund.settlementBusinessDays ?? '',
-        fund.createdAt,
-      ]);
+      return sheetRepository.updateRow(SHEET_NAMES.FUNDS, rowIndex, toRow(fund));
     },
   };
 
   return repository;
 }
 
+/**
+ * 銘柄をシートの行配列へ変換する。
+ * 登録（appendRows）と更新（updateRow）で同一の列順を用いるため共通化している（H3 #149）。
+ */
+function toRow(fund: Fund): unknown[] {
+  return [
+    fund.id,
+    fund.name,
+    fund.rakutenFundId ?? '',
+    fund.settlementBusinessDays ?? '',
+    fund.createdAt,
+  ];
+}
+
 function parseRow(row: unknown[], index: number): Result<Fund> {
   const [id, name, rakutenFundId, settlementBusinessDays, createdAt] = row;
 
-  if (typeof id !== 'string' || id === '') {
-    return fail('unexpected', `fundsの${String(index + 2)}行目のidが不正です。`);
+  const idResult = parseRequiredStringCell(id, 'funds', 'id', index);
+  if (!idResult.success) {
+    return idResult;
   }
-  if (typeof name !== 'string' || name === '') {
-    return fail('unexpected', `fundsの${String(index + 2)}行目のnameが不正です。`);
+  const nameResult = parseRequiredStringCell(name, 'funds', 'name', index);
+  if (!nameResult.success) {
+    return nameResult;
   }
-  if (typeof createdAt !== 'string' || createdAt === '') {
-    return fail('unexpected', `fundsの${String(index + 2)}行目のcreatedAtが不正です。`);
+  const createdAtResult = parseRequiredStringCell(createdAt, 'funds', 'createdAt', index);
+  if (!createdAtResult.success) {
+    return createdAtResult;
   }
 
   // rakutenFundIdは空文字列の場合はnullとして扱う
@@ -110,11 +108,11 @@ function parseRow(row: unknown[], index: number): Result<Fund> {
   return {
     success: true,
     value: {
-      id,
-      name,
+      id: idResult.value,
+      name: nameResult.value,
       rakutenFundId: parsedRakutenFundId,
       settlementBusinessDays: parsedSettlementBusinessDays.value,
-      createdAt,
+      createdAt: createdAtResult.value,
     },
   };
 }

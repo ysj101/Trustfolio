@@ -7,7 +7,13 @@ import {
 import { fail, propagateFailure } from '../domain/result';
 import type { PerformanceRecord, Result } from '../domain/types';
 import { logWarn } from '../utils/logger';
-import { findRowByPredicate, isEmptyRow, parseSheetDate } from './SheetMapping';
+import {
+  findRowByPredicate,
+  isEmptyRow,
+  parseNumberCell,
+  parseRequiredStringCell,
+  parseSheetDate,
+} from './SheetMapping';
 import type { SheetRepository } from './SheetRepository';
 
 export type PerformanceRepository = {
@@ -131,26 +137,35 @@ function parseRow(row: unknown[], index: number): Result<PerformanceRecord> {
   } else {
     return fail('unexpected', `performanceの${String(index + 2)}行目のtotalUnitsが不正です。`);
   }
-  if (typeof remainingInvestment !== 'number' || Number.isNaN(remainingInvestment)) {
-    return fail(
-      'unexpected',
-      `performanceの${String(index + 2)}行目のremainingInvestmentが不正です。`
-    );
+  const remainingInvestmentResult = parseNumberCell(
+    remainingInvestment,
+    'performance',
+    'remainingInvestment',
+    index
+  );
+  if (!remainingInvestmentResult.success) {
+    return remainingInvestmentResult;
   }
-  if (typeof currentValue !== 'number' || Number.isNaN(currentValue)) {
-    return fail('unexpected', `performanceの${String(index + 2)}行目のcurrentValueが不正です。`);
+  const currentValueResult = parseNumberCell(currentValue, 'performance', 'currentValue', index);
+  if (!currentValueResult.success) {
+    return currentValueResult;
   }
-  if (typeof totalGain !== 'number' || Number.isNaN(totalGain)) {
-    return fail('unexpected', `performanceの${String(index + 2)}行目のtotalGainが不正です。`);
+  const totalGainResult = parseNumberCell(totalGain, 'performance', 'totalGain', index);
+  if (!totalGainResult.success) {
+    return totalGainResult;
   }
-  if (typeof unrealizedGainRate !== 'number' || Number.isNaN(unrealizedGainRate)) {
-    return fail(
-      'unexpected',
-      `performanceの${String(index + 2)}行目のunrealizedGainRateが不正です。`
-    );
+  const unrealizedGainRateResult = parseNumberCell(
+    unrealizedGainRate,
+    'performance',
+    'unrealizedGainRate',
+    index
+  );
+  if (!unrealizedGainRateResult.success) {
+    return unrealizedGainRateResult;
   }
-  if (typeof createdAt !== 'string' || createdAt === '') {
-    return fail('unexpected', `performanceの${String(index + 2)}行目のcreatedAtが不正です。`);
+  const createdAtResult = parseRequiredStringCell(createdAt, 'performance', 'createdAt', index);
+  if (!createdAtResult.success) {
+    return createdAtResult;
   }
 
   return {
@@ -159,11 +174,11 @@ function parseRow(row: unknown[], index: number): Result<PerformanceRecord> {
       fundId,
       date: dateStr,
       totalUnits: totalUnitsValue,
-      remainingInvestment,
-      currentValue,
-      totalGain,
-      unrealizedGainRate,
-      createdAt,
+      remainingInvestment: remainingInvestmentResult.value,
+      currentValue: currentValueResult.value,
+      totalGain: totalGainResult.value,
+      unrealizedGainRate: unrealizedGainRateResult.value,
+      createdAt: createdAtResult.value,
     },
   };
 }
@@ -209,30 +224,36 @@ function ensureGlobalPerformanceSheet(sheetRepository: SheetRepository): Result<
 }
 
 /**
- * 全体実績シート（{@link PERFORMANCE_SHEET_NAME}）を読み込み、述語に合致するレコードのみを
- * 日付昇順で返す共通処理。
+ * 指定した実績シートを読み込み、述語に合致するレコードのみを日付昇順で返す共通処理。
  *
  * 目的:
- * - `listGlobalHistory()`（全件取得）と `findGlobalByDateRange()`（期間フィルタ）に
- *   重複していた「全行読み込み → 空行スキップ → パース（失敗行は警告ログのうえスキップ）
- *   → ソート」の処理を一本化する。両者の差分は「採用するレコードの条件」だけであるため、
- *   その条件を述語 `shouldInclude` として外部から注入する。
+ * - `listGlobalHistory()`（全体・全件取得）・`findGlobalByDateRange()`（全体・期間フィルタ）・
+ *   `findByFundAndDateRange()`（ファンド別・期間フィルタ）に重複していた
+ *   「全行読み込み → 空行スキップ → パース（失敗行は警告ログのうえスキップ）
+ *   → ソート」の処理を一本化する（H3 #149）。各呼び出しの差分は「対象シート」と
+ *   「採用するレコードの条件」だけであるため、シート名と述語 `shouldInclude` を
+ *   外部から注入する。
  *
  * 既存挙動の踏襲（重要）:
  * - 空行は {@link isEmptyRow} でスキップする。
  * - パース失敗行はエラーで中断せず、{@link logWarn}（`[WARN]` プレフィックス付きの
  *   `Logger.log`）に記録して当該行のみスキップする（シート全体の取得は継続する元挙動を保つ）。
  * - 最終結果は date の昇順（文字列の辞書順＝時系列順）でソートして返す。
+ * - シート読み取り失敗（シート不存在等）は失敗 {@link Result} をそのまま返す。
+ *   「不存在を空配列扱いにする」かどうかは呼び出し側の責務とする
+ *   （`findByFundAndDateRange` はファンド別シート未作成を正常系として空配列に変換する）。
  *
  * @param sheetRepository シート入出力を担うリポジトリ。
+ * @param sheetName 読み込む実績シート名（全体実績またはファンド別実績）。
  * @param shouldInclude 各レコードを結果に含めるか判定する述語。true を返したレコードのみ採用する。
  * @returns 述語に合致したレコードの配列（日付昇順）を持つ {@link Result}。
  */
-function readGlobalRecords(
+function readRecords(
   sheetRepository: SheetRepository,
+  sheetName: string,
   shouldInclude: (record: PerformanceRecord) => boolean
 ): Result<PerformanceRecord[]> {
-  const rowsResult = sheetRepository.readAllRows(PERFORMANCE_SHEET_NAME);
+  const rowsResult = sheetRepository.readAllRows(sheetName);
   if (!rowsResult.success) {
     return propagateFailure(rowsResult);
   }
@@ -377,13 +398,14 @@ export function createPerformanceRepository(
 
     listGlobalHistory: (): Result<PerformanceRecord[]> => {
       // 全レコードを対象とするため、述語は常に true を返す。
-      return readGlobalRecords(sheetRepository, () => true);
+      return readRecords(sheetRepository, PERFORMANCE_SHEET_NAME, () => true);
     },
 
     findGlobalByDateRange: (startDate: string, endDate: string): Result<PerformanceRecord[]> => {
       // 日付範囲（startDate以上、endDate以下）に合致するレコードのみを対象とする。
-      return readGlobalRecords(
+      return readRecords(
         sheetRepository,
+        PERFORMANCE_SHEET_NAME,
         (record) => record.date >= startDate && record.date <= endDate
       );
     },
@@ -393,42 +415,20 @@ export function createPerformanceRepository(
       startDate: string,
       endDate: string
     ): Result<PerformanceRecord[]> => {
-      const sheetName = getPerformanceSheetName(fundId);
-      const rowsResult = sheetRepository.readAllRows(sheetName);
+      // fundId と日付範囲（startDate以上、endDate以下）に合致するレコードのみを対象とする。
+      const result = readRecords(
+        sheetRepository,
+        getPerformanceSheetName(fundId),
+        (record) => record.fundId === fundId && record.date >= startDate && record.date <= endDate
+      );
 
-      // シートが存在しない場合は空配列を返す（エラーにしない）
-      if (!rowsResult.success) {
+      // ファンド別シートが存在しない場合は空配列を返す（エラーにしない既存挙動を維持）。
+      // readRecords の失敗要因はシート読み取り（readAllRows）のみであるため、
+      // 失敗を一律に空配列へ変換しても読み取り失敗以外を握り潰すことはない。
+      if (!result.success) {
         return { success: true, value: [] };
       }
-
-      const records: PerformanceRecord[] = [];
-      for (const [index, row] of rowsResult.value.entries()) {
-        // 空行をスキップ
-        if (isEmptyRow(row)) {
-          continue;
-        }
-
-        const parsed = parseRow(row, index);
-        if (!parsed.success) {
-          logWarn(
-            `[PerformanceRepository] Skipping invalid row at index ${String(index)}: ${parsed.error.message}`
-          );
-          continue;
-        }
-
-        // fundIdと日付範囲でフィルタリング
-        if (
-          parsed.value.fundId === fundId &&
-          parsed.value.date >= startDate &&
-          parsed.value.date <= endDate
-        ) {
-          records.push(parsed.value);
-        }
-      }
-
-      // 日付昇順でソート
-      records.sort((a, b) => (a.date < b.date ? -1 : 1));
-      return { success: true, value: records };
+      return result;
     },
   };
 
