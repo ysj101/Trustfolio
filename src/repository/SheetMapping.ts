@@ -91,6 +91,114 @@ export function findRowByPredicate<T>(
 }
 
 /**
+ * シートのセル値が「空でない文字列」であることを検証して返す共通パーサ。
+ *
+ * 目的:
+ * - 各 Repository の parseRow に反復していた
+ *   「`typeof x !== 'string' || x === ''` → 行番号付きエラー」の定型を一本化する（H3 #149）。
+ *
+ * 内容:
+ * - 失敗時のエラーメッセージは各 Repository の既存文言
+ *   「`<シートラベル>の<N>行目の<フィールド名>が不正です。`」と完全に一致させる
+ *   （N は 0 始まりの行インデックス + 2。見出し行を考慮したシート上の行番号）。
+ *
+ * 注意:
+ * - 空文字列を許容するフィールド（例: 全体実績の fundId）には使用しない。
+ * - 独自のメッセージ形式（型・値の詳細付き等）を持つフィールドにも使用しない
+ *   （文言互換を壊さないため、該当箇所は呼び出し側の既存実装を維持する）。
+ *
+ * @param value - 検証対象のセル値。
+ * @param sheetLabel - エラーメッセージに用いるシートのラベル（例: 'funds'）。
+ * @param fieldName - エラーメッセージに用いるフィールド名（例: 'id'）。
+ * @param index - 0始まりの行インデックス。
+ * @returns 検証に成功すれば文字列を持つ {@link Result}。
+ */
+export function parseRequiredStringCell(
+  value: unknown,
+  sheetLabel: string,
+  fieldName: string,
+  index: number
+): Result<string> {
+  if (typeof value !== 'string' || value === '') {
+    return fail('unexpected', `${sheetLabel}の${String(index + 2)}行目の${fieldName}が不正です。`);
+  }
+  return { success: true, value };
+}
+
+/**
+ * シートのセル値が「数値（NaN でない）」であることを検証して返す共通パーサ。
+ *
+ * 目的:
+ * - 各 Repository の parseRow に反復していた
+ *   「`typeof x !== 'number' || Number.isNaN(x)` → 行番号付きエラー」の定型を一本化する（H3 #149）。
+ *
+ * 内容:
+ * - 失敗時のエラーメッセージは {@link parseRequiredStringCell} と同じ既存文言形式に完全一致させる。
+ *
+ * @param value - 検証対象のセル値。
+ * @param sheetLabel - エラーメッセージに用いるシートのラベル（例: 'navs'）。
+ * @param fieldName - エラーメッセージに用いるフィールド名（例: 'value'）。
+ * @param index - 0始まりの行インデックス。
+ * @returns 検証に成功すれば数値を持つ {@link Result}。
+ */
+export function parseNumberCell(
+  value: unknown,
+  sheetLabel: string,
+  fieldName: string,
+  index: number
+): Result<number> {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return fail('unexpected', `${sheetLabel}の${String(index + 2)}行目の${fieldName}が不正です。`);
+  }
+  return { success: true, value };
+}
+
+/**
+ * 任意項目のセル値を「trim 済みの文字列 or null」へ正規化する。
+ *
+ * 目的:
+ * - TransactionRepository と RecurringPurchaseRepository に完全同一で重複していた
+ *   実装を一本化する（H3 #149）。
+ *
+ * 内容:
+ * - 文字列でない値・空白のみの文字列は null に正規化する（既存挙動を厳密に維持）。
+ *
+ * @param value - 正規化対象のセル値。
+ * @returns trim 済みの文字列。空相当なら null。
+ */
+export function normalizeOptionalString(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
+}
+
+/**
+ * 真偽値セルの値を boolean へ正規化する。
+ *
+ * 目的:
+ * - RecurringPurchaseRepository 固有だった実装を、他リポジトリの真偽値列でも
+ *   利用できるよう共通化する（H3 #149）。
+ *
+ * 内容:
+ * - boolean はそのまま返す。文字列は小文字化して 'true' のみ true とする。
+ *   それ以外の型は false とする（既存挙動を厳密に維持）。
+ *
+ * @param value - 正規化対象のセル値。
+ * @returns 正規化済みの真偽値。
+ */
+export function normalizeBoolean(value: unknown): boolean {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'string') {
+    return value.toLowerCase() === 'true';
+  }
+  return false;
+}
+
+/**
  * {@link parseSheetDate} の挙動を呼び出し側ごとに厳密へ合わせるためのオプション。
  */
 export type SheetDateParseOptions = {

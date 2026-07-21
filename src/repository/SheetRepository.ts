@@ -138,36 +138,57 @@ function createSheetRepository(
 }
 
 /**
- * シートのヘッダー行を検証し、不足カラムがあれば自動追加する。
- * カラムの順序は定義順に従い、途中に不足カラムがあれば列を挿入する。
+ * シートの1行目（ヘッダー行）を文字列配列として読み取る。
+ *
+ * GAS の `getValues()` は `any[][]`（実質 unknown[][]）を返すため、型アサーションが必要になる。
+ * 従来 ensureHeader 内の4箇所に分散していた `as string[]` キャストを本ヘルパーの1箇所へ
+ * 集約する（H3 #149）。ヘッダー行は本モジュール自身が文字列で書き込む前提の行であり、
+ * 文字列以外が混入していた場合も、後続の期待ヘッダーとの比較で不一致として検出される。
+ *
+ * @param sheet 対象シート。
+ * @param columnCount 読み取る列数（1以上）。
+ * @returns ヘッダー行の文字列配列。
  */
-function ensureHeader(
+function readHeaderRow(sheet: GoogleAppsScript.Spreadsheet.Sheet, columnCount: number): string[] {
+  return sheet.getRange(1, 1, 1, columnCount).getValues()[0] as string[];
+}
+
+/**
+ * 空シートへ期待ヘッダーを書き込み、余分なデフォルト列を削除する。
+ *
+ * @param sheet 対象シート（行・列が存在しない状態）。
+ * @param headers 期待するヘッダー定義。
+ */
+function initializeEmptySheetHeader(
   sheet: GoogleAppsScript.Spreadsheet.Sheet,
-  headers: readonly string[],
-  sheetName: string
-): Result<void> {
-  const lastRow = sheet.getLastRow();
-  const lastColumn = sheet.getLastColumn();
+  headers: readonly string[]
+): void {
+  sheet.getRange(1, 1, 1, headers.length).setValues([Array.from(headers)]);
 
-  // 空シートの場合はヘッダーを設定し、不要な空白列を削除して終了
-  if (lastRow === 0 || lastColumn === 0) {
-    sheet.getRange(1, 1, 1, headers.length).setValues([Array.from(headers)]);
-
-    // 不要な空白列を削除する（新規シートはデフォルトで26列あるため）
-    const maxColumns = sheet.getMaxColumns();
-    if (maxColumns > headers.length) {
-      sheet.deleteColumns(headers.length + 1, maxColumns - headers.length);
-    }
-
-    return { success: true, value: undefined };
+  // 不要な空白列を削除する（新規シートはデフォルトで26列あるため）
+  const maxColumns = sheet.getMaxColumns();
+  if (maxColumns > headers.length) {
+    sheet.deleteColumns(headers.length + 1, maxColumns - headers.length);
   }
+}
 
-  // 必要な列は再配置し、不要な列は削除する
+/**
+ * 期待ヘッダーの定義順に列を整列する。
+ *
+ * 各期待位置について、現在のヘッダーが一致していなければ「既存列の移動」または
+ * 「新規列の挿入」で期待位置へ揃える。ensureHeader 内で「クリーンアップ前」と
+ * 「クリーンアップ後」の2回、完全に同一のロジックが反復されていたため抽出した（H3 #149）。
+ *
+ * @param sheet 対象シート。
+ * @param headers 期待するヘッダー定義。
+ */
+function alignColumnsToHeaders(
+  sheet: GoogleAppsScript.Spreadsheet.Sheet,
+  headers: readonly string[]
+): void {
   for (let expectedIndex = 0; expectedIndex < headers.length; expectedIndex += 1) {
     const expectedHeader = headers[expectedIndex] ?? '';
-    const currentHeaders = sheet
-      .getRange(1, 1, 1, sheet.getLastColumn())
-      .getValues()[0] as string[];
+    const currentHeaders = readHeaderRow(sheet, sheet.getLastColumn());
     const currentHeader = currentHeaders[expectedIndex] ?? '';
 
     if (currentHeader === expectedHeader) {
@@ -187,9 +208,19 @@ function ensureHeader(
     const columnRange = sheet.getRange(1, sourceColumnNumber, sheet.getMaxRows(), 1);
     sheet.moveColumns(columnRange, targetColumnNumber);
   }
+}
 
-  // 空白ヘッダーや不要なヘッダー、重複ヘッダーの列を削除する
-  const cleanupHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0] as string[];
+/**
+ * 空白ヘッダー・期待定義に無いヘッダー・重複ヘッダーの列を削除する。
+ *
+ * @param sheet 対象シート。
+ * @param headers 期待するヘッダー定義。
+ */
+function removeUnexpectedColumns(
+  sheet: GoogleAppsScript.Spreadsheet.Sheet,
+  headers: readonly string[]
+): void {
+  const cleanupHeaders = readHeaderRow(sheet, sheet.getLastColumn());
   const seenHeaders = new Set<string>();
   const deleteColumns: number[] = [];
   for (let index = 0; index < cleanupHeaders.length; index += 1) {
@@ -205,33 +236,18 @@ function ensureHeader(
   for (const columnNumber of deleteColumns.reverse()) {
     sheet.deleteColumn(columnNumber);
   }
+}
 
-  // 削除後に再度並び替えを行い、期待する順序に整える
-  for (let expectedIndex = 0; expectedIndex < headers.length; expectedIndex += 1) {
-    const expectedHeader = headers[expectedIndex] ?? '';
-    const currentHeaders = sheet
-      .getRange(1, 1, 1, sheet.getLastColumn())
-      .getValues()[0] as string[];
-    const currentHeader = currentHeaders[expectedIndex] ?? '';
-
-    if (currentHeader === expectedHeader) {
-      continue;
-    }
-
-    const foundIndex = currentHeaders.findIndex((header) => header === expectedHeader);
-    const targetColumnNumber = expectedIndex + 1;
-
-    if (foundIndex === -1) {
-      sheet.insertColumnBefore(targetColumnNumber);
-      sheet.getRange(1, targetColumnNumber).setValue(expectedHeader);
-      continue;
-    }
-
-    const sourceColumnNumber = foundIndex + 1;
-    const columnRange = sheet.getRange(1, sourceColumnNumber, sheet.getMaxRows(), 1);
-    sheet.moveColumns(columnRange, targetColumnNumber);
-  }
-
+/**
+ * 期待列数を超える列と、末尾に残った空白列を削除する。
+ *
+ * @param sheet 対象シート。
+ * @param headers 期待するヘッダー定義。
+ */
+function removeTrailingColumns(
+  sheet: GoogleAppsScript.Spreadsheet.Sheet,
+  headers: readonly string[]
+): void {
   // 期待列数を超える列は不要列として削除する
   while (sheet.getLastColumn() > headers.length) {
     sheet.deleteColumn(headers.length + 1);
@@ -249,10 +265,22 @@ function ensureHeader(
     }
     break;
   }
+}
 
-  // 再度ヘッダーを取得して検証
-  const finalLastColumn = sheet.getLastColumn();
-  const updatedHeaders = sheet.getRange(1, 1, 1, finalLastColumn).getValues()[0] as string[];
+/**
+ * 整列・削除後のヘッダー行が期待定義と完全一致することを検証する。
+ *
+ * @param sheet 対象シート。
+ * @param headers 期待するヘッダー定義。
+ * @param sheetName エラーメッセージに用いるシート名。
+ * @returns 一致すれば成功。不一致があれば列位置つきの失敗 {@link Result}。
+ */
+function verifyHeader(
+  sheet: GoogleAppsScript.Spreadsheet.Sheet,
+  headers: readonly string[],
+  sheetName: string
+): Result<void> {
+  const updatedHeaders = readHeaderRow(sheet, sheet.getLastColumn());
 
   // 最終検証：期待するヘッダーと一致するか確認
   const finalMismatches = headers
@@ -273,4 +301,41 @@ function ensureHeader(
   }
 
   return { success: true, value: undefined };
+}
+
+/**
+ * シートのヘッダー行を検証し、不足カラムがあれば自動追加する。
+ * カラムの順序は定義順に従い、途中に不足カラムがあれば列を挿入する。
+ *
+ * 処理は「整列 → 不要列削除 → 再整列 → 末尾整理 → 最終検証」の多段構成であり、
+ * 各段を単一責務のヘルパーへ分割している（H3 #149。処理順・内容は分割前と同一）。
+ */
+function ensureHeader(
+  sheet: GoogleAppsScript.Spreadsheet.Sheet,
+  headers: readonly string[],
+  sheetName: string
+): Result<void> {
+  const lastRow = sheet.getLastRow();
+  const lastColumn = sheet.getLastColumn();
+
+  // 空シートの場合はヘッダーを設定し、不要な空白列を削除して終了
+  if (lastRow === 0 || lastColumn === 0) {
+    initializeEmptySheetHeader(sheet, headers);
+    return { success: true, value: undefined };
+  }
+
+  // 必要な列は再配置し、不要な列は削除する
+  alignColumnsToHeaders(sheet, headers);
+
+  // 空白ヘッダーや不要なヘッダー、重複ヘッダーの列を削除する
+  removeUnexpectedColumns(sheet, headers);
+
+  // 削除後に再度並び替えを行い、期待する順序に整える
+  alignColumnsToHeaders(sheet, headers);
+
+  // 期待列数を超える列・末尾の空白列を削除する
+  removeTrailingColumns(sheet, headers);
+
+  // 最終検証：期待するヘッダーと一致するか確認
+  return verifyHeader(sheet, headers, sheetName);
 }

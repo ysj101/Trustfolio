@@ -1,7 +1,12 @@
 import { SHEET_NAMES } from '../Config';
-import { fail } from '../domain/result';
 import type { Nav, Result } from '../domain/types';
-import { findRowByPredicate, parseAllRows, parseSheetDate } from './SheetMapping';
+import {
+  findRowByPredicate,
+  parseAllRows,
+  parseNumberCell,
+  parseRequiredStringCell,
+  parseSheetDate,
+} from './SheetMapping';
 import type { SheetRepository } from './SheetRepository';
 
 export type NavRepository = {
@@ -111,8 +116,9 @@ export function createNavRepository(sheetRepository: SheetRepository): NavReposi
 function parseRow(row: unknown[], index: number): Result<Nav> {
   const [fundId, date, value, createdAt] = row;
 
-  if (typeof fundId !== 'string' || fundId === '') {
-    return fail('unexpected', `navsの${String(index + 2)}行目のfundIdが不正です。`);
+  const fundIdResult = parseRequiredStringCell(fundId, 'navs', 'fundId', index);
+  if (!fundIdResult.success) {
+    return fundIdResult;
   }
 
   // dateはスプレッドシートからDateオブジェクトとして返される可能性があるため、文字列に変換
@@ -128,12 +134,22 @@ function parseRow(row: unknown[], index: number): Result<Nav> {
   }
   const dateStr = dateResult.value;
 
-  if (typeof value !== 'number' || Number.isNaN(value)) {
-    return fail('unexpected', `navsの${String(index + 2)}行目のvalueが不正です。`);
+  const valueResult = parseNumberCell(value, 'navs', 'value', index);
+  if (!valueResult.success) {
+    return valueResult;
   }
-  if (typeof createdAt !== 'string' || createdAt === '') {
-    return fail('unexpected', `navsの${String(index + 2)}行目のcreatedAtが不正です。`);
+  const createdAtResult = parseRequiredStringCell(createdAt, 'navs', 'createdAt', index);
+  if (!createdAtResult.success) {
+    return createdAtResult;
   }
 
-  return { success: true, value: { fundId, date: dateStr, value, createdAt } };
+  return {
+    success: true,
+    value: {
+      fundId: fundIdResult.value,
+      date: dateStr,
+      value: valueResult.value,
+      createdAt: createdAtResult.value,
+    },
+  };
 }

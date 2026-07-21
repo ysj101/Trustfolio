@@ -3,7 +3,11 @@ import type { Result } from '../../src/domain/types';
 import {
   findRowByPredicate,
   isEmptyRow,
+  normalizeBoolean,
+  normalizeOptionalString,
   parseAllRows,
+  parseNumberCell,
+  parseRequiredStringCell,
   parseSheetDate,
 } from '../../src/repository/SheetMapping';
 
@@ -174,5 +178,80 @@ describe('parseSheetDate', () => {
       expect(result.error.message).toContain('値: 123');
       expect(result.error.message).not.toContain('"123"');
     }
+  });
+});
+
+describe('parseRequiredStringCell', () => {
+  it('空でない文字列はそのまま返す', () => {
+    // 前提: セルに正常な文字列が入っている
+    // 検証: 値がそのまま成功で返る
+    const result = parseRequiredStringCell('fund-001', 'funds', 'id', 0);
+    expect(result).toEqual({ success: true, value: 'fund-001' });
+  });
+
+  it('空文字列・文字列以外は行番号付きの既存文言でエラーになる', () => {
+    // 前提: セルが空文字列または数値（文字列でない）である
+    // 検証: 各リポジトリの既存エラー文言（<シート>の<N>行目の<列>が不正です。）と
+    //   完全一致するメッセージで失敗する（N は index+2）
+    const emptyResult = parseRequiredStringCell('', 'funds', 'id', 0);
+    expect(emptyResult.success).toBe(false);
+    if (!emptyResult.success) {
+      expect(emptyResult.error.message).toBe('fundsの2行目のidが不正です。');
+    }
+
+    const numberResult = parseRequiredStringCell(123, 'navs', 'fundId', 3);
+    expect(numberResult.success).toBe(false);
+    if (!numberResult.success) {
+      expect(numberResult.error.message).toBe('navsの5行目のfundIdが不正です。');
+    }
+  });
+});
+
+describe('parseNumberCell', () => {
+  it('数値はそのまま返す（0 も有効値として扱う）', () => {
+    // 前提: セルに数値が入っている
+    // 検証: 0 を含む数値がそのまま成功で返る（falsy な 0 を欠損と誤判定しない）
+    expect(parseNumberCell(10000, 'navs', 'value', 0)).toEqual({ success: true, value: 10000 });
+    expect(parseNumberCell(0, 'navs', 'value', 0)).toEqual({ success: true, value: 0 });
+  });
+
+  it('NaN・文字列は行番号付きの既存文言でエラーになる', () => {
+    // 前提: セルが NaN または文字列（数値でない）である
+    // 検証: 既存エラー文言と完全一致するメッセージで失敗する
+    const nanResult = parseNumberCell(Number.NaN, 'transactions', 'amount', 1);
+    expect(nanResult.success).toBe(false);
+    if (!nanResult.success) {
+      expect(nanResult.error.message).toBe('transactionsの3行目のamountが不正です。');
+    }
+
+    const stringResult = parseNumberCell('10000', 'transactions', 'amount', 1);
+    expect(stringResult.success).toBe(false);
+  });
+});
+
+describe('normalizeOptionalString', () => {
+  it('文字列は trim して返し、空相当は null に正規化する', () => {
+    // 前提: 任意項目のセルに文字列・空白のみ・非文字列が入るケースがある
+    // 検証: trim 済み文字列 / null（空白のみ・非文字列）へ正規化される
+    expect(normalizeOptionalString(' recurring-001 ')).toBe('recurring-001');
+    expect(normalizeOptionalString('')).toBeNull();
+    expect(normalizeOptionalString('   ')).toBeNull();
+    expect(normalizeOptionalString(null)).toBeNull();
+    expect(normalizeOptionalString(123)).toBeNull();
+  });
+});
+
+describe('normalizeBoolean', () => {
+  it("boolean はそのまま、文字列は 'true'（大文字小文字問わず）のみ true になる", () => {
+    // 前提: 真偽値セルに boolean・文字列・その他の型が入るケースがある
+    // 検証: 既存挙動（boolean 素通し / 'true' 文字列のみ true / それ以外 false）を固定する
+    expect(normalizeBoolean(true)).toBe(true);
+    expect(normalizeBoolean(false)).toBe(false);
+    expect(normalizeBoolean('true')).toBe(true);
+    expect(normalizeBoolean('TRUE')).toBe(true);
+    expect(normalizeBoolean('false')).toBe(false);
+    expect(normalizeBoolean('yes')).toBe(false);
+    expect(normalizeBoolean(1)).toBe(false);
+    expect(normalizeBoolean(null)).toBe(false);
   });
 });
