@@ -8,6 +8,7 @@ import {
 } from '../domain/validators';
 import type { FundRepository } from '../repository/FundRepository';
 import type { TransactionRepository } from '../repository/TransactionRepository';
+import { assertEntityFound } from './entityGuard';
 import { assertFundExists } from './fundGuard';
 import { buildTransaction } from './transactionFactory';
 
@@ -203,25 +204,20 @@ export function createTransactionUseCase(
 
       const { fundId, date, amount, navValue } = validateResult.value;
 
-      const existingResult = transactionRepository.findById(validId, fundId);
+      const existingResult = assertEntityFound(
+        transactionRepository.findById(validId, fundId),
+        '対象の取引履歴が存在しません。'
+      );
       if (!existingResult.success) {
-        return propagateFailure(existingResult);
+        return existingResult;
       }
-      if (!existingResult.value) {
-        return {
-          success: false,
-          error: { type: 'not_found', message: '対象の取引履歴が存在しません。', field: 'id' },
-        };
-      }
-      if (existingResult.value.type !== 'SPOT_PURCHASE') {
-        return {
-          success: false,
-          error: {
-            type: 'validation',
-            message: '積立購入の取引履歴は編集できません。',
-            field: 'id',
-          },
-        };
+      const typeResult = assertTransactionType(
+        existingResult.value,
+        'SPOT_PURCHASE',
+        '積立購入の取引履歴は編集できません。'
+      );
+      if (!typeResult.success) {
+        return typeResult;
       }
 
       const fundResult = assertFundExists(fundRepository, fundId);
@@ -274,25 +270,20 @@ export function createTransactionUseCase(
 
       const { fundId, date, units, amount, navValue } = validateResult.value;
 
-      const existingResult = transactionRepository.findById(validId, fundId);
+      const existingResult = assertEntityFound(
+        transactionRepository.findById(validId, fundId),
+        '対象の取引履歴が存在しません。'
+      );
       if (!existingResult.success) {
-        return propagateFailure(existingResult);
+        return existingResult;
       }
-      if (!existingResult.value) {
-        return {
-          success: false,
-          error: { type: 'not_found', message: '対象の取引履歴が存在しません。', field: 'id' },
-        };
-      }
-      if (existingResult.value.type !== 'REDEMPTION') {
-        return {
-          success: false,
-          error: {
-            type: 'validation',
-            message: '売却取引以外の取引履歴は編集できません。',
-            field: 'id',
-          },
-        };
+      const typeResult = assertTransactionType(
+        existingResult.value,
+        'REDEMPTION',
+        '売却取引以外の取引履歴は編集できません。'
+      );
+      if (!typeResult.success) {
+        return typeResult;
       }
 
       const fundResult = assertFundExists(fundRepository, fundId);
@@ -350,15 +341,12 @@ export function createTransactionUseCase(
       const validTransactionId = transactionIdResult.value;
       const validFundId = fundIdResult.value;
 
-      const existingResult = transactionRepository.findById(validTransactionId, validFundId);
+      const existingResult = assertEntityFound(
+        transactionRepository.findById(validTransactionId, validFundId),
+        '対象の取引履歴が存在しません。'
+      );
       if (!existingResult.success) {
-        return propagateFailure(existingResult);
-      }
-      if (!existingResult.value) {
-        return {
-          success: false,
-          error: { type: 'not_found', message: '対象の取引履歴が存在しません。', field: 'id' },
-        };
+        return existingResult;
       }
       // 積立購入の取引履歴は削除できない（スポット購入と売却は削除可能）
       if (existingResult.value.type === 'RECURRING_PURCHASE') {
@@ -380,6 +368,35 @@ export function createTransactionUseCase(
       return { success: true, value: existingResult.value };
     },
   };
+}
+
+/**
+ * 更新対象の取引が期待する取引種別であることを検証する共通ガード。
+ *
+ * 目的:
+ * - `updateSpotPurchase`（SPOT_PURCHASE のみ編集可）と `updateSaleTransaction`
+ *   （REDEMPTION のみ編集可）に重複していた「取得済み取引の種別チェック →
+ *   validation エラー」の定型を一本化する（H4 #150）。
+ *
+ * 注意:
+ * - `deleteSpotPurchase` の種別チェックは「RECURRING_PURCHASE のみ削除不可」という
+ *   否定形の条件（SPOT_PURCHASE と REDEMPTION の両方を許可）であり、
+ *   本ガードの「単一の期待種別と一致すること」とは条件構造が異なるため対象外とする。
+ *
+ * @param transaction - 存在確認済みの取引。
+ * @param expectedType - 許可する取引種別。
+ * @param mismatchMessage - 種別不一致時に利用者へ提示するメッセージ。
+ * @returns 種別が一致すれば取引を持つ成功 {@link Result}。
+ */
+function assertTransactionType(
+  transaction: Transaction,
+  expectedType: Transaction['type'],
+  mismatchMessage: string
+): Result<Transaction> {
+  if (transaction.type !== expectedType) {
+    return fail('validation', mismatchMessage, 'id');
+  }
+  return { success: true, value: transaction };
 }
 
 /**
