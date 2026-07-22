@@ -1,7 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
-import ts from 'typescript';
+// typescript@7（ネイティブ実装）は従来の JS コンパイラ API（ts.sys / ts.createSourceFile 等）を
+// 同梱しない（提供されるのは明示的に不安定な typescript/unstable/* のみ）。
+// 本スクリプトが必要とする安定 API のため、typescript@6 系をエイリアス
+// devDependency「typescript-js-api」として併存させて利用する。
+// 詳細は docs/UPGRADE_STRATEGY.md の
+// 「TypeScript 7（ネイティブ実装）と JS API の併存の記録」セクションを参照。
+import ts from 'typescript-js-api';
 
 /**
  * このスクリプトは、旧 ESLint 設定で実際に重要だった TypeScript 固有制約を fail-fast で検証する。
