@@ -1,4 +1,5 @@
 import { formatDateToIso } from '../domain/dateFormat';
+import { buildOffsetDateCandidates, findFirstRecordByDateCandidates } from '../domain/dateSearch';
 import type { MarketIndex, Result } from '../domain/types';
 import { propagateFailure } from '../domain/result';
 import type { MarketIndexRepository } from '../repository/MarketIndexRepository';
@@ -227,21 +228,21 @@ export function createMarketIndexAlertUseCase(
  * @returns 前週のレコード、見つからない場合はnull
  */
 function findPreviousWeekRecord(records: MarketIndex[], latestDate: string): MarketIndex | null {
-  const targetDates = PREVIOUS_WEEK_SEARCH_OFFSETS.map((offset) => {
-    const date = new Date(latestDate);
-    // 7日前を基準にオフセットを適用
-    date.setDate(date.getDate() - 7 + offset);
-    return formatDateToIso(date);
-  });
+  // 7日前を基準日とし、オフセット列（近い順）で候補日付を生成する。
+  // 日付の文字列化は既存方式（formatDateToIso）を維持する。
+  const baseDate = new Date(latestDate);
+  baseDate.setDate(baseDate.getDate() - 7);
+  const targetDates = buildOffsetDateCandidates(
+    baseDate,
+    PREVIOUS_WEEK_SEARCH_OFFSETS,
+    formatDateToIso
+  );
 
-  for (const targetDate of targetDates) {
-    const record = records.find((r) => r.date === targetDate);
-    if (record !== undefined) {
-      return record;
-    }
-  }
-
-  return null;
+  const found = findFirstRecordByDateCandidates(
+    targetDates,
+    (targetDate) => records.find((r) => r.date === targetDate) ?? null
+  );
+  return found?.record ?? null;
 }
 
 /**
