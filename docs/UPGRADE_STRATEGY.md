@@ -157,6 +157,20 @@ pnpm push
 | ランタイムエラー | メソッド名の変更 | 新しいAPIドキュメントを参照してコードを修正 |
 | デプロイ失敗 | `@google/clasp`の互換性問題 | `.clasp.json`や`appsscript.json`の設定を確認 |
 
+## peer 依存の明示的許容（peerDependencyRules）の記録
+
+`package.json` の `pnpm.peerDependencyRules.allowedVersions` に設定した許容ルールは、暗黙のフォールバックを避けるため、必ず本セクションに判断理由を記録します。
+
+### `@formatjs/intl@3.1.8>typescript: ^6.0.0`（2026-07-23 追加）
+
+- **経緯**: TypeScript を 5.9.3 → 6.0.3 へ更新した際（issue #175 Phase 1）、`@google/clasp@3.3.0` の推移的依存 `@formatjs/intl@3.1.8` が peerDependencies に `typescript: ^5.6.0`（optional）を宣言しているため、`pnpm install` で unmet peer 警告が発生した。
+- **判断理由**:
+  - `@formatjs/intl` の typescript peer は `peerDependenciesMeta` で optional 宣言されており、TypeScript は同パッケージの型定義利用時のみ関与する。clasp は `@formatjs/intl` を CLI メッセージの国際化（実行時処理）に使用しており、本リポジトリの `tsc --noEmit` 型チェック対象（`src/`）にも含まれない。
+  - `@formatjs/intl` は 4.1.x で typescript peer 宣言自体を撤廃済みだが、clasp が依存するのは 3.1.8 であり、メジャーを跨ぐ強制上書き（pnpm overrides）は clasp の実行時動作を壊すリスクがあるため採用しない。
+  - `@google/clasp` の最新は 3.3.0（2026-07-23 時点）であり、`@formatjs/intl` の typescript peer 警告を解消するリリース済みの `@google/clasp` バージョンは存在しない。したがって「clasp を更新して警告を解消する」という選択肢は存在しない。
+- **許容範囲の限定**: 許容ルールの親セレクタは、判断根拠として検証済みの `@formatjs/intl@3.1.8` に限定している。将来 `@google/clasp` の更新で `@formatjs/intl` の別バージョンが導入され新たな peer 非互換が生じた場合、本ルールでは抑制されず警告が再び顕在化する（fail fast）。
+- **解除条件**: `@google/clasp` を更新した際は、その時点の推移的依存（`@formatjs/intl` のバージョンと peer 宣言）を再評価し、typescript peer 警告が発生しなくなっていれば本ルールを削除する。警告が残る場合は、検証したバージョンへ限定を付け替えた上で本セクションを更新する。
+
 ## 参考資料
 
 - [Semantic Versioning 2.0.0](https://semver.org/)
@@ -166,3 +180,4 @@ pnpm push
 ## 履歴
 
 - 2026-01-16: 初版作成
+- 2026-07-23: TypeScript 5.9 → 6.0 更新（issue #175 Phase 1）に伴い、peer 依存の明示的許容の記録セクションを追加
