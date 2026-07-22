@@ -17,6 +17,7 @@ import type { NavRepository } from '../repository/NavRepository';
 import type { RecurringPurchaseRepository } from '../repository/RecurringPurchaseRepository';
 import type { TransactionRepository } from '../repository/TransactionRepository';
 import { generateUlid } from '../utils/ulid';
+import { assertEntityFound } from './entityGuard';
 import { assertFundExists } from './fundGuard';
 import { buildTransaction } from './transactionFactory';
 
@@ -153,16 +154,14 @@ export function createRecurringUseCase(
         return propagateFailure(fundResult);
       }
 
-      const recurring: RecurringPurchase = {
-        id: generateUlid(),
+      const recurring = buildRecurringPurchase({
         fundId,
         monthlyAmount,
         executionDay,
         startDate,
-        endDate: endDate !== null && endDate !== '' ? endDate : null,
+        endDate,
         isActive,
-        createdAt: new Date().toISOString(),
-      };
+      });
 
       const createResult = recurringRepository.createRecurringPurchase(recurring);
       if (!createResult.success) {
@@ -187,15 +186,12 @@ export function createRecurringUseCase(
       const { fundId, monthlyAmount, executionDay, startDate, endDate, isActive } =
         validateResult.value;
 
-      const existingResult = recurringRepository.findById(validId);
+      const existingResult = assertEntityFound(
+        recurringRepository.findById(validId),
+        '対象の積立設定が存在しません。'
+      );
       if (!existingResult.success) {
-        return propagateFailure(existingResult);
-      }
-      if (!existingResult.value) {
-        return {
-          success: false,
-          error: { type: 'not_found', message: '対象の積立設定が存在しません。', field: 'id' },
-        };
+        return existingResult;
       }
 
       const fundResult = assertFundExists(fundRepository, fundId);
@@ -203,16 +199,17 @@ export function createRecurringUseCase(
         return propagateFailure(fundResult);
       }
 
-      const recurring: RecurringPurchase = {
-        id: existingResult.value.id,
+      // 作成日時と ID は既存の積立設定から引き継ぐ（更新で作成日時を変えない既存挙動を維持）。
+      const recurring = buildRecurringPurchase({
         fundId,
         monthlyAmount,
         executionDay,
         startDate,
-        endDate: endDate !== null && endDate !== '' ? endDate : null,
+        endDate,
         isActive,
+        id: existingResult.value.id,
         createdAt: existingResult.value.createdAt,
-      };
+      });
 
       const updateResult = recurringRepository.updateRecurringPurchase(recurring);
       if (!updateResult.success) {
@@ -229,15 +226,12 @@ export function createRecurringUseCase(
       // 入力バリデータの検証済み戻り値(.value)を以降で使用する（元の recurringId は使い続けない）。
       const validId = idResult.value;
 
-      const existingResult = recurringRepository.findById(validId);
+      const existingResult = assertEntityFound(
+        recurringRepository.findById(validId),
+        '対象の積立設定が存在しません。'
+      );
       if (!existingResult.success) {
-        return propagateFailure(existingResult);
-      }
-      if (!existingResult.value) {
-        return {
-          success: false,
-          error: { type: 'not_found', message: '対象の積立設定が存在しません。', field: 'id' },
-        };
+        return existingResult;
       }
 
       const deleteResult = recurringRepository.deleteRecurringPurchase(validId);
@@ -522,10 +516,13 @@ function validateRecurringInput(input: {
   if (!isValidIsoDate(startDate)) {
     return fail('validation', '開始日はYYYY-MM-DD形式で入力してください。', 'startDate');
   }
-  if (endDate !== null && endDate !== '' && !isValidIsoDate(endDate)) {
+  // 任意項目の endDate を先に「null または実値」へ正規化し、以降の検証・返却で一貫して用いる
+  //（「null か空文字なら未設定扱い」の判定が3箇所に重複していたのを一本化。H4 #150）。
+  const normalizedEndDate = normalizeRecurringEndDate(endDate);
+  if (normalizedEndDate !== null && !isValidIsoDate(normalizedEndDate)) {
     return fail('validation', '終了日はYYYY-MM-DD形式で入力してください。', 'endDate');
   }
-  if (endDate !== null && endDate !== '' && parseIsoDate(endDate) < parseIsoDate(startDate)) {
+  if (normalizedEndDate !== null && parseIsoDate(normalizedEndDate) < parseIsoDate(startDate)) {
     return fail('validation', '終了日は開始日以降である必要があります。', 'endDate');
   }
   if (typeof isActive !== 'boolean') {
@@ -542,9 +539,74 @@ function validateRecurringInput(input: {
       monthlyAmount: monthlyAmountResult.value,
       executionDay: executionDayResult.value,
       startDate,
-      endDate: endDate !== null && endDate !== '' ? endDate : null,
+      endDate: normalizedEndDate,
       isActive,
     },
+  };
+}
+
+/**
+ * 積立設定の終了日（任意項目）を「null または実値の文字列」へ正規化する。
+ *
+ * UI からは未設定の終了日が null または空文字列で届くため、「null か空文字なら未設定（null）、
+ * それ以外はそのまま」という判定を本ヘルパーへ一本化する（従来は validateRecurringInput・
+ * create・update の3箇所に同一の三項演算が重複していた。H4 #150）。
+ *
+ * @param endDate - 入力された終了日（null・空文字列・YYYY-MM-DD のいずれか）。
+ * @returns 未設定なら null。設定されていれば入力値をそのまま返す。
+ */
+function normalizeRecurringEndDate(endDate: string | null): string | null {
+  return endDate !== null && endDate !== '' ? endDate : null;
+}
+
+/**
+ * {@link buildRecurringPurchase} の入力。
+ *
+ * - `id` を省略した場合は {@link generateUlid} で新規採番する（新規登録用途）。
+ * - `id` を指定した場合はその値を保持する（更新時の再生成用途）。
+ * - `createdAt` を省略した場合は呼び出し時刻を ISO 文字列で採番する（新規登録用途）。
+ * - `createdAt` を指定した場合はその値を保持する（更新時に作成日時を維持する用途）。
+ * - `endDate` は {@link validateRecurringInput} で正規化済み（null または非空文字列）の値を
+ *   渡すこと（#135 の「バリデータの検証済み戻り値を使う」方針により保証される）。
+ */
+type BuildRecurringPurchaseInput = {
+  fundId: string;
+  monthlyAmount: number;
+  executionDay: number;
+  startDate: string;
+  endDate: string | null;
+  isActive: boolean;
+  id?: string;
+  createdAt?: string;
+};
+
+/**
+ * {@link RecurringPurchase} を生成する共通ビルダー。
+ *
+ * 目的:
+ * - `createRecurringPurchase`（新規: ID 採番・作成日時採番）と
+ *   `updateRecurringPurchase`（更新: ID・作成日時を既存から引き継ぎ）に重複していた
+ *   8 フィールドの組み立て定型を集約する（{@link buildTransaction} と同型。H4 #150）。
+ *
+ * 内容:
+ * - `id` 未指定時のみ {@link generateUlid} を、`createdAt` 未指定時のみ
+ *   `new Date().toISOString()` を評価する（`??` の短絡により、指定済みの場合は
+ *   採番処理を一切走らせない）。これにより既存の ID・作成日時の生成挙動を維持する。
+ *
+ * @param input - 生成する積立設定の各フィールド。省略時の既定値は
+ *   {@link BuildRecurringPurchaseInput} を参照。
+ * @returns 組み立てた {@link RecurringPurchase}。
+ */
+function buildRecurringPurchase(input: BuildRecurringPurchaseInput): RecurringPurchase {
+  return {
+    id: input.id ?? generateUlid(),
+    fundId: input.fundId,
+    monthlyAmount: input.monthlyAmount,
+    executionDay: input.executionDay,
+    startDate: input.startDate,
+    endDate: input.endDate,
+    isActive: input.isActive,
+    createdAt: input.createdAt ?? new Date().toISOString(),
   };
 }
 

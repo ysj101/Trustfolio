@@ -215,6 +215,27 @@ describe('MarketIndexAlertUseCase', () => {
         }
       });
 
+      it('閏年の2月末をまたぐ7日前計算でも正しい比較日が選択される', () => {
+        // 前提: 最新データが閏年の 2024-03-07 で、ちょうど7日前が閏日 2024-02-29 にあたる
+        // 事前条件: 閏日 2024-02-29 に前週データが存在する
+        // 検証: 月境界＋閏年をまたぐ基準日計算（-7日→オフセット適用の二段計算）でも
+        //   comparisonDate として閏日が正しく選択される（H4 #150 の計算方式変更の回帰防止）
+        const records: MarketIndex[] = [
+          { date: '2024-03-07', sp500: 4700, nasdaq: 14000, createdAt: '2024-03-07T00:00:00Z' },
+          { date: '2024-02-29', sp500: 5000, nasdaq: 15000, createdAt: '2024-02-29T00:00:00Z' },
+        ];
+
+        const repository = createMockRepository(records);
+        const useCase = createMarketIndexAlertUseCase(repository, createStubEmailService());
+        const result = useCase.checkAlert();
+
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.value.comparisonDate).toBe('2024-02-29');
+          expect(result.value.alertDate).toBe('2024-03-07');
+        }
+      });
+
       it('7日前と6日前のデータが存在しない場合、8日前のデータを使用する', () => {
         // 前提: 7日前と6日前のデータがなく、8日前（1/12）のデータがある
         // 検証: 8日前のデータと比較される

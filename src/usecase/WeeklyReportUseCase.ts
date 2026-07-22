@@ -1,4 +1,5 @@
 import { enrichPortfolioWithWeekOverWeek } from '../domain/WeekOverWeekCalculator';
+import { buildOffsetDateCandidates, findFirstRecordByDateCandidates } from '../domain/dateSearch';
 import type { PerformanceRecord, PortfolioWithWeekOverWeek, Result } from '../domain/types';
 import { fail, propagateFailure } from '../domain/result';
 import type { PerformanceRepository } from '../repository/PerformanceRepository';
@@ -161,23 +162,20 @@ function getPreviousWeekData(
   previousFundRecordsMap: Map<string, PerformanceRecord>;
 } {
   // 探索順序の意図（過去方向のみを採用し、正のオフセットを含めない理由）は
-  // PREVIOUS_WEEK_SEARCH_OFFSETS の TSDoc を参照。
-  const searchDates = PREVIOUS_WEEK_SEARCH_OFFSETS.map((offset) => {
-    const date = new Date(targetDate);
-    date.setDate(date.getDate() + offset);
-    return Utilities.formatDate(date, 'Asia/Tokyo', 'yyyy-MM-dd');
-  });
+  // PREVIOUS_WEEK_SEARCH_OFFSETS の TSDoc を参照。日付の文字列化は既存方式（JST）を維持する。
+  const searchDates = buildOffsetDateCandidates(targetDate, PREVIOUS_WEEK_SEARCH_OFFSETS, (date) =>
+    Utilities.formatDate(date, 'Asia/Tokyo', 'yyyy-MM-dd')
+  );
 
-  // 全体実績の前週データを検索
-  let previousGlobalRecord: PerformanceRecord | null = null;
-  for (const dateStr of searchDates) {
+  // 全体実績の前週データを検索（取得失敗の日付はヒットなしとして次の候補へ進む既存挙動を維持）
+  const found = findFirstRecordByDateCandidates(searchDates, (dateStr) => {
     const result = performanceRepository.findGlobalByDate(dateStr);
-    if (result.success && result.value !== null) {
-      previousGlobalRecord = result.value;
-      Logger.log(`[WeeklyReportUseCase] 前週データを取得: ${dateStr}`);
-      break;
-    }
+    return result.success ? result.value : null;
+  });
+  if (found !== null) {
+    Logger.log(`[WeeklyReportUseCase] 前週データを取得: ${found.date}`);
   }
+  const previousGlobalRecord = found?.record ?? null;
 
   // 前週データが見つからなかった場合
   if (!previousGlobalRecord) {
