@@ -127,4 +127,149 @@ describe('EmailService', () => {
     expect(sendEmailMock).toHaveBeenCalled();
     formatMock.mockRestore();
   });
+
+  describe('件名・送信ログの完全一致（H5 #151 の送信定型集約の回帰防止）', () => {
+    /** 週次レポートの最小構成（損益 +2,000円）。 */
+    function createMinimalReport(): WeeklyReport {
+      return {
+        portfolio: {
+          totalInvestment: 10000,
+          totalSaleAmount: 0,
+          realizedGain: 0,
+          remainingInvestment: 10000,
+          totalCurrentValue: 12000,
+          totalUnrealizedGain: 2000,
+          totalUnrealizedGainRate: 0.2,
+          totalGain: 2000,
+          totalGainRate: 0.2,
+          remainingInvestmentChange: null,
+          totalCurrentValueChange: null,
+          totalUnrealizedGainChange: null,
+          totalUnrealizedGainRateChange: null,
+          hasPreviousWeekData: false,
+          holdings: [],
+        },
+        generatedAt: '2024-04-01 09:00:00',
+      };
+    }
+
+    it('週次レポートの件名と送信ログが完全一致で固定される', () => {
+      // 前提: 損益 +2,000円 のレポートを有効な宛先へ送信する
+      // 事前条件: MailApp.sendEmail / Logger.log を spy で捕捉する
+      // 検証: sendHtmlEmail へ集約した後も、件名（日付＋損益）とログ文言が
+      //   集約前と1文字も変わらないことを完全一致で固定する
+      const service = createEmailService();
+      const sendEmailMock = vi.spyOn(globalThis.MailApp, 'sendEmail');
+      const logSpy = vi.spyOn(globalThis.Logger, 'log');
+      // MailApp.sendEmail / Logger.log はテスト間で共有されるグローバルモックのため、
+      // calls[0] が本テストの呼び出しを指すよう開始時にクリアする
+      sendEmailMock.mockClear();
+      logSpy.mockClear();
+
+      const result = service.sendWeeklyReport(createMinimalReport(), 'investor@example.com');
+
+      expect(result.success).toBe(true);
+      expect(sendEmailMock.mock.calls[0]?.[0]?.subject).toBe(
+        '【Trustfolio】週次投資実績レポート（2024-04-01） +2,000円'
+      );
+      expect(logSpy).toHaveBeenCalledWith('週次レポートメールを送信しました: investor@example.com');
+    });
+
+    it('エラー通知の件名と送信ログが完全一致で固定される', () => {
+      // 前提: タスク名「基準価額自動取得」のエラー通知を有効な宛先へ送信する
+      // 事前条件: Utilities.formatDate は固定値を返す
+      // 検証: 件名（タスク名付き）とログ文言（宛先・タスク名付き）が完全一致で固定される
+      const service = createEmailService();
+      const sendEmailMock = vi.spyOn(globalThis.MailApp, 'sendEmail');
+      const logSpy = vi.spyOn(globalThis.Logger, 'log');
+      const formatMock = vi
+        .spyOn(globalThis.Utilities, 'formatDate')
+        .mockReturnValue('2024-04-01 10:00:00');
+      // グローバルモック共有のため、calls[0] が本テストの呼び出しを指すようクリアする
+      sendEmailMock.mockClear();
+      logSpy.mockClear();
+
+      const result = service.sendErrorNotification(
+        '基準価額自動取得',
+        '取得に失敗しました。',
+        'notify@example.com'
+      );
+
+      expect(result.success).toBe(true);
+      expect(sendEmailMock.mock.calls[0]?.[0]?.subject).toBe(
+        '【Trustfolio】エラー通知: 基準価額自動取得'
+      );
+      expect(logSpy).toHaveBeenCalledWith(
+        'エラー通知メールを送信しました: notify@example.com (タスク: 基準価額自動取得)'
+      );
+      formatMock.mockRestore();
+    });
+
+    it('-5%ルールアラートの件名と送信ログが完全一致で固定される', () => {
+      // 前提: S&P500 のみ発火（-5.45%）したアラートを有効な宛先へ送信する
+      // 事前条件: MailApp.sendEmail / Logger.log を spy で捕捉する
+      // 検証: 件名（発火指数と下落率付き）とログ文言が完全一致で固定される
+      const service = createEmailService();
+      const sendEmailMock = vi.spyOn(globalThis.MailApp, 'sendEmail');
+      const logSpy = vi.spyOn(globalThis.Logger, 'log');
+      // MailApp.sendEmail / Logger.log はテスト間で共有されるグローバルモックのため、
+      // calls[0] が本テストの呼び出しを指すよう開始時にクリアする
+      sendEmailMock.mockClear();
+      logSpy.mockClear();
+
+      const result = service.sendMarketIndexAlert(
+        {
+          isAlertTriggered: true,
+          sp500: {
+            currentValue: 5200.55,
+            previousValue: 5500.12,
+            changeRate: -5.45,
+            isTriggered: true,
+          },
+          nasdaq: {
+            currentValue: 18100.33,
+            previousValue: 18500.77,
+            changeRate: -2.16,
+            isTriggered: false,
+          },
+          alertDate: '2026-06-05',
+          comparisonDate: '2026-05-29',
+        },
+        'investor@example.com'
+      );
+
+      expect(result.success).toBe(true);
+      expect(sendEmailMock.mock.calls[0]?.[0]?.subject).toBe(
+        '【Trustfolio】-5%ルールアラート: S&P500 -5.5%'
+      );
+      expect(logSpy).toHaveBeenCalledWith(
+        '-5%ルールアラートメールを送信しました: investor@example.com'
+      );
+    });
+
+    it('検証エラー時（宛先なし・アラート非発火）はメール送信もログ出力も行わない', () => {
+      // 前提: 宛先が空の週次レポート送信と、アラート非発火の指数アラート送信を試みる
+      // 事前条件: MailApp.sendEmail を spy で捕捉する
+      // 検証: いずれも検証段階で失敗し、sendHtmlEmail（送信＋ログ）には到達しない
+      const service = createEmailService();
+      const sendEmailMock = vi.spyOn(globalThis.MailApp, 'sendEmail');
+      sendEmailMock.mockClear();
+
+      const weeklyResult = service.sendWeeklyReport(createMinimalReport(), '');
+      const alertResult = service.sendMarketIndexAlert(
+        {
+          isAlertTriggered: false,
+          sp500: null,
+          nasdaq: null,
+          alertDate: '2026-06-05',
+          comparisonDate: '2026-05-29',
+        },
+        'investor@example.com'
+      );
+
+      expect(weeklyResult.success).toBe(false);
+      expect(alertResult.success).toBe(false);
+      expect(sendEmailMock).not.toHaveBeenCalled();
+    });
+  });
 });
