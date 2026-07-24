@@ -629,3 +629,121 @@ describe('TrustfolioUi.resetFormFields', () => {
     expect(input.value).toBe('');
   });
 });
+
+describe('TrustfolioUi.registerTabDataLoader / getTabDataLoader', () => {
+  it('登録したタブのデータローダーを取得して呼び出せる', () => {
+    // 前提: performance タブのデータ読み込み関数を登録する
+    // 事前条件: なし
+    // 検証: 登録した関数がそのまま取得でき、呼び出しが実行される
+    //   （window.loadPerformanceData の暗黙グローバル結合を置き換えた登録 API の契約）
+    const ui = loadTrustfolioUi({}, {});
+    const loader = vi.fn();
+
+    ui.registerTabDataLoader('performance', loader);
+    const retrieved = ui.getTabDataLoader('performance') as (() => void) | null;
+
+    expect(retrieved).not.toBeNull();
+    retrieved?.();
+    expect(loader).toHaveBeenCalledTimes(1);
+  });
+
+  it('未登録のタブは null を返す（存在チェックを呼び出し側で行える）', () => {
+    // 前提: 何も登録していない状態で取得する
+    // 事前条件: なし
+    // 検証: null が返り、呼び出し側が「未登録」の分岐（エラーログ等）へ進める
+    const ui = loadTrustfolioUi({}, {});
+
+    expect(ui.getTabDataLoader('performance')).toBeNull();
+  });
+
+  it("継承プロパティ名（'constructor' 等）でも未登録なら null を返す", () => {
+    // 前提: 'constructor' というタブ名は登録されていない
+    // 事前条件: 登録表はプロトタイプなしオブジェクトで構築されている
+    // 検証: Object.prototype の継承関数が誤って返らず、契約どおり null になる
+    const ui = loadTrustfolioUi({}, {});
+
+    expect(ui.getTabDataLoader('constructor')).toBeNull();
+    expect(ui.getTabDataLoader('toString')).toBeNull();
+  });
+});
+
+describe('TrustfolioUi.getLocalDateString', () => {
+  it('今日の日付を YYYY-MM-DD 形式（ローカルタイムゾーン）で返す', () => {
+    // 前提: 現在時刻を 2026-07-25 12:00（ローカル）に固定する
+    // 事前条件: fake timers を使用する
+    // 検証: 従来の toLocaleDateString('sv-SE') と同じ YYYY-MM-DD 形式が返る
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 6, 25, 12, 0, 0));
+    const ui = loadTrustfolioUi({}, {});
+
+    expect(ui.getLocalDateString()).toBe('2026-07-25');
+    vi.useRealTimers();
+  });
+});
+
+describe('TrustfolioUi.formatShortDateTime', () => {
+  it('ISO 日時を「M/D H:mm」形式（分のみゼロ埋め）へ整形する', () => {
+    // 前提: 1桁の月・日・時、1桁の分を含む日時を与える
+    // 事前条件: ローカルタイムゾーンで解釈される日時文字列を使用する
+    // 検証: 月・日・時はゼロ埋めなし、分のみ2桁ゼロ埋め（従来の手書き整形と同一形式）
+    const ui = loadTrustfolioUi({}, {});
+
+    // ローカルタイムゾーンの 7/5 9:05 を表す Date を直接構築して ISO 文字列化する
+    const local = new Date(2026, 6, 5, 9, 5, 0);
+    expect(ui.formatShortDateTime(local.toISOString())).toBe('7/5 9:05');
+  });
+});
+
+describe('TrustfolioUi.getPeriodCutoffDate', () => {
+  it('1m / 3m / 1y の各期間で正しい起点日を返す', () => {
+    // 前提: 基準日 2026-07-25 から各期間の起点日を求める
+    // 事前条件: なし
+    // 検証: 1ヶ月前・3ヶ月前・1年前が従来の setMonth / setFullYear 直操作と同一結果になる
+    const ui = loadTrustfolioUi({}, {});
+    const now = new Date(2026, 6, 25);
+
+    expect((ui.getPeriodCutoffDate('1m', now) as Date).getTime()).toBe(
+      new Date(2026, 5, 25).getTime()
+    );
+    expect((ui.getPeriodCutoffDate('3m', now) as Date).getTime()).toBe(
+      new Date(2026, 3, 25).getTime()
+    );
+    expect((ui.getPeriodCutoffDate('1y', now) as Date).getTime()).toBe(
+      new Date(2025, 6, 25).getTime()
+    );
+  });
+
+  it('月末基準日の月またぎは JavaScript の Date 繰り上げ挙動（従来実装と同一）に従う', () => {
+    // 前提: 3月31日を基準に1ヶ月前を求める（2月31日は存在しない）
+    // 事前条件: なし
+    // 検証: setMonth の標準挙動（2/31 → 3/3 へ繰り上げ）が従来の直接操作と同一に保たれる
+    //   （closest-day 補正などの挙動変更が紛れ込んでいないことの固定）
+    const ui = loadTrustfolioUi({}, {});
+    const endOfMarch = new Date(2026, 2, 31);
+
+    expect((ui.getPeriodCutoffDate('1m', endOfMarch) as Date).getTime()).toBe(
+      new Date(2026, 2, 3).getTime()
+    );
+  });
+
+  it('閏日基準日の1年前は JavaScript の Date 繰り上げ挙動（従来実装と同一）に従う', () => {
+    // 前提: 閏日 2024-02-29 を基準に1年前を求める（2023-02-29 は存在しない）
+    // 事前条件: なし
+    // 検証: setFullYear の標準挙動（2023-03-01 へ繰り上げ）が従来の直接操作と同一に保たれる
+    const ui = loadTrustfolioUi({}, {});
+    const leapDay = new Date(2024, 1, 29);
+
+    expect((ui.getPeriodCutoffDate('1y', leapDay) as Date).getTime()).toBe(
+      new Date(2023, 2, 1).getTime()
+    );
+  });
+
+  it('未知の期間種別は null を返す（呼び出し側で全件扱いにできる）', () => {
+    // 前提: 'all' など期間フィルタ対象外の値を与える
+    // 事前条件: なし
+    // 検証: null が返り、呼び出し側がフィルタなし（全件）の分岐へ進める
+    const ui = loadTrustfolioUi({}, {});
+
+    expect(ui.getPeriodCutoffDate('all', new Date(2026, 6, 25))).toBeNull();
+  });
+});
