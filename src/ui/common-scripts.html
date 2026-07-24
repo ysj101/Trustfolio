@@ -368,6 +368,98 @@
       });
     }
 
+    // ========================================
+    // タブ別データローダーの登録機構（H6 #152）
+    // ========================================
+
+    /**
+     * タブ名 → データ読み込み関数 の登録表。
+     *
+     * 従来はパフォーマンスタブの読み込みを window.loadPerformanceData という
+     * 暗黙のグローバル変数で連携しており、「どこで定義され、どこから呼ばれるか」が
+     * コードから追えなかった。本登録機構で連携を明示的な API に置き換える。
+     * （読み込み順の前提: common-scripts → scripts → performance-scripts。
+     *   登録はスクリプト読み込み時、参照はユーザー操作時のため順序問題は生じない。）
+     *
+     * プロトタイプを持たないオブジェクトとして構築する。通常の {} だと 'constructor' や
+     * 'toString' のような継承プロパティ名で照会された際に Object.prototype の関数が
+     * 返ってしまい、「未登録なら null」という契約が破れるため。
+     */
+    const tabDataLoaders = Object.create(null);
+
+    /**
+     * タブのデータ読み込み関数を登録する。
+     * @param {string} tabName - タブ名（例: 'performance'）。
+     * @param {() => void} loader - タブ表示時に呼び出すデータ読み込み関数。
+     */
+    function registerTabDataLoader(tabName, loader) {
+      tabDataLoaders[tabName] = loader;
+    }
+
+    /**
+     * 登録済みのタブデータ読み込み関数を取得する。
+     * @param {string} tabName - タブ名。
+     * @returns {(() => void) | null} 登録済みの関数。未登録なら null。
+     */
+    function getTabDataLoader(tabName) {
+      return typeof tabDataLoaders[tabName] === 'function' ? tabDataLoaders[tabName] : null;
+    }
+
+    // ========================================
+    // 日付ヘルパー（H6 #152）
+    // ========================================
+    // 従来は「toLocaleDateString('sv-SE')」「getMonth 等の手書き整形」
+    // 「setMonth/setFullYear の直操作」の3方式が各スクリプトに散在していたため、
+    // UI 層の日付処理を本ヘルパー群へ集約する（各関数の出力は集約前と同一）。
+
+    /**
+     * 今日の日付を YYYY-MM-DD 形式（ローカルタイムゾーン）で返す。
+     * 日次リフレッシュ判定のキーとして使用する。
+     * @returns {string} 例: '2026-07-25'
+     */
+    function getLocalDateString() {
+      return new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD形式（ローカルタイムゾーン）
+    }
+
+    /**
+     * ISO 日時文字列を「M/D H:mm」の短い表示形式へ整形する。
+     * 最終更新時刻の表示に使用する（分のみ2桁ゼロ埋め。集約前の出力と同一）。
+     * @param {string} isoString - Date に解釈可能な日時文字列。
+     * @returns {string} 例: '7/25 9:05'
+     */
+    function formatShortDateTime(isoString) {
+      const date = new Date(isoString);
+      const month = date.getMonth() + 1;
+      const day = date.getDate();
+      const hours = date.getHours();
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${month}/${day} ${hours}:${minutes}`;
+    }
+
+    /**
+     * 期間フィルタの起点日（この日以降のデータを採用する）を計算する。
+     * パフォーマンスグラフの期間切替（1ヶ月/3ヶ月/1年）で使用する。
+     * @param {'1m' | '3m' | '1y'} period - 期間種別。
+     * @param {Date} now - 基準となる現在日時。
+     * @returns {Date | null} 起点日。未知の期間種別なら null（呼び出し側で全件扱い）。
+     */
+    function getPeriodCutoffDate(period, now) {
+      const cutoffDate = new Date(now);
+      switch (period) {
+        case '1m':
+          cutoffDate.setMonth(now.getMonth() - 1);
+          return cutoffDate;
+        case '3m':
+          cutoffDate.setMonth(now.getMonth() - 3);
+          return cutoffDate;
+        case '1y':
+          cutoffDate.setFullYear(now.getFullYear() - 1);
+          return cutoffDate;
+        default:
+          return null;
+      }
+    }
+
     return {
       callApi,
       formatCurrency,
@@ -380,6 +472,11 @@
       createListItem,
       createTransactionItem,
       resetFormFields,
+      registerTabDataLoader,
+      getTabDataLoader,
+      getLocalDateString,
+      formatShortDateTime,
+      getPeriodCutoffDate,
     };
   })();
 </script>

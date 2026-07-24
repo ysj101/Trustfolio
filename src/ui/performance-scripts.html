@@ -31,21 +31,10 @@
         return data;
       }
 
-      const now = new Date();
-      const cutoffDate = new Date(now);
-
-      switch (period) {
-        case '1m':
-          cutoffDate.setMonth(now.getMonth() - 1);
-          break;
-        case '3m':
-          cutoffDate.setMonth(now.getMonth() - 3);
-          break;
-        case '1y':
-          cutoffDate.setFullYear(now.getFullYear() - 1);
-          break;
-        default:
-          return data;
+      // 起点日の計算は共有の日付ヘルパーへ集約済み（H6 #152。計算結果は従来と同一）
+      const cutoffDate = window.TrustfolioUi.getPeriodCutoffDate(period, new Date());
+      if (cutoffDate === null) {
+        return data;
       }
 
       return data.filter((item) => new Date(item.date) >= cutoffDate);
@@ -426,7 +415,8 @@
       setMessage('Chart.jsの読み込みに失敗しました。ページを再読み込みしてください。', 'error');
     }
 
-    // グローバルに公開して、タブ切り替え時に呼べるようにする
-    window.loadPerformanceData = loadData;
+    // タブ切り替え・日次リフレッシュから呼び出せるよう、明示的な登録 API へ登録する
+    // （H6 #152: 従来の window.loadPerformanceData 直接代入による暗黙のグローバル結合を廃止）
+    window.TrustfolioUi.registerTabDataLoader('performance', loadData);
   })(); // Close IIFE
 </script>
