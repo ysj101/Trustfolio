@@ -99,6 +99,48 @@
     // リスト行の操作ボタン生成は common-scripts（window.TrustfolioUi）へ集約済み。
     const createActionButton = window.TrustfolioUi.createActionButton;
 
+    /**
+     * 削除ボタン共通の実行フロー（H6 #152）。
+     *
+     * 取引削除・積立設定削除で完全に同型だった
+     * 「confirm → 進行中メッセージ → ローディング → API 呼び出し → 失敗表示 →
+     *   成功表示 → 後処理（編集解除・再読み込み） → エラー表示 → ローディング解除」
+     * を一本化する。削除対象ごとの差分（文言・リクエスト・後処理）は引数で注入する。
+     *
+     * @param {{
+     *   confirmMessage: string;
+     *   progressMessage: string;
+     *   successMessage: string;
+     *   request: object;
+     *   onSuccess: () => Promise<void>;
+     * }} options
+     *   - confirmMessage: 削除確認ダイアログの文言
+     *   - progressMessage: 削除中に表示するメッセージ
+     *   - successMessage: 削除成功時に表示するメッセージ
+     *   - request: callApi へ渡す削除リクエスト
+     *   - onSuccess: 削除成功後の後処理（編集モード解除・一覧再読み込み）
+     */
+    async function runDeleteFlow(options) {
+      if (!confirm(options.confirmMessage)) {
+        return;
+      }
+      setMessage(options.progressMessage, null);
+      setLoading(true);
+      try {
+        const response = await callApi(options.request);
+        if (!response.success) {
+          setMessage(response.error.message, 'error');
+          return;
+        }
+        setMessage(options.successMessage, 'success');
+        await options.onSuccess();
+      } catch (error) {
+        setMessage(error.message, 'error');
+      } finally {
+        setLoading(false);
+      }
+    }
+
     function resetTransactionForm() {
       // テキスト系入力欄のクリアは共通ヘルパーへ委譲し、基準価額/計算値の表示リセットのみ残す。
       window.TrustfolioUi.resetFormFields({
@@ -261,31 +303,22 @@
             setTransactionEditMode(transaction);
           });
           const deleteLabel = transaction.type === 'REDEMPTION' ? '売却履歴' : 'スポット購入履歴';
-          const deleteButton = createActionButton('削除', ghostButtonClass, async () => {
-            if (!confirm(`${deleteLabel}を削除します。よろしいですか？`)) {
-              return;
-            }
-            setMessage(`${deleteLabel}を削除中...`, null);
-            setLoading(true);
-            try {
-              const response = await callApi({ action: 'deleteSpotPurchase', id: transaction.id });
-              if (!response.success) {
-                setMessage(response.error.message, 'error');
-                return;
-              }
-              setMessage(`${deleteLabel}を削除しました。`, 'success');
-              if (state.editingTransactionId === transaction.id) {
-                setTransactionEditMode(null);
-              }
-              await loadTransactions(state.selectedTransactionFundId);
-              await loadHoldings();
-              await loadPortfolioSummary();
-            } catch (error) {
-              setMessage(error.message, 'error');
-            } finally {
-              setLoading(false);
-            }
-          });
+          const deleteButton = createActionButton('削除', ghostButtonClass, () =>
+            runDeleteFlow({
+              confirmMessage: `${deleteLabel}を削除します。よろしいですか？`,
+              progressMessage: `${deleteLabel}を削除中...`,
+              successMessage: `${deleteLabel}を削除しました。`,
+              request: { action: 'deleteSpotPurchase', id: transaction.id },
+              onSuccess: async () => {
+                if (state.editingTransactionId === transaction.id) {
+                  setTransactionEditMode(null);
+                }
+                await loadTransactions(state.selectedTransactionFundId);
+                await loadHoldings();
+                await loadPortfolioSummary();
+              },
+            })
+          );
           actions = [editButton, deleteButton];
         }
 
@@ -340,29 +373,20 @@
         const editButton = createActionButton('編集', ghostButtonClass, () => {
           setRecurringEditMode(recurring);
         });
-        const deleteButton = createActionButton('削除', ghostButtonClass, async () => {
-          if (!confirm('積立設定を削除します。よろしいですか？')) {
-            return;
-          }
-          setMessage('積立設定を削除中...', null);
-          setLoading(true);
-          try {
-            const response = await callApi({ action: 'deleteRecurringPurchase', id: recurring.id });
-            if (!response.success) {
-              setMessage(response.error.message, 'error');
-              return;
-            }
-            setMessage('積立設定を削除しました。', 'success');
-            if (state.editingRecurringId === recurring.id) {
-              setRecurringEditMode(null);
-            }
-            await loadRecurringPurchases();
-          } catch (error) {
-            setMessage(error.message, 'error');
-          } finally {
-            setLoading(false);
-          }
-        });
+        const deleteButton = createActionButton('削除', ghostButtonClass, () =>
+          runDeleteFlow({
+            confirmMessage: '積立設定を削除します。よろしいですか？',
+            progressMessage: '積立設定を削除中...',
+            successMessage: '積立設定を削除しました。',
+            request: { action: 'deleteRecurringPurchase', id: recurring.id },
+            onSuccess: async () => {
+              if (state.editingRecurringId === recurring.id) {
+                setRecurringEditMode(null);
+              }
+              await loadRecurringPurchases();
+            },
+          })
+        );
 
         // 外枠（li > content + actions）は共通ファクトリへ委譲する。
         const item = window.TrustfolioUi.createListItem({
@@ -695,11 +719,17 @@
         return;
       }
 
+      // 【表示専用の概算】ここで計算する口数・金額は入力中のプレビュー表示のみに使う。
+      // 保存される正式な値はサーバー側（domain/PurchaseCalculator.calculateUnits）が
+      // 計算するため、この概算が保存値になることはない。係数 10000 は投資信託の
+      // 基準価額が「1万口あたりの価額」である慣行に基づく（サーバー側の UNITS_BASE と同義）。
+      const UNITS_BASE = 10000;
+
       if (transactionType === 'purchase') {
-        // 購入金額から口数を計算
+        // 購入金額から口数を概算
         const amount = Number(transactionAmountInput.value || 0);
         if (amount > 0) {
-          const units = Math.round((amount / navValue) * 10000);
+          const units = Math.round((amount / navValue) * UNITS_BASE);
           transactionCalculatedValue.textContent = `${units.toLocaleString()}口`;
           transactionCalculatedValue.className = calculatedValueAccentClass;
         } else {
@@ -707,10 +737,10 @@
           transactionCalculatedValue.className = calculatedValueMutedClass;
         }
       } else {
-        // 売却口数から金額を計算
+        // 売却口数から金額を概算
         const units = Number(transactionUnitsInput.value || 0);
         if (units > 0) {
-          const amount = Math.round((units / 10000) * navValue);
+          const amount = Math.round((units / UNITS_BASE) * navValue);
           transactionCalculatedValue.textContent = `${amount.toLocaleString()}円`;
           transactionCalculatedValue.className = calculatedValueAccentClass;
         } else {
@@ -929,7 +959,6 @@
     const tabContents = document.querySelectorAll('.tab-content');
 
     function switchTab(tabName) {
-      console.log('[Tab] Switching to tab:', tabName);
       // タブボタンの状態更新
       tabButtons.forEach((button) => {
         if (button.getAttribute('data-tab') === tabName) {
@@ -948,19 +977,14 @@
         }
       });
 
-      // パフォーマンスタブに切り替えた時、データ読み込み
-      if (tabName === 'performance') {
-        console.log('[Tab] Performance tab activated');
-        console.log(
-          '[Tab] window.loadPerformanceData exists:',
-          typeof window.loadPerformanceData === 'function'
-        );
-        if (typeof window.loadPerformanceData === 'function') {
-          console.log('[Tab] Calling window.loadPerformanceData()');
-          window.loadPerformanceData();
-        } else {
-          console.error('[Tab] window.loadPerformanceData is not a function!');
-        }
+      // タブにデータローダーが登録されていれば呼び出す（H6 #152: 明示的な登録 API 経由。
+      // performance-scripts.html が読み込み時に登録する。未登録はスクリプト読み込み失敗の
+      // 異常系のため、エラーとして記録する）
+      const loader = window.TrustfolioUi.getTabDataLoader(tabName);
+      if (loader !== null) {
+        loader();
+      } else if (tabName === 'performance') {
+        console.error('[Tab] performance タブのデータローダーが未登録です。');
       }
     }
 
@@ -986,13 +1010,8 @@
     function updateLastUpdateTimeDisplay() {
       const lastUpdate = localStorage.getItem(LAST_UPDATE_TIME_KEY);
       if (lastUpdate) {
-        const date = new Date(lastUpdate);
-        const month = date.getMonth() + 1;
-        const day = date.getDate();
-        const hours = date.getHours();
-        const minutes = String(date.getMinutes()).padStart(2, '0');
-        const formatted = `最終更新: ${month}/${day} ${hours}:${minutes}`;
-        lastUpdateTime.textContent = formatted;
+        // 日時整形は共有ヘルパーへ集約済み（H6 #152。出力形式は従来と同一）
+        lastUpdateTime.textContent = `最終更新: ${window.TrustfolioUi.formatShortDateTime(lastUpdate)}`;
       } else {
         lastUpdateTime.textContent = '-';
       }
@@ -1012,17 +1031,14 @@
      * @returns {boolean} リフレッシュが必要な場合はtrue
      */
     function shouldRefreshToday() {
-      const today = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD形式（ローカルタイムゾーン）
+      const today = window.TrustfolioUi.getLocalDateString();
       const lastRefreshDate = localStorage.getItem(LAST_REFRESH_DATE_KEY);
 
       if (lastRefreshDate !== today) {
-        console.log('[DailyRefresh] First load of the day, refresh needed');
         localStorage.setItem(LAST_REFRESH_DATE_KEY, today);
         return true;
-      } else {
-        console.log('[DailyRefresh] Already refreshed today');
-        return false;
       }
+      return false;
     }
 
     /**
@@ -1034,13 +1050,14 @@
       const activeTabName = activeTab ? activeTab.getAttribute('data-tab') : 'portfolio';
 
       if (activeTabName === 'performance') {
-        // パフォーマンスタブの場合、パフォーマンスデータを再読み込み
+        // パフォーマンスタブの場合、登録済みローダー経由でデータを再読み込み（H6 #152）
         try {
-          if (typeof window.loadPerformanceData === 'function') {
-            window.loadPerformanceData();
+          const loader = window.TrustfolioUi.getTabDataLoader('performance');
+          if (loader !== null) {
+            loader();
             recordUpdateTime();
           } else {
-            console.warn('[Refresh] loadPerformanceData function not available');
+            console.warn('[Refresh] performance タブのデータローダーが未登録です。');
           }
         } catch (error) {
           console.error('[Refresh] Performance data reload failed:', error);
