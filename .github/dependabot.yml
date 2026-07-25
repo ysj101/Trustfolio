@@ -9,12 +9,25 @@ updates:
       interval: "weekly"
     # 同時にオープンできるPR数の上限。個別PRとグループPRの合計に対して効き、
     # 上限に達すると新規PRは黙って作成されなくなる（=メジャー更新を取りこぼす）。
-    # 最悪ケースは「devDependencies 全件が同時にメジャー遅れ（現在13件）＋
-    # development グループPR 1本」＝14本。production グループは dependencies が
-    # 0件のためPRを生まない。これに予備1本を加えて 15 とする。
+    # 最悪ケースは「devDependencies 13件のうち major 除外の typescript-js-api を
+    # 除く12件が同時にメジャー遅れ ＋ development グループPR 1本」＝13本。
+    # production グループは dependencies が0件のためPRを生まない。
+    # これに予備2本を加えて 15 とする。
     # 依存パッケージを増やす際は本値の見直しが必要である。
     open-pull-requests-limit: 15
-    # メジャーバージョンアップも検知対象とする（ignore 指定なし）。
+    ignore:
+      # typescript-js-api は npm:typescript@^6.0.3 のエイリアスであり、6系への固定は
+      # 「遅れ」ではなく意図的な設計判断である。typescript@7（ネイティブ実装）は
+      # 従来の JS コンパイラ API を同梱しておらず、これに依存する
+      # scripts/check-architecture.mjs と scripts/check-typescript-rules.mjs
+      #（いずれも pnpm lint の構成要素）が動作しなくなるため、7系へ上げてはならない。
+      # 詳細と解除条件は docs/UPGRADE_STRATEGY.md の
+      # 「エイリアス devDependency `typescript-js-api`」セクションを参照。
+      # なお本エントリが（Dependabot のエイリアス依存の扱いにより）マッチしなかった
+      # 場合でも、当該更新は pnpm lint の失敗としてCIで検知される（fail fast）。
+      - dependency-name: "typescript-js-api"
+        update-types: ["version-update:semver-major"]
+    # 上記 typescript-js-api を除き、メジャーバージョンアップも検知対象とする。
     # 下の groups は development が minor / patch、production が patch のみを対象とするため、
     # major はどのグループにも該当せず「1パッケージにつき1本」の個別PRとして起票される。
     # これは docs/UPGRADE_STRATEGY.md の「メジャーは段階的に実施」方針と整合する。

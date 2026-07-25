@@ -26,7 +26,7 @@ v2.0.0 → v3.0.0 → v4.0.0 と段階的にアップグレード
 
 - **patchバージョン**: Dependabotが自動的にPRを作成し、CIが成功すれば自動マージ（[dependabot-auto-merge.yml](../.github/workflows/dependabot-auto-merge.yml)）
 - **minorバージョン**: Dependabotが自動的にPRを作成（手動でレビュー・マージ）
-- **majorバージョン**: Dependabotが検知して個別にPRを作成（自動マージ対象外。実際の適用は後述の「メジャーバージョンアップ手順」に従い手動で段階的に実施）
+- **majorバージョン**: Dependabotが検知して個別にPRを作成（自動マージ対象外。実際の適用は後述の「メジャーバージョンアップ手順」に従い手動で段階的に実施）。ただし意図的にバージョンを固定している依存は[dependabot.yml](../.github/dependabot.yml)の`ignore`で個別に除外する（現在の除外対象は`typescript-js-api`のみ。後述の「エイリアス devDependency `typescript-js-api`」を参照）
 
 > **majorのPRの扱いについて**
 >
@@ -38,7 +38,7 @@ v2.0.0 → v3.0.0 → v4.0.0 と段階的にアップグレード
 >
 > [dependabot.yml](../.github/dependabot.yml)の`open-pull-requests-limit`は、**個別PRとグループPRの合計**に対する上限です。上限に達するとDependabotは新規PRを黙って作成しなくなるため、メジャー更新の検知を取りこぼす原因になります。
 >
-> 最悪ケースは「`devDependencies`全件が同時にメジャー遅れ ＋ `development`グループPR 1本」です（`production`グループは`dependencies`が0件のためPRを生みません）。現在は`devDependencies`が13件のため14本となり、予備1本を加えて上限を`15`に設定しています。
+> 最悪ケースは「`devDependencies`のうちmajor除外分を除く全件が同時にメジャー遅れ ＋ `development`グループPR 1本」です（`production`グループは`dependencies`が0件のためPRを生みません）。現在は`devDependencies`13件のうち`typescript-js-api`がmajor除外のため12本＋1本＝13本となり、予備2本を加えて上限を`15`に設定しています。
 >
 > **依存パッケージを追加する際は、この上限の見直しが必要かどうかを必ず確認してください。**
 
@@ -196,7 +196,8 @@ pnpm push
   - TypeScript 7 の `typescript/unstable/*` API は名前のとおり不安定と明言されており、lint 基盤をそこへ移行するのは時期尚早である。
   - TypeScript 6 系は JS 実装ベースの最終系として API 利用者向けに提供され続けており、2スクリプトが使う API（tsconfig 解析・ソース解析・モジュール解決）は安定している。
   - エイリアス併存は devDependencies のみに閉じ、GAS へのビルド成果物・実行時挙動には一切影響しない。
-- **解除条件**: TypeScript 本体が安定版の JS API（`unstable` プレフィックスの外れた API）を提供し、2スクリプトをそれへ移行した時点で `typescript-js-api` を削除する。もしくは2スクリプトを TS コンパイラ非依存の実装（oxc 等）へ置き換えた時点で削除する。
+- **Dependabot の扱い（2026-07-26 追加）**: 本エイリアスの6系固定は「更新の遅れ」ではなく意図的な設計判断であるため、[dependabot.yml](../.github/dependabot.yml)の`ignore`で`typescript-js-api`のmajor更新を除外している。除外しない場合、Dependabotが7系への更新PRを提案し、上記の`pnpm lint`破壊を招く。なおDependabotのエイリアス依存（`npm:typescript@^6.0.3`形式）の扱いによっては本除外設定がマッチしない可能性があるが、その場合でも当該更新は`pnpm lint`の失敗としてCIで検知される（fail fast）。
+- **解除条件**: TypeScript 本体が安定版の JS API（`unstable` プレフィックスの外れた API）を提供し、2スクリプトをそれへ移行した時点で `typescript-js-api` を削除する。もしくは2スクリプトを TS コンパイラ非依存の実装（oxc 等）へ置き換えた時点で削除する。この際、上記の Dependabot 除外設定もあわせて削除する。
 
 ## 参考資料
 
@@ -209,4 +210,4 @@ pnpm push
 - 2026-01-16: 初版作成
 - 2026-07-23: TypeScript 5.9 → 6.0 更新（issue #175 Phase 1）に伴い、peer 依存の明示的許容の記録セクションを追加
 - 2026-07-23: TypeScript 6.0 → 7.0 更新（issue #175 Phase 2）に伴い、許容レンジを拡張し、エイリアス devDependency `typescript-js-api` の記録セクションを追加。型チェック（`tsc --noEmit -p tsconfig.build.json` を pnpm を介さず直接実行、同一マシン・ウォーム状態・連続3回計測の実測レンジ）は TS 6.0.3（JS 実装）の約0.47〜0.49秒から TS 7.0.2（ネイティブ実装）の約0.08秒へ短縮（約6倍高速化）
-- 2026-07-26: メジャーバージョンアップの検知方針を変更。`.github/dependabot.yml` の `version-update:semver-major` の ignore 設定を削除し、Dependabot がメジャー更新も検知して個別PRを作成するようにした（自動マージ対象外であることは従来どおり）。あわせて上限到達による取りこぼしを防ぐため `open-pull-requests-limit` を 10 から 15 へ引き上げた
+- 2026-07-26: メジャーバージョンアップの検知方針を変更。`.github/dependabot.yml` の `version-update:semver-major` の ignore 設定を削除し、Dependabot がメジャー更新も検知して個別PRを作成するようにした（自動マージ対象外であることは従来どおり）。あわせて上限到達による取りこぼしを防ぐため `open-pull-requests-limit` を 10 から 15 へ引き上げ、意図的に6系へ固定しているエイリアス依存 `typescript-js-api` のみ major 更新を `ignore` で除外した
