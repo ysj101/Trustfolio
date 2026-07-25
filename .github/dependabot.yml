@@ -8,10 +8,17 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
-    ignore:
-      # メジャーバージョンアップは段階的に手動で実施する（docs/UPGRADE_STRATEGY.md参照）
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
+    # メジャーバージョンアップも検知対象とする（ignore 指定なし）。
+    # 下の groups は development が minor / patch、production が patch のみを対象とするため、
+    # major はどのグループにも該当せず「1パッケージにつき1本」の個別PRとして起票される。
+    # これは docs/UPGRADE_STRATEGY.md の「メジャーは段階的に実施」方針と整合する。
+    #
+    # 注意: Dependabot が提案するのは常に最新バージョンへの1回のジャンプであり、
+    # 複数メジャーを跨ぐ場合でも中間バージョンを経由するPRは作られない。
+    # したがって major のPRは「更新が出たことの検知」として扱い、実際の適用は
+    # docs/UPGRADE_STRATEGY.md の「メジャーバージョンアップ手順」に従って段階的に行う。
+    # なお major は dependabot-auto-merge.yml の自動マージ対象外（同ワークフローは
+    # version-update:semver-patch のみを対象とする）であり、必ず手動レビューを経る。
     groups:
       development:
         dependency-type: "development"

@@ -26,7 +26,13 @@ v2.0.0 → v3.0.0 → v4.0.0 と段階的にアップグレード
 
 - **patchバージョン**: Dependabotが自動的にPRを作成し、CIが成功すれば自動マージ（[dependabot-auto-merge.yml](../.github/workflows/dependabot-auto-merge.yml)）
 - **minorバージョン**: Dependabotが自動的にPRを作成（手動でレビュー・マージ）
-- **majorバージョン**: 手動で段階的にアップグレードを実施
+- **majorバージョン**: Dependabotが検知して個別にPRを作成（自動マージ対象外。実際の適用は後述の「メジャーバージョンアップ手順」に従い手動で段階的に実施）
+
+> **majorのPRの扱いについて**
+>
+> Dependabotが提案するのは常に最新バージョンへの1回のジャンプであり、複数メジャーを跨ぐ場合でも中間バージョンを経由するPRは作成されません。したがってmajorのPRは「新しいメジャーが出たことの検知」として扱い、Dependabotのブランチをそのままマージするのではなく、「メジャーバージョンアップ手順」に沿って段階的にアップグレードを実施してください。
+>
+> なおmajorは[dependabot.yml](../.github/dependabot.yml)の`groups`のいずれにも該当しないため、1パッケージにつき1本の個別PRとして起票されます。これにより、1つのメジャー更新を1PRで検証できます。
 
 依存関係の正本は `pnpm-lock.yaml` です。開発者は `npm` を使わず、`pnpm` と `package.json` の `packageManager` / `engines` に従って作業します。
 
