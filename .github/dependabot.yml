@@ -7,7 +7,13 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+    # 同時にオープンできるPR数の上限。個別PRとグループPRの合計に対して効き、
+    # 上限に達すると新規PRは黙って作成されなくなる（=メジャー更新を取りこぼす）。
+    # 最悪ケースは「devDependencies 全件が同時にメジャー遅れ（現在13件）＋
+    # development グループPR 1本」＝14本。production グループは dependencies が
+    # 0件のためPRを生まない。これに予備1本を加えて 15 とする。
+    # 依存パッケージを増やす際は本値の見直しが必要である。
+    open-pull-requests-limit: 15
     # メジャーバージョンアップも検知対象とする（ignore 指定なし）。
     # 下の groups は development が minor / patch、production が patch のみを対象とするため、
     # major はどのグループにも該当せず「1パッケージにつき1本」の個別PRとして起票される。

@@ -34,6 +34,14 @@ v2.0.0 → v3.0.0 → v4.0.0 と段階的にアップグレード
 >
 > なおmajorは[dependabot.yml](../.github/dependabot.yml)の`groups`のいずれにも該当しないため、1パッケージにつき1本の個別PRとして起票されます。これにより、1つのメジャー更新を1PRで検証できます。
 
+> **`open-pull-requests-limit` について**
+>
+> [dependabot.yml](../.github/dependabot.yml)の`open-pull-requests-limit`は、**個別PRとグループPRの合計**に対する上限です。上限に達するとDependabotは新規PRを黙って作成しなくなるため、メジャー更新の検知を取りこぼす原因になります。
+>
+> 最悪ケースは「`devDependencies`全件が同時にメジャー遅れ ＋ `development`グループPR 1本」です（`production`グループは`dependencies`が0件のためPRを生みません）。現在は`devDependencies`が13件のため14本となり、予備1本を加えて上限を`15`に設定しています。
+>
+> **依存パッケージを追加する際は、この上限の見直しが必要かどうかを必ず確認してください。**
+
 依存関係の正本は `pnpm-lock.yaml` です。開発者は `npm` を使わず、`pnpm` と `package.json` の `packageManager` / `engines` に従って作業します。
 
 #### 自動マージの条件
@@ -201,3 +209,4 @@ pnpm push
 - 2026-01-16: 初版作成
 - 2026-07-23: TypeScript 5.9 → 6.0 更新（issue #175 Phase 1）に伴い、peer 依存の明示的許容の記録セクションを追加
 - 2026-07-23: TypeScript 6.0 → 7.0 更新（issue #175 Phase 2）に伴い、許容レンジを拡張し、エイリアス devDependency `typescript-js-api` の記録セクションを追加。型チェック（`tsc --noEmit -p tsconfig.build.json` を pnpm を介さず直接実行、同一マシン・ウォーム状態・連続3回計測の実測レンジ）は TS 6.0.3（JS 実装）の約0.47〜0.49秒から TS 7.0.2（ネイティブ実装）の約0.08秒へ短縮（約6倍高速化）
+- 2026-07-26: メジャーバージョンアップの検知方針を変更。`.github/dependabot.yml` の `version-update:semver-major` の ignore 設定を削除し、Dependabot がメジャー更新も検知して個別PRを作成するようにした（自動マージ対象外であることは従来どおり）。あわせて上限到達による取りこぼしを防ぐため `open-pull-requests-limit` を 10 から 15 へ引き上げた
