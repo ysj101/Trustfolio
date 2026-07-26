@@ -1,6 +1,6 @@
 ---
 name: issue-resolve
-description: GitHub issue を起点に「実装 → 品質ゲート(/code-review・/security-review・/simplify) → Codexレビュー収束 → PR作成 → CI緑＋Claude botコメント解消の確認 → squashマージ」までを一気通貫で実行する。引数に issue 番号を渡して使う。キーワード: issue対応, issue resolve, issue対応スキル, PRまで自動.
+description: "GitHub issue を起点に「実装 → 品質ゲート(/code-review・/security-review・/simplify) → Codexレビュー収束 → PR作成 → CI緑＋Claude botコメント解消の確認 → squashマージ」までを一気通貫で実行する。引数に issue 番号を渡して使う。キーワード: issue対応, issue resolve, issue対応スキル, PRまで自動."
 ---
 
 # issue対応フロー
@@ -149,10 +149,29 @@ gh pr merge <PR番号> --squash --delete-branch
 - 前提（このいずれかが欠けていればマージしない）:
   - 全 CI チェックが緑である。
   - 最新の Claude bot コメントの指摘が全て解消（または対応不要と判断しレポートに記録）されている。
-- マージ後はリポジトリ設定によりリモートブランチが自動削除される。ローカルも整理する:
-  ```bash
-  git switch main && git pull --ff-only && git branch -d <branch>
-  ```
+- マージ後はリポジトリ設定によりリモートブランチが自動削除される。**ローカルブランチの削除まで完了して初めて工程7完了とする**（レポート提出前に必ず実施する）。
+
+### マージ後のローカル後処理（必須。確認済み事実に基づく手順）
+
+> **環境注意（確認済み事実・2026-07-27 の実行で発生）**:
+> - `gh pr merge --delete-branch` はリモートのマージ・ブランチ削除後に、ローカルで `git switch main && git pull` を自動実行する。この環境は `pull.rebase` が有効なため、**作業ツリーに未ステージ変更（例: ユーザーの `.claude/settings.json` ローカル変更）があると `cannot pull with rebase: You have unstaged changes` で後処理だけが失敗する**（マージ自体はリモートで成功している）。この場合カレントブランチは main に切り替わった状態で止まる。
+> - 同じ理由で `git pull --ff-only` も失敗する。**`git -c pull.rebase=false pull --ff-only origin main` なら未ステージ変更があっても ff 更新できる**（ff マージは変更ファイルと衝突しない限りクリーンな作業ツリーを要求しない）。
+
+1. マージの成否をローカル後処理のエラーと切り分けて確認する:
+   ```bash
+   gh pr view <PR番号> --json state,mergedAt,mergeCommit
+   ```
+   `state: MERGED` ならマージは成功している。後処理のエラーメッセージだけを見て「マージ失敗」と誤認しない。
+2. ローカル main をマージコミットまで更新する:
+   ```bash
+   git -c pull.rebase=false pull --ff-only origin main
+   ```
+3. ローカルブランチを削除する:
+   ```bash
+   git branch -d <branch>
+   ```
+   - `-d` はマージ済みブランチのみ削除できる安全側のオプションであり、`-D` は使わない。
+   - **権限分類器による拒否時の対処（確認済み事実）**: auto モードの権限分類器が `git branch -d` を拒否することがある。拒否された場合は回避策を試みず、工程8のレポートの「未解決・要判断事項」に削除コマンドをそのまま記載してユーザーに実行を依頼する。恒久対応としては、ユーザーが settings の permissions に `Bash(git branch -d:*)` の allow ルールを追加すれば以後は自動実行できる旨を併記する。
 
 > マージは不可逆操作だが、ユーザーは「auto-merge 希望（ただし Claude 指摘確認前のマージは避けたい）」と合意済みのため、本スキルは 6 の解消確認を満たした時点で**確認を挟まず自動でマージ**する。6 が収束しない／CI が緑にならない場合はマージせずユーザーに報告する。
 
