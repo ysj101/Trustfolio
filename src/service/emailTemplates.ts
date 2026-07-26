@@ -163,6 +163,9 @@ function getChangeColor(value: number | null): string {
 /**
  * 保有銘柄一覧テーブルの各行（tr）HTMLを生成する。
  *
+ * 前週比系の値（損益・損益率）が null（前週データなし）の場合は「---」を表示し、
+ * 色は getChangeColor の規則（null はグレー）に従う。
+ *
  * @param holdings - 前週比付き保有銘柄の配列
  * @returns 連結済みの行HTML
  */
@@ -183,14 +186,14 @@ function buildHoldingsRows(holdings: HoldingWithWeekOverWeek[]): string {
           : '#c62828'
         : '#333';
 
-    // 前週比のフォーマット（個別銘柄）
+    // 前週比（損益）のフォーマット（個別銘柄）
     const holdingGainChangeStr =
       holding.unrealizedGainChange !== null
         ? formatDifference(holding.unrealizedGainChange)
         : '---';
     const holdingGainChangeColor = getChangeColor(holding.unrealizedGainChange);
 
-    // 損益率の前週比のフォーマット（個別銘柄）。前週データが無い場合は「---」表示。
+    // 前週比（損益率）のフォーマット（個別銘柄）
     const holdingGainRateChangeStr =
       holding.unrealizedGainRateChange !== null
         ? formatPercentagePointChange(holding.unrealizedGainRateChange)
