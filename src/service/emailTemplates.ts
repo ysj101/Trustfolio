@@ -12,13 +12,17 @@ import type { WeeklyReport } from '../usecase/WeeklyReportUseCase';
  * - EmailService は「検証・件名生成・送信・ログ」に、本モジュールは「本文 HTML の生成」に
  *   責務を限定する。
  *
- * 重要な制約（出力バイト列不変）:
- * - 本モジュールが生成する HTML 文字列は、分離前の EmailService 内の実装と
- *   **1バイトも変えない**こと（G 計画 #116 で「外枠統一は出力が変わるため除外」とされた
- *   経緯を踏襲し、H5 は置き場所の分離と同一文字列を生成する重複の集約に限定する）。
+ * 重要な制約（出力バイト列不変。適用範囲に注意）:
+ * - この制約は **H5 #151 の「EmailService.ts からの分離」作業自体**に課されたものである。
+ *   分離の前後で本モジュールが生成する HTML 文字列を**1バイトも変えない**こと
+ *   （G 計画 #116 で「外枠統一は出力が変わるため除外」とされた経緯を踏襲し、
+ *   H5 は置き場所の分離と同一文字列を生成する重複の集約に限定する）。
  * - この不変性は tests/service/EmailService.snapshot.test.ts のインラインスナップショット
  *   （公開 API 経由で捕捉した htmlBody 全文）で機械的に保証される。スナップショットの
  *   期待値を変更した時点で挙動変更を疑うこと。
+ * - ただし、**意図的な機能追加・表示変更まで禁止するものではない**。その場合は
+ *   スナップショットを実出力から意図的に更新し、差分が意図した変更のみであることを
+ *   確認する（例: #185 で保有銘柄一覧に「前週比（損益率）」列を追加）。
  */
 
 /**
@@ -159,6 +163,9 @@ function getChangeColor(value: number | null): string {
 /**
  * 保有銘柄一覧テーブルの各行（tr）HTMLを生成する。
  *
+ * 前週比系の値（損益・損益率）が null（前週データなし）の場合は「---」を表示し、
+ * 色は getChangeColor の規則（null はグレー）に従う。
+ *
  * @param holdings - 前週比付き保有銘柄の配列
  * @returns 連結済みの行HTML
  */
@@ -179,12 +186,19 @@ function buildHoldingsRows(holdings: HoldingWithWeekOverWeek[]): string {
           : '#c62828'
         : '#333';
 
-    // 前週比のフォーマット（個別銘柄）
+    // 前週比（損益）のフォーマット（個別銘柄）
     const holdingGainChangeStr =
       holding.unrealizedGainChange !== null
         ? formatDifference(holding.unrealizedGainChange)
         : '---';
     const holdingGainChangeColor = getChangeColor(holding.unrealizedGainChange);
+
+    // 前週比（損益率）のフォーマット（個別銘柄）
+    const holdingGainRateChangeStr =
+      holding.unrealizedGainRateChange !== null
+        ? formatPercentagePointChange(holding.unrealizedGainRateChange)
+        : '---';
+    const holdingGainRateChangeColor = getChangeColor(holding.unrealizedGainRateChange);
 
     holdingsHtml += `
       <tr>
@@ -194,6 +208,7 @@ function buildHoldingsRows(holdings: HoldingWithWeekOverWeek[]): string {
         <td style="${STYLE.tdRight} color: ${gainColor}; font-weight: bold;">${gainStr}円</td>
         <td style="${STYLE.tdRight} color: ${gainColor}; font-weight: bold;">${gainRateStr}</td>
         <td style="${STYLE.tdRight} color: ${holdingGainChangeColor}; font-weight: bold;">${holdingGainChangeStr}</td>
+        <td style="${STYLE.tdRight} color: ${holdingGainRateChangeColor}; font-weight: bold;">${holdingGainRateChangeStr}</td>
       </tr>
     `;
   }
@@ -295,6 +310,7 @@ export function generateWeeklyReportEmailBody(report: WeeklyReport): string {
             <th style="${STYLE.cellRight}">損益</th>
             <th style="${STYLE.cellRight}">損益率</th>
             <th style="${STYLE.cellRight}">前週比（損益）</th>
+            <th style="${STYLE.cellRight}">前週比（損益率）</th>
           </tr>
           ${holdingsHtml}
         </table>

@@ -120,6 +120,7 @@ describe('EmailService HTML出力スナップショット', () => {
                   <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">損益</th>
                   <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">損益率</th>
                   <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">前週比（損益）</th>
+                  <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">前週比（損益率）</th>
                 </tr>
                 
             <tr>
@@ -129,6 +130,7 @@ describe('EmailService HTML出力スナップショット', () => {
               <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #1565c0; font-weight: bold;">80,000円</td>
               <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #1565c0; font-weight: bold;">+13.3%</td>
               <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #1565c0; font-weight: bold;">+20,000円</td>
+              <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #1565c0; font-weight: bold;">+1.8%pt</td>
             </tr>
           
               </table>
@@ -233,6 +235,7 @@ describe('EmailService HTML出力スナップショット', () => {
                   <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">損益</th>
                   <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">損益率</th>
                   <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">前週比（損益）</th>
+                  <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">前週比（損益率）</th>
                 </tr>
                 
             <tr>
@@ -241,6 +244,7 @@ describe('EmailService HTML出力スナップショット', () => {
               <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">---円</td>
               <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #333; font-weight: bold;">---円</td>
               <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #333; font-weight: bold;">---</td>
+              <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #666; font-weight: bold;">---</td>
               <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #666; font-weight: bold;">---</td>
             </tr>
           
