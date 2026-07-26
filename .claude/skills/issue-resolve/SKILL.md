@@ -1,6 +1,6 @@
 ---
 name: issue-resolve
-description: GitHub issue を起点に「実装 → 品質ゲート(/code-review・/security-review・/simplify) → Codexレビュー収束 → PR作成 → CI緑＋Claude botコメント解消の確認 → squashマージ」までを一気通貫で実行する。引数に issue 番号を渡して使う。キーワード: issue対応, issue resolve, issue対応スキル, PRまで自動.
+description: "GitHub issue を起点に「実装 → 品質ゲート(/code-review・/security-review・/simplify) → Codexレビュー収束 → PR作成 → CI緑＋Claude botコメント解消の確認 → squashマージ」までを一気通貫で実行する。引数に issue 番号を渡して使う。キーワード: issue対応, issue resolve, issue対応スキル, PRまで自動."
 ---
 
 # issue対応フロー
@@ -149,10 +149,32 @@ gh pr merge <PR番号> --squash --delete-branch
 - 前提（このいずれかが欠けていればマージしない）:
   - 全 CI チェックが緑である。
   - 最新の Claude bot コメントの指摘が全て解消（または対応不要と判断しレポートに記録）されている。
-- マージ後はリポジトリ設定によりリモートブランチが自動削除される。ローカルも整理する:
-  ```bash
-  git switch main && git pull --ff-only && git branch -d <branch>
-  ```
+- マージ後はリポジトリ設定によりリモートブランチが自動削除される。**ローカルブランチの削除確認まで完了して初めて工程7完了とする**（レポート提出前に必ず実施する）。
+
+**マージ後のローカル後処理（必須。以下すべて 2026-07-27 の PR #192 対応で確認済みの事実に基づく手順）**
+
+> **環境注意（確認済み事実）**:
+> - `gh pr merge --squash --delete-branch` は「リモートでのマージ → リモートブランチ削除 → `git switch main` → **ローカルブランチ削除** → `git pull`」の順で動く。この環境は `pull.rebase` が有効なため、作業ツリーに未ステージ変更（例: ユーザーの `.claude/settings.json` ローカル変更）があると**最後の `git pull` だけが `cannot pull with rebase: You have unstaged changes` で失敗する**。この時点でマージ・リモートブランチ削除・ローカルブランチ削除は完了済みであり、未完了なのは「ローカル main の更新」と「リモート追跡参照の掃除」のみである。エラーメッセージだけを見て「マージ失敗」「ブランチ削除失敗」と誤認しない。
+> - 同じ理由で `git pull --ff-only` も失敗する。**`git -c pull.rebase=false pull --ff-only origin main` なら未ステージ変更があっても ff 更新できる**（ff マージは変更ファイルと衝突しない限りクリーンな作業ツリーを要求しない）。
+
+1. マージの成否をローカル後処理のエラーと切り分けて確認する:
+   ```bash
+   gh pr view <PR番号> --json state,mergedAt,mergeCommit
+   ```
+   - `state: MERGED` ならマージは成功している。手順2へ進む。
+   - `state` が `MERGED` 以外（`OPEN` / `CLOSED`）の場合はマージ自体が失敗している。以降の後処理を行わず、エラー出力とチェック状態を添えてユーザーに報告して停止する（推測で進めない）。
+2. ローカル main をマージコミットまで更新し、削除済みリモートブランチの追跡参照を掃除する:
+   ```bash
+   git -c pull.rebase=false pull --ff-only origin main
+   git fetch --prune origin
+   ```
+3. ローカルブランチの削除を**確認**する（通常は手動削除は不要）:
+   ```bash
+   git branch --list <branch>
+   ```
+   - 出力が空なら、`gh pr merge --delete-branch` がローカルブランチ削除まで完了している（確認済み事実: `git pull` 失敗時でもローカルブランチ削除自体は完了していた）。これで工程7完了。
+   - 出力にブランチが残っている場合のみ手動で削除する。**このリポジトリは squash マージのみのため、ブランチ先端コミットは main の祖先にならず、`git branch -d` は「not fully merged」で失敗するのが正常な git の挙動である**。手順1で `state: MERGED` を外部確認済みであることを根拠に `git branch -D <branch>` を用いてよい（手順1の `MERGED` 確認なしに `-D` を使うことは禁止）。
+   - **権限分類器による拒否時の対処（確認済み事実）**: auto モードの権限分類器が `git branch -d` / `-D` を拒否することがある。拒否された場合は回避策を試みず、工程8のレポートの「未解決・要判断事項」に削除コマンドと手順1の確認結果をそのまま記載してユーザーに実行を依頼する。恒久対応としては、ユーザーが settings の permissions に allow ルールを追加すれば以後は自動実行できる旨を併記する。
 
 > マージは不可逆操作だが、ユーザーは「auto-merge 希望（ただし Claude 指摘確認前のマージは避けたい）」と合意済みのため、本スキルは 6 の解消確認を満たした時点で**確認を挟まず自動でマージ**する。6 が収束しない／CI が緑にならない場合はマージせずユーザーに報告する。
 
