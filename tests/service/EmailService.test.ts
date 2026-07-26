@@ -72,7 +72,9 @@ describe('EmailService', () => {
             remainingInvestmentChange: { difference: 1000, changeRate: 11.11 },
             currentValueChange: { difference: 1500, changeRate: 14.29 },
             unrealizedGainChange: 500,
-            unrealizedGainRateChange: 5.56,
+            // ポートフォリオ全体側（totalUnrealizedGainRateChange: 5.56）と別の値にして、
+            // 保有銘柄一覧の「前週比（損益率）」列が銘柄側の値を参照していることを検証可能にする
+            unrealizedGainRateChange: 3.21,
             hasPreviousWeekData: true,
           },
         ],
@@ -94,6 +96,11 @@ describe('EmailService', () => {
       expect(call.htmlBody).toContain('前週比');
       expect(call.htmlBody).toContain('+1,000円');
       expect(call.htmlBody).toContain('+500円');
+      // 保有銘柄一覧の「前週比（損益率）」列（#185）を確認する。
+      // 「+3.2%pt」は銘柄側の unrealizedGainRateChange: 3.21 のみから生成される値であり、
+      // ポートフォリオ全体側（+5.6%pt）と区別して列の存在と参照データを検証できる
+      expect(call.htmlBody).toContain('前週比（損益率）');
+      expect(call.htmlBody).toContain('+3.2%pt');
     }
   });
 
