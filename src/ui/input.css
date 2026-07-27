@@ -4,3 +4,38 @@
 
 /* Google Fonts - 既存のフォント読み込み */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap');
+
+/*
+ * 約定日入力欄（#transactionDate）のカレンダーボタン（issue #156）。
+ *
+ * 採用方式: Chrome 標準のカレンダーインジケーター
+ * （::-webkit-calendar-picker-indicator）を白色化・拡大してボタンとして使う。
+ *
+ * 採用理由:
+ * - 代替案の input.showPicker() 方式には「cross-origin iframe 内では
+ *   SecurityError を投げる」という仕様上の制約があり、GAS Web アプリは
+ *   sandboxed iframe（*.googleusercontent.com）内で動作するため、
+ *   採用には実環境での動作検証が必須だった。
+ * - 2026-07-28 時点で実環境検証の手段（Google ログイン済みブラウザの操作）を
+ *   確保できず、ユーザー判断により本方式を採用した。本方式は showPicker() の
+ *   ような JS API を使わず、標準インジケーターのクリックというブラウザ
+ *   ネイティブの既存動作（変更前から機能していた挙動）をスタイル調整するのみの
+ *   ため、上記の iframe 制約の影響を受けない。
+ * - デプロイ後の実環境での見た目・動作確認は issue #156 の完了条件として
+ *   ユーザーが実施する（アイコンが白色で表示され、クリックでピッカーが開くこと）。
+ *
+ * 注意: filter は背景色にも適用されるため、hover 時の強調は opacity のみで行う
+ * （background-color を足すと invert で意図しない明色になる）。
+ */
+#transactionDate::-webkit-calendar-picker-indicator {
+  /* 黒色の標準アイコンをダークテーマで視認できる白色に反転する */
+  filter: invert(1);
+  opacity: 0.6;
+  width: 1.25rem;
+  height: 1.25rem;
+  cursor: pointer;
+}
+
+#transactionDate::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
