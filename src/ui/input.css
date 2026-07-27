@@ -4,3 +4,52 @@
 
 /* Google Fonts - 既存のフォント読み込み */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap');
+
+/*
+ * 約定日入力欄（#transactionDate）のカレンダーボタン（issue #156）。
+ *
+ * 採用方式: Chrome 標準のカレンダーインジケーター
+ * （::-webkit-calendar-picker-indicator）を白色化・拡大してボタンとして使う。
+ *
+ * 採用理由:
+ * - 代替案の input.showPicker() 方式には「cross-origin iframe 内では
+ *   SecurityError を投げる」という仕様上の制約があり、GAS Web アプリは
+ *   sandboxed iframe（*.googleusercontent.com）内で動作するため、
+ *   採用には実環境での動作検証が必須だった。
+ * - issue #156 対応時点では実環境検証の手段（Google ログイン済みブラウザの
+ *   操作）を確保できず、ユーザー判断により本方式を採用した（経緯は PR #194 を
+ *   参照）。本方式は showPicker() の
+ *   ような JS API を使わず、標準インジケーターのクリックというブラウザ
+ *   ネイティブの既存動作（変更前から機能していた挙動）をスタイル調整するのみの
+ *   ため、上記の iframe 制約の影響を受けない。
+ * - デプロイ後の実環境での見た目・動作確認は issue #156 の完了条件として
+ *   ユーザーが実施する。確認項目:
+ *   1. アイコンが白色で表示されること（通常時 60% / hover 時 100% の不透明度）。
+ *   2. クリックで日付ピッカーが開き、選択日付が入力欄に反映されること。
+ *   3. ピッカーのポップアップ本体の配色。本アプリは color-scheme 未指定のため
+ *      ポップアップはライトテーマ配色で表示される（本ルールはアイコンのみを
+ *      白色化する）。ダークテーマとの対比が気になる場合は、#transactionDate への
+ *      color-scheme: dark 追加（その場合 invert(1) は二重反転になるため削除が必要）
+ *      を別 issue で検討する。
+ *   4. キーボード操作（Tab フォーカス）時のフォーカスインジケーターの見た目
+ *      （filter は描画結果全体に適用されるため配色が反転され得る）。
+ *
+ * 注意:
+ * - filter は背景色にも適用されるため、hover 時の強調は opacity のみで行う
+ *   （background-color を足すと invert で意図しない明色になる）。
+ * - ::-webkit-calendar-picker-indicator は Chromium 系（Chrome / Edge）限定の
+ *   疑似要素であり、Firefox では本ルールは適用されず変更前と同じ表示になる
+ *   （退行ではない）。
+ */
+#transactionDate::-webkit-calendar-picker-indicator {
+  /* 黒色の標準アイコンをダークテーマで視認できる白色に反転する */
+  filter: invert(1);
+  opacity: 0.6;
+  width: 1.25rem;
+  height: 1.25rem;
+  cursor: pointer;
+}
+
+#transactionDate::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
