@@ -6,6 +6,7 @@ import type { PerformanceRepository } from '../repository/PerformanceRepository'
 import type { EmailService } from '../service/EmailService';
 import { getWeeklyReportEmail } from '../Config';
 import type { PortfolioUseCase } from './PortfolioUseCase';
+import { clock, formatJstDate, formatJstTimestamp } from '../utils/dateTime';
 
 /**
  * 週次レポート情報。
@@ -75,8 +76,8 @@ export function createWeeklyReportUseCase(
     }
 
     // 現在日時を取得（JST）
-    const now = new Date();
-    const generatedAt = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss');
+    const now = clock.now();
+    const generatedAt = formatJstTimestamp(now);
 
     // 7日前の日付を計算（前週のデータを取得するため）
     const previousWeekDate = new Date(now);
@@ -163,8 +164,10 @@ function getPreviousWeekData(
 } {
   // 探索順序の意図（過去方向のみを採用し、正のオフセットを含めない理由）は
   // PREVIOUS_WEEK_SEARCH_OFFSETS の TSDoc を参照。日付の文字列化は既存方式（JST）を維持する。
-  const searchDates = buildOffsetDateCandidates(targetDate, PREVIOUS_WEEK_SEARCH_OFFSETS, (date) =>
-    Utilities.formatDate(date, 'Asia/Tokyo', 'yyyy-MM-dd')
+  const searchDates = buildOffsetDateCandidates(
+    targetDate,
+    PREVIOUS_WEEK_SEARCH_OFFSETS,
+    formatJstDate
   );
 
   // 全体実績の前週データを検索（取得失敗の日付はヒットなしとして次の候補へ進む既存挙動を維持）

@@ -10,6 +10,7 @@ import { isExecuteRecurringResult, type ExecuteRecurringResult } from './usecase
 import { isMarketIndexFetchResult } from './usecase/MarketIndexFetchUseCase';
 import { createAppContainer } from './usecase/appContainer';
 import { getWeeklyReportEmail, TRIGGER_SCHEDULES, type TriggerSchedule } from './Config';
+import { clock, formatJstDate } from './utils/dateTime';
 import { createEmailService } from './service/EmailService';
 import { logError, logWarn } from './utils/logger';
 
@@ -226,7 +227,7 @@ export function fetchAllNavs(): void {
  * 約定日をJSTで生成し、結果の成功/スキップ/失敗をログに記録する。
  */
 export function executeRecurringPurchasesDaily(): Result<ExecuteRecurringResult> {
-  const today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+  const today = formatJstDate(clock.now());
   Logger.log(`[executeRecurringPurchasesDaily] 約定日: ${today}`);
 
   const response = handleApiRequest({
