@@ -1,5 +1,6 @@
 import type { Result } from './types';
 import { fail } from './result';
+import { parseUtcIsoDate } from '../utils/dateTime';
 
 /**
  * 文字列が `YYYY-MM-DD` 形式の妥当な日付かを判定する。
@@ -9,10 +10,12 @@ import { fail } from './result';
  *
  * 内容:
  * - 形式（4桁-2桁-2桁）を正規表現で検査したうえで、`Date` 解釈が成立するかを確認する。
- *   例: `2026-02-30` は形式は満たすが日付として無効なため `false` を返す。
+ *   既知の制限: `2026-02-30` のような暦上存在しない日付は V8 が翌月へ繰り上げて
+ *   パースするため `true` を返す（テストで「既知の制限」として明文化済み）。
  *
  * 注意:
- * - 既存挙動を変えないため、UTC 基準（`T00:00:00Z`）で `Date` を生成して判定する。
+ * - 既存挙動を変えないため、UTC 基準（{@link parseUtcIsoDate}）で `Date` を生成して
+ *   判定する（TZ 方針は src/utils/dateTime.ts の「方針 3」を参照）。
  *
  * @param value - 判定対象の文字列。
  * @returns 妥当な `YYYY-MM-DD` であれば true。
@@ -24,7 +27,7 @@ export function isValidIsoDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return false;
   }
-  const date = new Date(`${value}T00:00:00Z`);
+  const date = parseUtcIsoDate(value);
   return !Number.isNaN(date.getTime());
 }
 

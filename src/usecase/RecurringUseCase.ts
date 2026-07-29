@@ -6,6 +6,7 @@ import {
 } from '../domain/BusinessDayCalculator';
 import { calculateUnits } from '../domain/PurchaseCalculator';
 import { fail, propagateFailure } from '../domain/result';
+import { clock, formatIsoDateParts, parseUtcIsoDate } from '../utils/dateTime';
 import {
   isValidIsoDate,
   validateNonEmptyString,
@@ -522,7 +523,10 @@ function validateRecurringInput(input: {
   if (normalizedEndDate !== null && !isValidIsoDate(normalizedEndDate)) {
     return fail('validation', '終了日はYYYY-MM-DD形式で入力してください。', 'endDate');
   }
-  if (normalizedEndDate !== null && parseIsoDate(normalizedEndDate) < parseIsoDate(startDate)) {
+  if (
+    normalizedEndDate !== null &&
+    parseUtcIsoDate(normalizedEndDate) < parseUtcIsoDate(startDate)
+  ) {
     return fail('validation', '終了日は開始日以降である必要があります。', 'endDate');
   }
   if (typeof isActive !== 'boolean') {
@@ -590,7 +594,7 @@ type BuildRecurringPurchaseInput = {
  *
  * 内容:
  * - `id` 未指定時のみ {@link generateUlid} を、`createdAt` 未指定時のみ
- *   `new Date().toISOString()` を評価する（`??` の短絡により、指定済みの場合は
+ *   `clock.nowIso()` を評価する（`??` の短絡により、指定済みの場合は
  *   採番処理を一切走らせない）。これにより既存の ID・作成日時の生成挙動を維持する。
  *
  * @param input - 生成する積立設定の各フィールド。省略時の既定値は
@@ -606,7 +610,7 @@ function buildRecurringPurchase(input: BuildRecurringPurchaseInput): RecurringPu
     startDate: input.startDate,
     endDate: input.endDate,
     isActive: input.isActive,
-    createdAt: input.createdAt ?? new Date().toISOString(),
+    createdAt: input.createdAt ?? clock.nowIso(),
   };
 }
 
@@ -673,7 +677,7 @@ function findOrderDateFromSettlementDate(
   const month = Number(monthText);
 
   // その月のexecutionDay（希望注文日）を生成
-  const desiredOrderDate = formatIsoDate(year, month, recurring.executionDay);
+  const desiredOrderDate = formatIsoDateParts(year, month, recurring.executionDay);
 
   // 希望注文日が営業日かチェック
   let actualOrderDate: string;
@@ -713,30 +717,21 @@ function findOrderDateFromSettlementDate(
 }
 
 /**
- * 年月日をYYYY-MM-DD形式の文字列に整形する。
- */
-function formatIsoDate(year: number, month: number, day: number): string {
-  return `${String(year)}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-}
-
-/**
  * 注文日が積立設定の期間内かを判定する。
  */
 function isWithinRecurringPeriod(recurring: RecurringPurchase, orderDate: string): boolean {
-  const order = parseIsoDate(orderDate);
-  const start = parseIsoDate(recurring.startDate);
+  const order = parseUtcIsoDate(orderDate);
+  const start = parseUtcIsoDate(recurring.startDate);
   if (order < start) {
     return false;
   }
+  // '' チェックは現行経路では到達不能（読み書き双方で null へ正規化済み。PR #174 → H7 #153
+  // 申し送りの精査結果）だが、削除は防御条件の挙動変更のため H7（挙動不変）では残置する。
   if (recurring.endDate !== null && recurring.endDate !== '') {
-    const end = parseIsoDate(recurring.endDate);
+    const end = parseUtcIsoDate(recurring.endDate);
     if (order > end) {
       return false;
     }
   }
   return true;
-}
-
-function parseIsoDate(value: string): Date {
-  return new Date(`${value}T00:00:00Z`);
 }

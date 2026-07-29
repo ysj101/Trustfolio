@@ -1,4 +1,4 @@
-import { formatDateToIso } from '../domain/dateFormat';
+import { formatDateToIso } from '../utils/dateTime';
 import { buildOffsetDateCandidates, findFirstRecordByDateCandidates } from '../domain/dateSearch';
 import type { MarketIndex, Result } from '../domain/types';
 import { propagateFailure } from '../domain/result';

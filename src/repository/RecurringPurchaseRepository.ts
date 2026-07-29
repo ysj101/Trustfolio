@@ -1,5 +1,5 @@
 import { SHEET_NAMES } from '../Config';
-import { formatDateToIso } from '../domain/dateFormat';
+import { formatDateToIso } from '../utils/dateTime';
 import { fail } from '../domain/result';
 import type { RecurringPurchase, Result } from '../domain/types';
 import { isValidRecurringDay } from '../domain/validators';

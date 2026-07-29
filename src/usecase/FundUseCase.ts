@@ -3,6 +3,7 @@ import { propagateFailure } from '../domain/result';
 import type { FundRepository } from '../repository/FundRepository';
 import { getFundIdSuffix } from '../Config';
 import { generateUlid } from '../utils/ulid';
+import { clock } from '../utils/dateTime';
 
 export type FundUseCase = {
   listFunds: () => Result<Fund[]>;
@@ -73,7 +74,7 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
         rakutenFundId:
           rakutenFundId !== null && rakutenFundId.trim() !== '' ? rakutenFundId.trim() : null,
         settlementBusinessDays,
-        createdAt: new Date().toISOString(),
+        createdAt: clock.nowIso(),
       };
 
       const suffixValidation = validateFundIdSuffixUniqueness(fundRepository, fund.id);
