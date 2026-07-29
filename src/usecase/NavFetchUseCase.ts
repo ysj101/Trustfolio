@@ -6,6 +6,7 @@ import type { PerformanceRepository } from '../repository/PerformanceRepository'
 import type { TransactionRepository } from '../repository/TransactionRepository';
 import type { RakutenService } from '../service/RakutenService';
 import { logError } from '../utils/logger';
+import { clock } from '../utils/dateTime';
 
 /**
  * 基準価額の自動取得結果（1銘柄分）。
@@ -345,7 +346,7 @@ function processFund(
     fundId: fund.id,
     date: navData.date,
     value: navData.value,
-    createdAt: new Date().toISOString(),
+    createdAt: clock.nowIso(),
   };
 
   const createResult = navRepository.createNav(nav);
@@ -443,7 +444,7 @@ function recordFundPerformance(
     currentValue: holding.currentValue,
     totalGain: holding.unrealizedGain,
     unrealizedGainRate: holding.unrealizedGainRate,
-    createdAt: new Date().toISOString(),
+    createdAt: clock.nowIso(),
   };
 
   // 5. ファンド別シートに記録
@@ -510,7 +511,7 @@ function recordGlobalPerformance(
     currentValue: portfolio.totalCurrentValue,
     totalGain: portfolio.totalUnrealizedGain,
     unrealizedGainRate: portfolio.totalUnrealizedGainRate ?? 0,
-    createdAt: new Date().toISOString(),
+    createdAt: clock.nowIso(),
   };
 
   // 5. 全体シートに記録

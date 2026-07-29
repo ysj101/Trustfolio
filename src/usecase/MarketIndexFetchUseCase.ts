@@ -2,6 +2,7 @@ import type { MarketIndex, Result } from '../domain/types';
 import { getLastBusinessDay } from '../domain/UsMarketCalendar';
 import type { MarketIndexRepository } from '../repository/MarketIndexRepository';
 import type { MarketIndexService } from '../service/MarketIndexService';
+import { clock, formatDateToIso } from '../utils/dateTime';
 
 /**
  * 市場指数取得結果。
@@ -82,7 +83,7 @@ export function createMarketIndexFetchUseCase(
       // 現在の米国東部時間の日付を取得
       // 日本時間から米国東部時間への変換（JST - 14時間 = EST、夏時間は-13時間）
       // 安全のため、日本時間6:00実行時は前日の米国日付を使用
-      const now = new Date();
+      const now = clock.now();
       const usDate = getUsEasternDate(now);
 
       // 直近の営業日を取得
@@ -139,7 +140,7 @@ export function createMarketIndexFetchUseCase(
         date: lastBusinessDay,
         sp500: fetchResult.value.sp500,
         nasdaq: fetchResult.value.nasdaq,
-        createdAt: new Date().toISOString(),
+        createdAt: clock.nowIso(),
       };
 
       // シートに記録
@@ -173,10 +174,8 @@ export function createMarketIndexFetchUseCase(
  * @returns 米国東部時間の日付（YYYY-MM-DD形式）
  */
 function getUsEasternDate(jstDate: Date): string {
-  // 日本時間から14時間引いて米国東部標準時を概算
+  // 日本時間から14時間引いて米国東部標準時を概算し、ローカルTZ基準で文字列化する
+  // （文字列化ロジックは formatDateToIso と同一実装だったため共通ヘルパーへ委譲）
   const usTime = new Date(jstDate.getTime() - 14 * 60 * 60 * 1000);
-  const year = usTime.getFullYear();
-  const month = String(usTime.getMonth() + 1).padStart(2, '0');
-  const day = String(usTime.getDate()).padStart(2, '0');
-  return `${String(year)}-${month}-${day}`;
+  return formatDateToIso(usTime);
 }

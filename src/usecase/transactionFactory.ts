@@ -1,5 +1,6 @@
 import type { Transaction } from '../domain/types';
 import { generateUlid } from '../utils/ulid';
+import { clock } from '../utils/dateTime';
 
 /**
  * {@link buildTransaction} の入力。
@@ -34,7 +35,7 @@ export type BuildTransactionInput = {
  *
  * 内容:
  * - `id` 未指定時のみ {@link generateUlid} を、`createdAt` 未指定時のみ
- *   `new Date().toISOString()` を評価する（`??` の短絡により、指定済みの場合は
+ *   `clock.nowIso()` を評価する（`??` の短絡により、指定済みの場合は
  *   採番処理を一切走らせない）。これにより既存の ID・作成日時の生成挙動を維持する。
  *
  * @param input - 生成する取引の各フィールド。省略時の既定値は {@link BuildTransactionInput} を参照。
@@ -51,6 +52,6 @@ export function buildTransaction(input: BuildTransactionInput): Transaction {
     units: input.units,
     recurringPurchaseId: input.recurringPurchaseId ?? null,
     idempotencyKey: input.idempotencyKey ?? null,
-    createdAt: input.createdAt ?? new Date().toISOString(),
+    createdAt: input.createdAt ?? clock.nowIso(),
   };
 }

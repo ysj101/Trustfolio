@@ -1,4 +1,4 @@
-import { formatDateToIso } from '../domain/dateFormat';
+import { formatDateToIso } from '../utils/dateTime';
 import { fail } from '../domain/result';
 import type { Result } from '../domain/types';
 

@@ -7,6 +7,7 @@ import {
   generateMarketIndexAlertEmailBody,
   generateWeeklyReportEmailBody,
 } from './emailTemplates';
+import { clock, formatJstTimestamp } from '../utils/dateTime';
 
 /**
  * メール送信サービス。
@@ -165,8 +166,7 @@ export function createEmailService(): EmailService {
       }
 
       // エラー通知メール本文（発生日時の取得・JST 整形は送信側の責務）
-      const now = new Date();
-      const timestamp = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss');
+      const timestamp = formatJstTimestamp(clock.now());
       const htmlBody = generateErrorNotificationEmailBody(taskName, errorMessage, timestamp);
 
       const subject = `【Trustfolio】エラー通知: ${taskName}`;
