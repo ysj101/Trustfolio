@@ -1,9 +1,30 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/*
+ * Tailwind CSS v4 のエントリポイント（issue #176 で v3 から移行）。
+ *
+ * v3 からの移行内容:
+ * - `@tailwind base/components/utilities` → `@import 'tailwindcss'` へ変更。
+ * - tailwind.config.js（削除済み）の設定を CSS-first 形式へ移行:
+ *   - content: ['./src/ui/**\/*.html'] → `source(none)` で自動検出を無効化し、
+ *     `@source` で同一範囲を明示する（TS・テスト等の走査による意図しない
+ *     クラス生成を防ぐ）。
+ *   - theme.extend の fontFamily / boxShadow → `@theme` の変数定義。
+ *
+ * Google Fonts について（挙動不変の判断）:
+ * - v3 時代の `@import url(fonts.googleapis.com/...)` は出力 CSS に含まれておらず、
+ *   フォントは実際には配信されていなかったため、挙動不変の方針に従い v4 でも
+ *   読み込みを追加しない（実測での確認内容と有効化判断の扱いは
+ *   docs/UPGRADE_STRATEGY.md の「Tailwind CSS v4 移行の記録」を参照）。
+ */
+@import 'tailwindcss' source(none);
 
-/* Google Fonts - 既存のフォント読み込み */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap');
+@source './**/*.html';
+
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  --shadow-panel: 0 12px 32px rgba(0, 0, 0, 0.35);
+  --shadow-glow: 0 0 32px rgba(99, 102, 241, 0.45);
+}
 
 /*
  * 約定日入力欄（#transactionDate）のカレンダーボタン（issue #156）。
