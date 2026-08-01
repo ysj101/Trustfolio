@@ -37,7 +37,6 @@ Google Sheets上で管理するGASアプリケーションです。
 ├── rollup.config.js         # Rollup ビルド設定
 ├── tsconfig.json            # TypeScript 設定
 ├── vitest.config.ts         # Vitest テスト設定
-├── tailwind.config.js       # Tailwind CSS 設定
 ├── src/
 │   ├── main.ts              # エントリーポイント
 │   ├── Config.ts            # 設定管理

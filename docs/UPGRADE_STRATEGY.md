@@ -38,7 +38,7 @@ v2.0.0 → v3.0.0 → v4.0.0 と段階的にアップグレード
 >
 > [dependabot.yml](../.github/dependabot.yml)の`open-pull-requests-limit`は、**個別PRとグループPRの合計**に対する上限です。上限に達するとDependabotは新規PRを黙って作成しなくなるため、メジャー更新の検知を取りこぼす原因になります。
 >
-> 最悪ケースは「`devDependencies`のうちmajor除外分を除く全件が同時にメジャー遅れ ＋ `development`グループPR 1本」です（`production`グループは`dependencies`が0件のためPRを生みません）。現在は`devDependencies`13件のうち`typescript-js-api`がmajor除外のため12本＋1本＝13本となり、予備2本を加えて上限を`15`に設定しています。
+> 最悪ケースは「`devDependencies`のうちmajor除外分を除く全件が同時にメジャー遅れ ＋ `development`グループPR 1本」です（`production`グループは`dependencies`が0件のためPRを生みません）。現在は`devDependencies`14件のうち`typescript-js-api`がmajor除外のため13本＋1本＝14本となり、予備2本を加えて上限を`16`に設定しています。
 >
 > **依存パッケージを追加する際は、この上限の見直しが必要かどうかを必ず確認してください。**
 
@@ -199,6 +199,30 @@ pnpm push
 - **Dependabot の扱い（2026-07-26 追加）**: 本エイリアスの6系固定は「更新の遅れ」ではなく意図的な設計判断であるため、[dependabot.yml](../.github/dependabot.yml)の`ignore`で`typescript-js-api`のmajor更新を除外している。除外しない場合、Dependabotが7系への更新PRを提案し、上記の`pnpm lint`破壊を招く。なおDependabotのエイリアス依存（`npm:typescript@^6.0.3`形式）の扱いによっては本除外設定がマッチしない可能性があるが、その場合でも当該更新は`pnpm lint`の失敗としてCIで検知される（fail fast）。
 - **解除条件**: TypeScript 本体が安定版の JS API（`unstable` プレフィックスの外れた API）を提供し、2スクリプトをそれへ移行した時点で `typescript-js-api` を削除する。もしくは2スクリプトを TS コンパイラ非依存の実装（oxc 等）へ置き換えた時点で削除する。この際、上記の Dependabot 除外設定もあわせて削除する。
 
+## Tailwind CSS v4 移行の記録
+
+### tailwindcss 3.4 → 4.3 と `@tailwindcss/cli` の導入（issue #176）
+
+- **経緯**: tailwindcss が 3.4.19 → 4.3.3 と1メジャー遅れていた（issue #176 起票時点では dependabot.yml が semver-major を一括 ignore していたが、2026-07-26 の方針変更（#187）以降はメジャー更新も個別 PR で検知される）。Tailwind v4 は CLI の別パッケージ分離・CSS-first 設定への転換という破壊的変更を含み、ビルド構成（`scripts/build-styles.sh` / `tailwind.config.js` / `src/ui/input.css`）の書き換えを伴うため、Dependabot の自動 PR ではなく手動で移行した。
+- **対応**:
+  - devDependencies に `@tailwindcss/cli@^4.3.3` を追加し、`tailwindcss` を `^4.3.3` へ更新した。v4 では CLI が別パッケージへ分離されたが、バイナリ名は `tailwindcss` のまま変わらないため、`scripts/build-styles.sh` のビルドコマンド自体は無変更で動作する。
+  - `tailwind.config.js` を削除し、設定を `src/ui/input.css` の CSS-first 形式へ移行した（`@import 'tailwindcss' source(none)` ＋ `@source './**/*.html'` で v3 の content 設定と同一の走査範囲を明示、`@theme` で fontFamily / boxShadow の拡張を移行）。
+  - devDependencies が 13 件 → 14 件へ増えたため、`open-pull-requests-limit` を 15 → 16 へ引き上げた（算出根拠は上記「Dependabotによる自動化」セクションの記載を正とする）。
+- **判断理由**:
+  - `tailwindcss` と `@tailwindcss/cli` は**同一メジャーで揃える必要があるパッケージ対**である。Dependabot のメジャー更新は1パッケージ1PRのため、将来 v5 系が出た際は両者を同時に上げる必要がある（片方のみのマージは不整合を生む）。この対応は typescript / typescript-js-api の対と同様に本セクションを参照して行う。
+  - Google Fonts を読み込まない判断: 後述のとおりフォントは v3 時代から配信されておらず、読み込みを追加すると表示フォントが変わる（挙動変更）ため、v4 移行（挙動不変）では追加しない。`scripts/build-styles.sh` が styles.html に埋め込む fonts.googleapis.com / fonts.gstatic.com への preconnect タグは残置した。注意: preconnect はフォント CSS を取得しなくても両ホストへの DNS 解決・TCP/TLS 接続を先行実行させるため、「何も起きないヒント」ではない（フォント未配信の現状では便益のない外部接続が発生している）。残置理由は、既存出力（styles.html）を変えない挙動不変方針と、フォント読み込み有効化の判断（別 issue）で必要になり得るためであり、有効化しないと判断した場合は preconnect も併せて削除する。
+- **移行時に確認した事実**:
+  - v3/v4 の生成 CSS の**ユーティリティクラスのセレクタ集合**の差分は `.filter` の消失のみ（Preflight 等の非クラスセレクタや宣言の記法は v4 で変わっており、生成 CSS 全体の同一性を意味しない）。消失した `.filter` は v3 のスキャナが JS メソッド名（`performance-scripts.html` の `data.filter(...)` 等）を誤検出して生成していた未使用クラスであり、HTML のどの要素にも使われていないため視覚影響はない。使用中クラスの欠落はない。
+  - Google Fonts の `@import url(...)` は v3 時代から出力 CSS に含まれていなかった。原因は `@tailwind` ディレクティブ後という CSS として不正な位置に置かれていたことであり、**minify の有無に関わらず**ビルド時に除去される（`--minify` なしのビルドでも消失することを実測確認済み）。
+  - レイアウト系クラス（余白・グリッド・角丸等）の解決後の出力値は v3 と同一（v4 は `calc(var(--spacing) * N)` 形式だが計算結果は一致）。
+  - v4 の既定パレットは OKLCH 化されており、**色値はわずかに変化する**（実測例: slate-900 `#0f172a` → `#0f172b`、emerald-500 `#10b981` → `#00bb7f`。カスタムテーマの `shadow-panel` は `rgba(0,0,0,.35)` → `#00000059` で等価）。
+- **実機確認（issue #176 の完了条件。ユーザーが実施）**:
+  1. ポートフォリオタブ: カード（`shadow-panel`）・サマリー数値・詳細開閉が崩れていないこと。
+  2. 取引フォーム: 入力欄（`bg-slate-950/40` 系）・約定日のカレンダーボタン（白色アイコン）・登録ボタンの配色。
+  3. 積立設定フォーム: 一覧・フォームの配色とレイアウト。
+  4. パフォーマンス推移タブ: タブ切替（`data-[active=true]` 系）とチャート周辺のレイアウト。
+  5. 全体: 成功/エラーメッセージ（emerald / rose 系。**emerald-500 は色変化が最も大きい**）の視認性。
+
 ## 参考資料
 
 - [Semantic Versioning 2.0.0](https://semver.org/)
@@ -211,3 +235,4 @@ pnpm push
 - 2026-07-23: TypeScript 5.9 → 6.0 更新（issue #175 Phase 1）に伴い、peer 依存の明示的許容の記録セクションを追加
 - 2026-07-23: TypeScript 6.0 → 7.0 更新（issue #175 Phase 2）に伴い、許容レンジを拡張し、エイリアス devDependency `typescript-js-api` の記録セクションを追加。型チェック（`tsc --noEmit -p tsconfig.build.json` を pnpm を介さず直接実行、同一マシン・ウォーム状態・連続3回計測の実測レンジ）は TS 6.0.3（JS 実装）の約0.47〜0.49秒から TS 7.0.2（ネイティブ実装）の約0.08秒へ短縮（約6倍高速化）
 - 2026-07-26: メジャーバージョンアップの検知方針を変更。`.github/dependabot.yml` の `version-update:semver-major` の ignore 設定を削除し、Dependabot がメジャー更新も検知して個別PRを作成するようにした（自動マージ対象外であることは従来どおり）。あわせて上限到達による取りこぼしを防ぐため `open-pull-requests-limit` を 10 から 15 へ引き上げ、意図的に6系へ固定しているエイリアス依存 `typescript-js-api` のみ major 更新を `ignore` で除外した
+- 2026-08-02: tailwindcss 3.4 → 4.3 へ移行（issue #176）。CLI の `@tailwindcss/cli` 分離対応と CSS-first 設定への移行の記録セクションを追加。devDependencies 増（13→14件）に伴い `open-pull-requests-limit` を 15 から 16 へ引き上げ
