@@ -9,12 +9,12 @@ updates:
       interval: "weekly"
     # 同時にオープンできるPR数の上限。個別PRとグループPRの合計に対して効き、
     # 上限に達すると新規PRは黙って作成されなくなる（=メジャー更新を取りこぼす）。
-    # 最悪ケースは「devDependencies 13件のうち major 除外の typescript-js-api を
-    # 除く12件が同時にメジャー遅れ ＋ development グループPR 1本」＝13本。
+    # 最悪ケースは「devDependencies 14件のうち major 除外の typescript-js-api を
+    # 除く13件が同時にメジャー遅れ ＋ development グループPR 1本」＝14本。
     # production グループは dependencies が0件のためPRを生まない。
-    # これに予備2本を加えて 15 とする。
+    # これに予備2本を加えて 16 とする。
     # 依存パッケージを増やす際は本値の見直しが必要である。
-    open-pull-requests-limit: 15
+    open-pull-requests-limit: 16
     ignore:
       # typescript-js-api は npm:typescript@^6.0.3 のエイリアスであり、6系への固定は
       # 「遅れ」ではなく意図的な設計判断である。typescript@7（ネイティブ実装）は
