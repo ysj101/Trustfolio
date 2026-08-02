@@ -87,7 +87,7 @@ Google Sheets上で管理するGASアプリケーションです。
 - Google Apps Scriptプロジェクト
 - Google スプレッドシート
 
-`mise.toml` で Node.js `22.22` 系（patch は自動追従）を固定しています。pnpm は `package.json` の `packageManager` (`pnpm@10.30.2+sha512...`) を Corepack が SHA まで検証してインストールするため、バージョン定義を 1 箇所に集約しています。これらは `engines.node` (`>=22.18 <23`)、`engines.pnpm` (`>=10.30.2 <11`) と整合しています。依存関係の追加・更新・実行は `pnpm` だけを使用してください。
+`mise.toml` で Node.js `22.22` 系（patch は自動追従）を推奨ランタイムとして固定しています。pnpm は `package.json` の `packageManager` (`pnpm@10.30.2+sha512...`) を Corepack が SHA まで検証してインストールするため、バージョン定義を 1 箇所に集約しています。これらは `engines.node` (`>=22.22.1 <23 || >=24.11.0 <25`)、`engines.pnpm` (`>=10.30.2 <11`) と整合しています。engines のレンジは、22 系の下限が lint-staged@17 の要求（`>=22.22.1`）、24 系の下限が vite-plus の要求（`>=24.11.0`）に由来し、EOL 済みの非 LTS Node 23 系を除外しています（テスト CI は 22 系・24 系の両方で検証)。依存関係の追加・更新・実行は `pnpm` だけを使用してください。
 
 ### インストール
 
