@@ -5,8 +5,13 @@
 # `mise install` でこのファイルに記載されたバージョンが自動的にインストールされ、
 # `mise activate` 済みのシェルではディレクトリ移動時に自動切り替えされる。
 #
-# - node: `package.json` の `engines.node` (`>=22.18 <23`) を満たす最新 minor 系。
-#         minor を固定し、patch は mise が自動追従する。
+# - node: `package.json` の `engines.node` (`>=22.22.1 <23 || >=24.11.0 <25`) を
+#         満たすバージョン。
+#         推奨ランタイムとして 22 LTS 系の minor を固定し、patch は mise が自動追従する
+#         （mise latest node@22.22 は 22.22.1 以上に解決されるため下限を満たす）。
+#         レンジの根拠（lint-staged@17 由来の下限）と Node 23/24 系を使う場合の注意は、
+#         README「セットアップ > 必要環境」と docs/UPGRADE_STRATEGY.md の
+#         履歴（2026-08-03、issue #178）を参照。
 #
 # pnpm は本ファイルでは管理せず、Node.js 22 LTS に同梱される Corepack 経由で
 # `package.json` の `packageManager` フィールド (`pnpm@10.30.2+sha512...`) から
