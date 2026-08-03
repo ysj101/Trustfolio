@@ -29,8 +29,8 @@ jobs:
         with:
           # pnpm audit は pnpm-lock.yaml の静的検査でありランタイムのバージョンに
           # 依存しないため、Node 22/24 のマトリクス（test.yml / lint.yml）対象外とし
-          # 単一バージョンで実行する（issue #178）
-          node-version: '22'
+          # 単一バージョン（推奨ランタイムの 24 系。issue #199）で実行する
+          node-version: '24'
           cache: 'pnpm'
 
       - name: Install dependencies
