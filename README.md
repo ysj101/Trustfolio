@@ -82,12 +82,12 @@ Google Sheets上で管理するGASアプリケーションです。
 ### 必要環境
 
 - [mise](https://mise.jdx.dev/)（Node.js のバージョン管理）
-- Corepack（Node.js 22 LTS に同梱。pnpm の取得・SHA 検証に利用）
+- Corepack（Node.js 24 に同梱。pnpm の取得・SHA 検証に利用）
 - clasp（`pnpm exec clasp login`で認証）
 - Google Apps Scriptプロジェクト
 - Google スプレッドシート
 
-`mise.toml` で Node.js `22.22` 系（patch は自動追従）を推奨ランタイムとして固定しています。pnpm は `package.json` の `packageManager` (`pnpm@10.30.2+sha512...`) を Corepack が SHA まで検証してインストールするため、バージョン定義を 1 箇所に集約しています。これらは `engines.node` (`>=22.22.1 <23 || >=24.11.0 <25`)、`engines.pnpm` (`>=10.30.2 <11`) と整合しています。engines のレンジは、22 系の下限が lint-staged@17 の要求（`>=22.22.1`）、24 系の下限が vite-plus の要求（`>=24.11.0`）に由来し、EOL 済みの非 LTS Node 23 系を除外しています（テスト CI は 22 系・24 系の両方で検証)。依存関係の追加・更新・実行は `pnpm` だけを使用してください。
+`mise.toml` で Node.js `24.19` 系（現行の Active LTS 線。patch は自動追従）を推奨ランタイムとして固定しています（issue #199 で 22.22 系から移行）。pnpm は `package.json` の `packageManager` (`pnpm@10.30.2+sha512...`) を Corepack が SHA まで検証してインストールするため、バージョン定義を 1 箇所に集約しています。これらは `engines.node` (`>=22.22.1 <23 || >=24.11.0 <25`)、`engines.pnpm` (`>=10.30.2 <11`) と整合しています。engines のレンジは、22 系の下限が lint-staged@17 の要求（`>=22.22.1`）、24 系の下限が vite-plus の要求（`>=24.11.0`）に由来し、EOL 済みの非 LTS Node 23 系を除外しています（テスト CI は 22 系・24 系の両方で検証)。依存関係の追加・更新・実行は `pnpm` だけを使用してください。
 
 ### インストール
 
@@ -107,8 +107,8 @@ exec zsh
 プロジェクトルートで以下を実行します。
 
 ```bash
-mise install     # mise.toml に従って Node.js 22.22.x をインストール
-corepack enable  # Corepack を有効化（Node 22 LTS に同梱）
+mise install     # mise.toml に従って Node.js 24.19.x をインストール
+corepack enable  # Corepack を有効化（Node 24 に同梱）
 pnpm install     # Corepack が package.json の packageManager フィールドから
                  # pnpm@10.30.2 を SHA 検証付きで自動解決
 ```
