@@ -154,6 +154,44 @@ export function parseNumberCell(
 }
 
 /**
+ * 任意の税額セルを「0以上の有限数またはnull」として読み込む。
+ *
+ * 目的:
+ * - マイグレーションで追加された既存行の空セルを「税額未記録」のnullとして保持する。
+ * - 値が存在する場合は負値・NaN・±Infinity・数値以外をunexpectedエラーとして
+ *   fail fastに検出する。
+ *
+ * 内容:
+ * - 空文字・null・undefined のセルは「税額未記録」として null を返す。
+ * - number型の0以上の有限数はそのまま成功として返す。
+ * - それ以外（負値・NaN・±Infinity・数値以外）はシート行番号つきの
+ *   unexpected エラーを返す。
+ *
+ * 注意:
+ * - 空セルから得たnullは、明示的に記録された0円とは区別する。
+ *
+ * @param value - 検証対象のセル値。
+ * @param sheetLabel - エラーメッセージに用いるシートのラベル。
+ * @param fieldName - エラーメッセージに用いるフィールド名。
+ * @param index - 0始まりの行インデックス。
+ * @returns 空セルならnull、妥当な値なら0以上の有限数を持つ {@link Result}。
+ */
+export function parseOptionalNonNegativeNumberCell(
+  value: unknown,
+  sheetLabel: string,
+  fieldName: string,
+  index: number
+): Result<number | null> {
+  if (value === '' || value === null || value === undefined) {
+    return { success: true, value: null };
+  }
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    return fail('unexpected', `${sheetLabel}の${String(index + 2)}行目の${fieldName}が不正です。`);
+  }
+  return { success: true, value };
+}
+
+/**
  * 任意項目のセル値を「trim 済みの文字列 or null」へ正規化する。
  *
  * 目的:

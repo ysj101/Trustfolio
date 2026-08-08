@@ -64,6 +64,11 @@ export type Nav = {
  * - amount: 売却金額（円）※売却口数×基準価額で計算された金額
  * - navValue: 適用基準価額（円/1万口）
  * - units: 売却口数（正の値、計算時にtypeで判別して減算）
+ * - incomeTax: 所得税・復興特別所得税の源泉徴収額（0以上）。未記録の既存行はnull
+ * - residentTax: 住民税の源泉徴収額（0以上）。未記録の既存行はnull
+ *
+ * 購入時の incomeTax / residentTax は常にnullとする。
+ * 売却時のnullは「税額未記録」を表し、明示的に記録した0円とは同一視しない。
  */
 export type Transaction = {
   id: string;
@@ -73,6 +78,8 @@ export type Transaction = {
   amount: number;
   navValue: number;
   units: number;
+  incomeTax: number | null;
+  residentTax: number | null;
   recurringPurchaseId: string | null;
   idempotencyKey: string | null;
   createdAt: string;
@@ -120,6 +127,19 @@ export type Portfolio = {
   totalSaleAmount: number;
   /** 実現損益（売却による確定損益） */
   realizedGain: number;
+  /** 記録済みの売却税額合計。null（税額未記録）の取引は加算対象外とする。 */
+  totalTax: number;
+  /**
+   * 税引後実現損益（realizedGain - totalTax）。
+   * taxUnrecordedSaleCount が 1 以上の場合、未記録の税額は控除されていないため
+   * 完全な税引後の値ではない点に注意する。
+   */
+  realizedGainAfterTax: number;
+  /**
+   * 税額未記録（incomeTax または residentTax が null）の売却取引件数。
+   * 表示側はこの件数を用いて、税引後実現損益が完全な値かどうかを注記する。
+   */
+  taxUnrecordedSaleCount: number;
   /** 残存投資額（移動平均簿価: 保有口数分の取得原価合計） */
   remainingInvestment: number;
   /** 評価額（現在の保有分） */
@@ -128,7 +148,11 @@ export type Portfolio = {
   totalUnrealizedGain: number | null;
   /** 未実現損益率 */
   totalUnrealizedGainRate: number | null;
-  /** 総損益（実現損益 + 未実現損益） */
+  /**
+   * 総損益（税引後実現損益 + 未実現損益）。
+   * 記録済みの売却税額を控除した realizedGainAfterTax をベースにするため、
+   * taxUnrecordedSaleCount が 1 以上の場合は未記録税額分だけ過大な参考値になる。
+   */
   totalGain: number | null;
   /** 総損益率 */
   totalGainRate: number | null;

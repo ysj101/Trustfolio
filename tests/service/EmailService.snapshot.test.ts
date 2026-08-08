@@ -36,6 +36,10 @@ describe('EmailService HTML出力スナップショット', () => {
         totalInvestment: 1_000_000,
         totalSaleAmount: 0,
         realizedGain: 0,
+        // 税未記録の売却1件を含め、「参考値」注記付きの出力もスナップショットで固定する
+        totalTax: 2_032,
+        realizedGainAfterTax: -2_032,
+        taxUnrecordedSaleCount: 1,
         remainingInvestment: 1_000_000,
         totalCurrentValue: 1_120_000,
         totalUnrealizedGain: 120_000,
@@ -100,14 +104,34 @@ describe('EmailService HTML出力スナップショット', () => {
                   <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #1565c0; font-weight: bold; font-size: 12px;">+80,000円 (+7.7%)</td>
                 </tr>
                 <tr>
-                  <td style="padding: 8px; border: 1px solid #ddd;">損益</td>
+                  <td style="padding: 8px; border: 1px solid #ddd;">未実現損益</td>
                   <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #1565c0; font-weight: bold;">120,000円</td>
                   <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #1565c0; font-weight: bold; font-size: 12px;">+30,000円</td>
                 </tr>
                 <tr>
-                  <td style="padding: 8px; border: 1px solid #ddd;">損益率</td>
+                  <td style="padding: 8px; border: 1px solid #ddd;">未実現損益率</td>
                   <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #1565c0; font-weight: bold;">+12.0%</td>
                   <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #1565c0; font-weight: bold; font-size: 12px;">+2.5%pt</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px; border: 1px solid #ddd;">総損益（税引後実現＋未実現）</td>
+                  <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #1565c0; font-weight: bold;">120,000円</td>
+                  <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">---</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px; border: 1px solid #ddd;">総損益率</td>
+                  <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #1565c0; font-weight: bold;">+12.0%</td>
+                  <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">---</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px; border: 1px solid #ddd;">売却税額（記録分）</td>
+                  <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">2,032円</td>
+                  <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">---</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px; border: 1px solid #ddd;">税引後実現損益</td>
+                  <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #c62828; font-weight: bold;">-2,032円<br><span style="font-size: 11px; color: #999; font-weight: normal;">※税未記録の売却が1件あるため参考値</span></td>
+                  <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">---</td>
                 </tr>
               </table>
 
@@ -151,6 +175,9 @@ describe('EmailService HTML出力スナップショット', () => {
         totalInvestment: 300_000,
         totalSaleAmount: 0,
         realizedGain: 0,
+        totalTax: 0,
+        realizedGainAfterTax: 0,
+        taxUnrecordedSaleCount: 0,
         remainingInvestment: 300_000,
         totalCurrentValue: null,
         totalUnrealizedGain: null,
@@ -215,14 +242,34 @@ describe('EmailService HTML出力スナップショット', () => {
                   <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #666; font-weight: bold; font-size: 12px;">---</td>
                 </tr>
                 <tr>
-                  <td style="padding: 8px; border: 1px solid #ddd;">損益</td>
+                  <td style="padding: 8px; border: 1px solid #ddd;">未実現損益</td>
                   <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #333; font-weight: bold;">---円</td>
                   <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #666; font-weight: bold; font-size: 12px;">---</td>
                 </tr>
                 <tr>
-                  <td style="padding: 8px; border: 1px solid #ddd;">損益率</td>
+                  <td style="padding: 8px; border: 1px solid #ddd;">未実現損益率</td>
                   <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #333; font-weight: bold;">---</td>
                   <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #666; font-weight: bold; font-size: 12px;">---</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px; border: 1px solid #ddd;">総損益（税引後実現＋未実現）</td>
+                  <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #333; font-weight: bold;">---円</td>
+                  <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">---</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px; border: 1px solid #ddd;">総損益率</td>
+                  <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #333; font-weight: bold;">---</td>
+                  <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">---</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px; border: 1px solid #ddd;">売却税額（記録分）</td>
+                  <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">0円</td>
+                  <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">---</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px; border: 1px solid #ddd;">税引後実現損益</td>
+                  <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #1565c0; font-weight: bold;">0円</td>
+                  <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">---</td>
                 </tr>
               </table>
 

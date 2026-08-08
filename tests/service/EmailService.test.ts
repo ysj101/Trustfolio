@@ -12,6 +12,9 @@ describe('EmailService', () => {
         totalInvestment: 10000,
         totalSaleAmount: 0,
         realizedGain: 0,
+        totalTax: 0,
+        realizedGainAfterTax: 0,
+        taxUnrecordedSaleCount: 0,
         remainingInvestment: 10000,
         totalCurrentValue: 10000,
         totalUnrealizedGain: 0,
@@ -44,6 +47,9 @@ describe('EmailService', () => {
         totalInvestment: 10000,
         totalSaleAmount: 0,
         realizedGain: 0,
+        totalTax: 0,
+        realizedGainAfterTax: 0,
+        taxUnrecordedSaleCount: 0,
         remainingInvestment: 10000,
         totalCurrentValue: 12000,
         totalUnrealizedGain: 2000,
@@ -104,6 +110,101 @@ describe('EmailService', () => {
     }
   });
 
+  it('週次レポートメールの本文に売却税額と税引後実現損益が含まれる', () => {
+    // 前提: 送信先メールアドレスが有効である
+    // 事前条件: ポートフォリオに記録済みの売却税額（2,033円）と税引後実現損益（2,967円）が存在する
+    // 検証: MailApp.sendEmailの本文に「売却税額（記録分）」「税引後実現損益」の行と金額が含まれる
+    const report: WeeklyReport = {
+      portfolio: {
+        totalInvestment: 100000,
+        totalSaleAmount: 50000,
+        realizedGain: 5000,
+        totalTax: 2033,
+        realizedGainAfterTax: 2967,
+        taxUnrecordedSaleCount: 0,
+        remainingInvestment: 50000,
+        totalCurrentValue: 60000,
+        totalUnrealizedGain: 10000,
+        totalUnrealizedGainRate: 0.2,
+        totalGain: 15000,
+        totalGainRate: 0.15,
+        remainingInvestmentChange: null,
+        totalCurrentValueChange: null,
+        totalUnrealizedGainChange: null,
+        totalUnrealizedGainRateChange: null,
+        hasPreviousWeekData: false,
+        holdings: [],
+      },
+      generatedAt: '2024-04-01 09:00:00',
+    };
+
+    const service = createEmailService();
+    const sendEmailMock = vi.spyOn(globalThis.MailApp, 'sendEmail');
+    // 直前のテストで記録された呼び出しが mock.calls[0] に残らないよう、履歴をクリアしてから送信する
+    sendEmailMock.mockClear();
+    const result = service.sendWeeklyReport(report, 'test@example.com');
+    expect(result.success).toBe(true);
+    const call = sendEmailMock.mock.calls[0]?.[0];
+    expect(call).toBeDefined();
+    if (call) {
+      // 「2,033」は totalTax、「2,967」は realizedGainAfterTax のみから生成される値であり、
+      // 新規追加した2行がそれぞれ対応するフィールドを参照していることを検証できる
+      expect(call.htmlBody).toContain('売却税額（記録分）');
+      expect(call.htmlBody).toContain('2,033円');
+      expect(call.htmlBody).toContain('税引後実現損益');
+      expect(call.htmlBody).toContain('2,967円');
+      // 「15,000」「+15.0%」は totalGain: 15000 / totalGainRate: 0.15 のみから生成される値であり、
+      // 総損益行が未実現損益（10,000円）ではなく税引後ベースの totalGain を参照することを検証できる
+      expect(call.htmlBody).toContain('総損益（税引後実現＋未実現）');
+      expect(call.htmlBody).toContain('15,000円');
+      expect(call.htmlBody).toContain('総損益率');
+      expect(call.htmlBody).toContain('+15.0%');
+      // 税未記録の売却が0件のため、参考値の注記は表示されない
+      expect(call.htmlBody).not.toContain('参考値');
+    }
+  });
+
+  it('税未記録の売却がある場合は税引後実現損益に参考値の注記が付く', () => {
+    // 前提: 送信先メールアドレスが有効である
+    // 事前条件: 税額未記録の売却が2件存在する（taxUnrecordedSaleCount: 2）
+    // 検証: 税引後実現損益の行に「※税未記録の売却が2件あるため参考値」の注記が含まれる
+    const report: WeeklyReport = {
+      portfolio: {
+        totalInvestment: 100000,
+        totalSaleAmount: 50000,
+        realizedGain: 5000,
+        totalTax: 1000,
+        realizedGainAfterTax: 4000,
+        taxUnrecordedSaleCount: 2,
+        remainingInvestment: 50000,
+        totalCurrentValue: 60000,
+        totalUnrealizedGain: 10000,
+        totalUnrealizedGainRate: 0.2,
+        totalGain: 15000,
+        totalGainRate: 0.15,
+        remainingInvestmentChange: null,
+        totalCurrentValueChange: null,
+        totalUnrealizedGainChange: null,
+        totalUnrealizedGainRateChange: null,
+        hasPreviousWeekData: false,
+        holdings: [],
+      },
+      generatedAt: '2024-04-01 09:00:00',
+    };
+
+    const service = createEmailService();
+    const sendEmailMock = vi.spyOn(globalThis.MailApp, 'sendEmail');
+    // 直前のテストで記録された呼び出しが mock.calls[0] に残らないよう、履歴をクリアしてから送信する
+    sendEmailMock.mockClear();
+    const result = service.sendWeeklyReport(report, 'test@example.com');
+    expect(result.success).toBe(true);
+    const call = sendEmailMock.mock.calls[0]?.[0];
+    expect(call).toBeDefined();
+    if (call) {
+      expect(call.htmlBody).toContain('※税未記録の売却が2件あるため参考値');
+    }
+  });
+
   it('エラー通知でタスク名が空の場合はバリデーションエラーになる', () => {
     // 前提: タスク名が空文字列である
     // 事前条件: 送信先メールアドレスは有効である
@@ -143,6 +244,9 @@ describe('EmailService', () => {
           totalInvestment: 10000,
           totalSaleAmount: 0,
           realizedGain: 0,
+          totalTax: 0,
+          realizedGainAfterTax: 0,
+          taxUnrecordedSaleCount: 0,
           remainingInvestment: 10000,
           totalCurrentValue: 12000,
           totalUnrealizedGain: 2000,

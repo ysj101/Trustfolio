@@ -116,6 +116,66 @@ describe('router integration', () => {
     }
   });
 
+  it('売却登録と更新で所得税・住民税がAPI境界を通過する', () => {
+    // 前提: 売却可能な口数のスポット購入が登録済みである
+    // 事前条件: 売却登録と売却更新のリクエストに税額2項目を指定する
+    // 検証: 更新後の取引履歴に所得税と住民税が別々に保存される
+    const purchaseResult = handleApiRequest({
+      action: 'executeSpotPurchase',
+      fundId: 'fund-001',
+      date: '2024-03-05',
+      amount: 100000,
+      navValue: 10000,
+    });
+    expect(purchaseResult.success).toBe(true);
+
+    const saleResult = handleApiRequest({
+      action: 'executeSale',
+      fundId: 'fund-001',
+      date: '2024-03-06',
+      units: 10000,
+      amount: 12000,
+      navValue: 12000,
+      incomeTax: 306,
+      residentTax: 100,
+    });
+    expect(saleResult.success).toBe(true);
+    if (!saleResult.success || typeof saleResult.value !== 'object' || saleResult.value === null) {
+      return;
+    }
+    const sale = saleResult.value as { id: string };
+
+    const updateResult = handleApiRequest({
+      action: 'updateSaleTransaction',
+      id: sale.id,
+      fundId: 'fund-001',
+      date: '2024-03-06',
+      units: 10000,
+      amount: 12000,
+      navValue: 12000,
+      incomeTax: 400,
+      residentTax: 120,
+    });
+    expect(updateResult.success).toBe(true);
+
+    const historyResult = handleApiRequest({
+      action: 'getTransactionHistory',
+      fundId: 'fund-001',
+    });
+    expect(historyResult.success).toBe(true);
+    if (historyResult.success && Array.isArray(historyResult.value)) {
+      const updatedSale = historyResult.value.find(
+        (transaction) =>
+          typeof transaction === 'object' &&
+          transaction !== null &&
+          'type' in transaction &&
+          transaction.type === 'REDEMPTION'
+      ) as { incomeTax?: number; residentTax?: number } | undefined;
+      expect(updatedSale?.incomeTax).toBe(400);
+      expect(updatedSale?.residentTax).toBe(120);
+    }
+  });
+
   it('基準価額履歴と保有情報が取得できる', () => {
     // 前提: 基準価額が登録済みである
     // 事前条件: スポット購入を登録する
