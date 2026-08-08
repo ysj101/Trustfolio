@@ -8,6 +8,10 @@ import {
 } from '../../src/Config';
 import { createStubSheetRepository, ok, fail } from '../fakes';
 
+const { createTransactionSpy } = vi.hoisted(() => ({
+  createTransactionSpy: vi.fn(() => ({ success: true as const, value: undefined })),
+}));
+
 vi.mock('../../src/repository/SheetRepository', () => ({
   openSheetRepository: vi.fn(),
 }));
@@ -25,7 +29,14 @@ vi.mock('../../src/repository/FundRepository', () => ({
         },
       ]),
     findByName: () => ok(null),
-    findById: () => ok(null),
+    findById: () =>
+      ok({
+        id: 'fund-001',
+        name: '国内株式',
+        rakutenFundId: null,
+        settlementBusinessDays: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+      }),
     createFund: () => ok(undefined),
     updateFund: () => ok(undefined),
   }),
@@ -53,9 +64,25 @@ vi.mock('../../src/repository/RecurringPurchaseRepository', () => ({
 
 vi.mock('../../src/repository/TransactionRepository', () => ({
   createTransactionRepository: () => ({
-    listByFundId: () => ok([]),
+    listByFundId: () =>
+      ok([
+        {
+          id: '購入-001',
+          fundId: 'fund-001',
+          type: 'SPOT_PURCHASE',
+          date: '2024-01-01',
+          amount: 100000,
+          navValue: 10000,
+          units: 100000,
+          incomeTax: null,
+          residentTax: null,
+          recurringPurchaseId: null,
+          idempotencyKey: null,
+          createdAt: '2024-01-01T00:00:00.000Z',
+        },
+      ]),
     listAll: () => ok([]),
-    createTransaction: () => ok(undefined),
+    createTransaction: createTransactionSpy,
     findByIdempotencyKey: () => ok(null),
     findById: () => ok(null),
     updateTransaction: () => ok(undefined),
@@ -199,5 +226,34 @@ describe('router', () => {
     if (!result.success) {
       expect(result.error.message).toContain('失敗');
     }
+  });
+
+  it('executeSaleアクションは所得税・住民税を売却ユースケースへ渡す', async () => {
+    // 前提: 銘柄と十分な購入口数が存在する
+    // 事前条件: executeSaleリクエストに所得税と住民税を指定する
+    // 検証: 作成される売却取引に両税額が同じ値で設定される
+    const { openSheetRepository } = vi.mocked(await import('../../src/repository/SheetRepository'));
+    openSheetRepository.mockReturnValue(ok(createStubSheetRepository()));
+    createTransactionSpy.mockClear();
+
+    const result = handleApiRequest({
+      action: 'executeSale',
+      fundId: 'fund-001',
+      date: '2024-02-01',
+      units: 10000,
+      amount: 12000,
+      navValue: 12000,
+      incomeTax: 306,
+      residentTax: 100,
+    });
+
+    expect(result.success).toBe(true);
+    expect(createTransactionSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'REDEMPTION',
+        incomeTax: 306,
+        residentTax: 100,
+      })
+    );
   });
 });

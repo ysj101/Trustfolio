@@ -11,6 +11,7 @@ import {
   normalizeOptionalString,
   parseAllRows,
   parseNumberCell,
+  parseOptionalNonNegativeNumberCell,
   parseRequiredStringCell,
   parseSheetDate,
 } from './SheetMapping';
@@ -35,10 +36,13 @@ export function createTransactionRepository(
 ): TransactionRepository {
   const repository: TransactionRepository = {
     listByFundId: (fundId: string): Result<Transaction[]> => {
-      const sheetName = getTransactionSheetName(fundId);
-      const rowsResult = sheetRepository.readAllRows(sheetName);
+      const rowsResult = readTransactionRows(sheetRepository, fundId);
       if (!rowsResult.success) {
         return rowsResult;
+      }
+      // 単一ファンド読取ではシート不存在をエラーとして返す（従来挙動を維持）。
+      if (rowsResult.value === null) {
+        return fail('unexpected', `シートが存在しません: ${getTransactionSheetName(fundId)}`);
       }
 
       const parsedResult = parseAllRows(rowsResult.value, parseRow);
@@ -55,11 +59,14 @@ export function createTransactionRepository(
       const allTransactions: Transaction[] = [];
 
       for (const fundId of fundIds) {
-        const sheetName = getTransactionSheetName(fundId);
-        const rowsResult = sheetRepository.readAllRows(sheetName);
+        const rowsResult = readTransactionRows(sheetRepository, fundId);
 
-        // シートが存在しない場合はスキップ(エラーにしない)
+        // マイグレーション・読取の失敗は握りつぶさず即座に伝播する（fail fast）
         if (!rowsResult.success) {
+          return rowsResult;
+        }
+        // シートが存在しない場合のみスキップ(エラーにしない)
+        if (rowsResult.value === null) {
           continue;
         }
 
@@ -85,11 +92,14 @@ export function createTransactionRepository(
 
       // 各ファンドのトランザクションシートを読み込み
       for (const fundId of fundIds) {
-        const sheetName = getTransactionSheetName(fundId);
-        const rowsResult = sheetRepository.readAllRows(sheetName);
+        const rowsResult = readTransactionRows(sheetRepository, fundId);
 
-        // シートが存在しない場合はスキップ(エラーにしない)
+        // マイグレーション・読取の失敗は握りつぶさず即座に伝播する（fail fast）
         if (!rowsResult.success) {
+          return rowsResult;
+        }
+        // シートが存在しない場合のみスキップ(エラーにしない)
+        if (rowsResult.value === null) {
           continue;
         }
 
@@ -121,11 +131,14 @@ export function createTransactionRepository(
       fundIds: string[]
     ): Result<Transaction | null> => {
       for (const fundId of fundIds) {
-        const sheetName = getTransactionSheetName(fundId);
-        const rowsResult = sheetRepository.readAllRows(sheetName);
+        const rowsResult = readTransactionRows(sheetRepository, fundId);
 
-        // シートが存在しない場合はスキップ
+        // マイグレーション・読取の失敗は握りつぶさず即座に伝播する（fail fast）
         if (!rowsResult.success) {
+          return rowsResult;
+        }
+        // シートが存在しない場合のみスキップ
+        if (rowsResult.value === null) {
           continue;
         }
 
@@ -193,10 +206,55 @@ function toRow(transaction: Transaction): unknown[] {
     transaction.amount,
     transaction.navValue,
     transaction.units,
+    transaction.incomeTax ?? '',
+    transaction.residentTax ?? '',
     transaction.recurringPurchaseId ?? '',
     transaction.idempotencyKey ?? '',
     transaction.createdAt,
   ];
+}
+
+/**
+ * 取引シートのヘッダーを最新スキーマへ整合させてから全データ行を読み込む。
+ *
+ * 目的:
+ * - incomeTax / residentTax 列追加のようなスキーマ変更後、書き込みを経由せずに
+ *   読取系API（取引履歴・保有情報・ポートフォリオ・週次レポート）が呼ばれても、
+ *   旧列構成の行を新列構成として誤って解析しないよう、読取前に必ず
+ *   ensureSheet によるヘッダー整合（列挿入マイグレーション）を実行する。
+ *
+ * 内容:
+ * - シートが存在しない場合は成功として null を返す（「不存在」と「読取・整合の失敗」を
+ *   型で明示的に区別し、複数ファンド読取APIが不存在だけを安全にスキップできるようにする）。
+ * - シートが存在する場合は ensureSheet でヘッダーを SHEET_HEADERS に整合させ、
+ *   失敗時は読取へ進まず即座にエラーを返す（fail fast）。
+ *
+ * 注意:
+ * - ensureSheet は列構成が一致していれば何も変更しないため、繰り返し呼んでも安全。
+ * - 戻り値の null は「シート不存在」のみを意味する。マイグレーション失敗や読取失敗を
+ *   null へ変換してはならない（握りつぶすと取引欠落のまま集計が成功してしまうため）。
+ *
+ * @param sheetRepository - シートリポジトリ。
+ * @param fundId - 対象ファンドID。
+ * @returns 全データ行（シート不存在時は null）、またはマイグレーション・読取失敗のエラー。
+ */
+function readTransactionRows(
+  sheetRepository: SheetRepository,
+  fundId: string
+): Result<unknown[][] | null> {
+  const sheetName = getTransactionSheetName(fundId);
+
+  const sheetResult = sheetRepository.getRequiredSheet(sheetName);
+  if (!sheetResult.success) {
+    return { success: true, value: null };
+  }
+
+  const ensureResult = ensureTransactionSheet(sheetRepository, fundId);
+  if (!ensureResult.success) {
+    return ensureResult;
+  }
+
+  return sheetRepository.readAllRows(sheetName);
 }
 
 /**
@@ -232,10 +290,13 @@ function findTransactionRow(
   transactionId: string,
   fundId: string
 ): Result<{ rowIndex: number; transaction: Transaction } | null> {
-  const sheetName = getTransactionSheetName(fundId);
-  const rowsResult = sheetRepository.readAllRows(sheetName);
+  const rowsResult = readTransactionRows(sheetRepository, fundId);
   if (!rowsResult.success) {
     return rowsResult;
+  }
+  // 単一取引の検索ではシート不存在をエラーとして返す（従来挙動を維持）。
+  if (rowsResult.value === null) {
+    return fail('unexpected', `シートが存在しません: ${getTransactionSheetName(fundId)}`);
   }
 
   const found = findRowByPredicate(
@@ -265,6 +326,8 @@ function parseRow(row: unknown[], index: number): Result<Transaction> {
     amount,
     navValue,
     units,
+    incomeTax,
+    residentTax,
     recurringPurchaseId,
     idempotencyKey,
     createdAt,
@@ -307,6 +370,33 @@ function parseRow(row: unknown[], index: number): Result<Transaction> {
   if (!unitsResult.success) {
     return unitsResult;
   }
+  const incomeTaxResult = parseOptionalNonNegativeNumberCell(
+    incomeTax,
+    'transactions',
+    'incomeTax',
+    index
+  );
+  if (!incomeTaxResult.success) {
+    return incomeTaxResult;
+  }
+  const residentTaxResult = parseOptionalNonNegativeNumberCell(
+    residentTax,
+    'transactions',
+    'residentTax',
+    index
+  );
+  if (!residentTaxResult.success) {
+    return residentTaxResult;
+  }
+  if (
+    type !== 'REDEMPTION' &&
+    (incomeTaxResult.value !== null || residentTaxResult.value !== null)
+  ) {
+    return fail(
+      'unexpected',
+      `transactionsの${String(index + 2)}行目の購入取引に税額が設定されています。`
+    );
+  }
   const createdAtResult = parseRequiredStringCell(createdAt, 'transactions', 'createdAt', index);
   if (!createdAtResult.success) {
     return createdAtResult;
@@ -322,6 +412,8 @@ function parseRow(row: unknown[], index: number): Result<Transaction> {
       amount: amountResult.value,
       navValue: navValueResult.value,
       units: unitsResult.value,
+      incomeTax: incomeTaxResult.value,
+      residentTax: residentTaxResult.value,
       recurringPurchaseId: normalizeOptionalString(recurringPurchaseId),
       idempotencyKey: normalizeOptionalString(idempotencyKey),
       createdAt: createdAtResult.value,

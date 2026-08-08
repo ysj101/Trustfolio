@@ -175,6 +175,8 @@ describe('RecurringUseCase', () => {
         amount: 10000,
         navValue: 10500,
         units: 9524,
+        incomeTax: null,
+        residentTax: null,
         recurringPurchaseId: 'rec-duplicate',
         idempotencyKey: 'rec-duplicate_2024-03-01',
         createdAt: '2024-03-04T00:00:00.000Z',

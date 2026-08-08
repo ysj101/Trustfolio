@@ -7,6 +7,7 @@ import {
   normalizeOptionalString,
   parseAllRows,
   parseNumberCell,
+  parseOptionalNonNegativeNumberCell,
   parseRequiredStringCell,
   parseSheetDate,
 } from '../../src/repository/SheetMapping';
@@ -226,6 +227,54 @@ describe('parseNumberCell', () => {
 
     const stringResult = parseNumberCell('10000', 'transactions', 'amount', 1);
     expect(stringResult.success).toBe(false);
+  });
+});
+
+describe('parseOptionalNonNegativeNumberCell', () => {
+  it('空セルは税額未記録を表すnullとして返す', () => {
+    // 前提: マイグレーション後の既存売却行では税額セルが空である
+    // 事前条件: 空文字・null・undefinedをそれぞれ入力する
+    // 検証: 0円へ変換せず、すべてnullとして返す
+    expect(parseOptionalNonNegativeNumberCell('', 'transactions', 'incomeTax', 0)).toEqual({
+      success: true,
+      value: null,
+    });
+    expect(parseOptionalNonNegativeNumberCell(null, 'transactions', 'incomeTax', 0)).toEqual({
+      success: true,
+      value: null,
+    });
+    expect(parseOptionalNonNegativeNumberCell(undefined, 'transactions', 'incomeTax', 0)).toEqual({
+      success: true,
+      value: null,
+    });
+  });
+
+  it('0を含む非負の有限数をそのまま返す', () => {
+    // 前提: 税額セルに記録済みの数値がある
+    // 事前条件: 0円と正の税額を入力する
+    // 検証: いずれも数値のまま返す
+    expect(parseOptionalNonNegativeNumberCell(0, 'transactions', 'incomeTax', 1)).toEqual({
+      success: true,
+      value: 0,
+    });
+    expect(parseOptionalNonNegativeNumberCell(2032, 'transactions', 'residentTax', 1)).toEqual({
+      success: true,
+      value: 2032,
+    });
+  });
+
+  it('負値・非数・無限値はunexpectedエラーにする', () => {
+    // 前提: 税額セルに不正な値が保存されている
+    // 事前条件: 負値・文字列・NaN・Infinityを入力する
+    // 検証: すべてunexpectedエラーとしてfail fastに返す
+    const values = [-1, '100', Number.NaN, Number.POSITIVE_INFINITY];
+    values.forEach((value) => {
+      const result = parseOptionalNonNegativeNumberCell(value, 'transactions', 'residentTax', 2);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.type).toBe('unexpected');
+      }
+    });
   });
 });
 

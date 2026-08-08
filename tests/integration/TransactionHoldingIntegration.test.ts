@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { createTransactionUseCase } from '../../src/usecase/TransactionUseCase';
-import { calculateHolding } from '../../src/domain/HoldingCalculator';
+import { calculateHolding, calculatePortfolio } from '../../src/domain/HoldingCalculator';
 import type { Fund, Nav, Transaction } from '../../src/domain/types';
 
 // モックリポジトリ: Fundリポジトリ
@@ -81,6 +81,8 @@ describe('TransactionUseCase + HoldingCalculator 統合テスト', () => {
         amount: 10000,
         navValue: 10000,
         units: 10000,
+        incomeTax: null,
+        residentTax: null,
         recurringPurchaseId: null,
         idempotencyKey: null,
         createdAt: '2024-01-10T00:00:00.000Z',
@@ -96,6 +98,8 @@ describe('TransactionUseCase + HoldingCalculator 統合テスト', () => {
       units: 5000, // ユーザー入力は正の値
       amount: 6000,
       navValue: 12000,
+      incomeTax: 150,
+      residentTax: 50,
     });
 
     expect(saleResult.success).toBe(true);
@@ -119,6 +123,10 @@ describe('TransactionUseCase + HoldingCalculator 統合テスト', () => {
     // 累計投資額と売却額も正しい
     expect(holding?.totalInvestment).toBe(10000);
     expect(holding?.totalSaleAmount).toBe(6000);
+    // 税額はポートフォリオ集計で反映される（記録済み税額200円を税引前実現損益1,000円から控除）。
+    const summary = calculatePortfolio([], transactions);
+    expect(summary.totalTax).toBe(200);
+    expect(summary.realizedGainAfterTax).toBe(800);
     // 移動平均法: 購入10,000円/10,000口、売却5,000口の原価=5,000×(10,000/10,000)=5,000
     // 残存簿価 = 10,000 - 5,000 = 5,000
     expect(holding?.remainingInvestment).toBe(5000);
@@ -138,6 +146,8 @@ describe('TransactionUseCase + HoldingCalculator 統合テスト', () => {
         amount: 10000,
         navValue: 10000,
         units: 10000,
+        incomeTax: null,
+        residentTax: null,
         recurringPurchaseId: null,
         idempotencyKey: null,
         createdAt: '2024-01-10T00:00:00.000Z',
@@ -153,6 +163,8 @@ describe('TransactionUseCase + HoldingCalculator 統合テスト', () => {
       units: 3000,
       amount: 3600,
       navValue: 12000,
+      incomeTax: 60,
+      residentTax: 20,
     });
     expect(sale1Result.success).toBe(true);
 
@@ -163,6 +175,8 @@ describe('TransactionUseCase + HoldingCalculator 統合テスト', () => {
       units: 2000,
       amount: 2800,
       navValue: 14000,
+      incomeTax: 30,
+      residentTax: 10,
     });
     expect(sale2Result.success).toBe(true);
 
@@ -176,6 +190,8 @@ describe('TransactionUseCase + HoldingCalculator 統合テスト', () => {
 
     // 累計売却額も正しい（3600 + 2800 = 6400円）
     expect(holding?.totalSaleAmount).toBe(6400);
+    // 2回の売却で記録した税額（100円 + 20円）がポートフォリオ集計へ反映される。
+    expect(calculatePortfolio([], transactions).totalTax).toBe(120);
   });
 
   it('全口数売却後はnullが返る', () => {
@@ -192,6 +208,8 @@ describe('TransactionUseCase + HoldingCalculator 統合テスト', () => {
         amount: 10000,
         navValue: 10000,
         units: 10000,
+        incomeTax: null,
+        residentTax: null,
         recurringPurchaseId: null,
         idempotencyKey: null,
         createdAt: '2024-01-10T00:00:00.000Z',
@@ -207,6 +225,8 @@ describe('TransactionUseCase + HoldingCalculator 統合テスト', () => {
       units: 10000,
       amount: 12000,
       navValue: 12000,
+      incomeTax: 300,
+      residentTax: 100,
     });
     expect(saleResult.success).toBe(true);
 

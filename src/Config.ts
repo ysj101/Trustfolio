@@ -26,6 +26,8 @@ export const SHEET_HEADERS = {
     'amount',
     'navValue',
     'units',
+    'incomeTax',
+    'residentTax',
     'recurringPurchaseId',
     'idempotencyKey',
     'createdAt',

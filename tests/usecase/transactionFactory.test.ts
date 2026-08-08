@@ -34,6 +34,8 @@ describe('buildTransaction', () => {
       amount: 100000,
       navValue: 15000,
       units: 66667,
+      incomeTax: null,
+      residentTax: null,
     });
 
     expect(transaction.id).toMatch(ULID_PATTERN);
@@ -47,10 +49,10 @@ describe('buildTransaction', () => {
     expect(transaction.units).toBe(66667);
   });
 
-  it('recurringPurchaseId と idempotencyKey を省略した場合は null になる（スポット取引の既存挙動）', () => {
-    // 前提: スポット売却として、積立関連フィールドを渡さない
-    // 事前条件: なし
-    // 検証: recurringPurchaseId / idempotencyKey がともに null で設定される
+  it('売却税額と積立関連フィールドを正しく伝搬する', () => {
+    // 前提: 所得税と住民税を記録したスポット売却を生成する
+    // 事前条件: 積立関連フィールドは省略する
+    // 検証: 税額は入力値を保持し、積立関連フィールドはnullになる
     const transaction = buildTransaction({
       type: 'REDEMPTION',
       fundId: 'fund-001',
@@ -58,8 +60,12 @@ describe('buildTransaction', () => {
       amount: 50000,
       navValue: 15100,
       units: 33113,
+      incomeTax: 1532,
+      residentTax: 500,
     });
 
+    expect(transaction.incomeTax).toBe(1532);
+    expect(transaction.residentTax).toBe(500);
     expect(transaction.recurringPurchaseId).toBeNull();
     expect(transaction.idempotencyKey).toBeNull();
   });
@@ -75,6 +81,8 @@ describe('buildTransaction', () => {
       amount: 120000,
       navValue: 15000,
       units: 80000,
+      incomeTax: null,
+      residentTax: null,
       id: '01HV8ZQJ0X3YT5N2K4M6P8R9SA',
       createdAt: '2024-01-15T09:30:00.000Z',
     });
@@ -94,6 +102,8 @@ describe('buildTransaction', () => {
       amount: 30000,
       navValue: 15000,
       units: 20000,
+      incomeTax: null,
+      residentTax: null,
       recurringPurchaseId: 'recurring-001',
       idempotencyKey: 'recurring-001_2024-03-01',
     });
@@ -113,6 +123,8 @@ describe('buildTransaction', () => {
       amount: 100000,
       navValue: 15000,
       units: 66667,
+      incomeTax: null,
+      residentTax: null,
     };
 
     const first = buildTransaction(input);

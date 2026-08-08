@@ -4,6 +4,7 @@ import { fail, propagateFailure } from '../domain/result';
 import {
   isValidIsoDate,
   validateNonEmptyString,
+  validateNonNegativeNumber,
   validatePositiveNumber,
 } from '../domain/validators';
 import type { FundRepository } from '../repository/FundRepository';
@@ -23,8 +24,9 @@ export type TransactionUseCase = {
   }) => Result<Transaction>;
   /**
    * 売却取引を登録する。
-   * 入力されたunitsは正の値で受け取り、内部で負の値に変換して保存する。
+   * 入力されたunitsは正の値で受け取り、そのまま保存し、計算時にtypeで減算する。
    * amountは手動入力された売却金額を使用する。
+   * incomeTaxとresidentTaxは0以上の有限数を必須とし、0円も記録値として保持する。
    */
   executeSaleTransaction: (input: {
     fundId: string;
@@ -32,6 +34,8 @@ export type TransactionUseCase = {
     units: number;
     amount: number;
     navValue: number;
+    incomeTax: number;
+    residentTax: number;
   }) => Result<Transaction>;
   /**
    * 既存のスポット購入履歴を更新する。
@@ -48,6 +52,8 @@ export type TransactionUseCase = {
    * 既存の売却取引を更新する。
    * 全項目を指定して更新する（作成日時は保持する）。
    * amountは手動入力された売却金額を使用する。
+   * incomeTaxとresidentTaxは0以上の有限数を必須とし、既存の税額未記録取引を
+   * 更新する場合も利用者による明示入力を要求する。
    */
   updateSaleTransaction: (input: {
     id: string;
@@ -56,6 +62,8 @@ export type TransactionUseCase = {
     units: number;
     amount: number;
     navValue: number;
+    incomeTax: number;
+    residentTax: number;
   }) => Result<Transaction>;
   /**
    * 既存のスポット購入または売却取引を削除する。
@@ -126,6 +134,8 @@ export function createTransactionUseCase(
         amount,
         navValue,
         units: unitsResult.value,
+        incomeTax: null,
+        residentTax: null,
       });
 
       const createResult = transactionRepository.createTransaction(transaction);
@@ -141,13 +151,16 @@ export function createTransactionUseCase(
       units: number;
       amount: number;
       navValue: number;
+      incomeTax: number;
+      residentTax: number;
     }): Result<Transaction> => {
       const validateResult = validateSaleTransactionInput(input);
       if (!validateResult.success) {
         return validateResult;
       }
 
-      const { fundId, date, units, amount, navValue } = validateResult.value;
+      const { fundId, date, units, amount, navValue, incomeTax, residentTax } =
+        validateResult.value;
 
       // 銘柄の存在確認
       const fundResult = assertFundExists(fundRepository, fundId);
@@ -170,6 +183,8 @@ export function createTransactionUseCase(
         amount,
         navValue,
         units,
+        incomeTax,
+        residentTax,
       });
 
       // 新しい売却取引を含めて、全期間で保有口数がマイナスにならないことを検証
@@ -237,6 +252,8 @@ export function createTransactionUseCase(
         amount,
         navValue,
         units: unitsResult.value,
+        incomeTax: null,
+        residentTax: null,
         id: existingResult.value.id,
         createdAt: existingResult.value.createdAt,
       });
@@ -255,6 +272,8 @@ export function createTransactionUseCase(
       units: number;
       amount: number;
       navValue: number;
+      incomeTax: number;
+      residentTax: number;
     }): Result<Transaction> => {
       const idResult = validateNonEmptyString(input.id, '取引IDが不正です。', 'id');
       if (!idResult.success) {
@@ -268,7 +287,8 @@ export function createTransactionUseCase(
         return validateResult;
       }
 
-      const { fundId, date, units, amount, navValue } = validateResult.value;
+      const { fundId, date, units, amount, navValue, incomeTax, residentTax } =
+        validateResult.value;
 
       const existingResult = assertEntityFound(
         transactionRepository.findById(validId, fundId),
@@ -301,6 +321,8 @@ export function createTransactionUseCase(
         amount,
         navValue,
         units,
+        incomeTax,
+        residentTax,
         id: existingResult.value.id,
         createdAt: existingResult.value.createdAt,
       });
@@ -490,14 +512,18 @@ function validateSaleTransactionInput(input: {
   units: number;
   amount: number;
   navValue: number;
+  incomeTax: number;
+  residentTax: number;
 }): Result<{
   fundId: string;
   date: string;
   units: number;
   amount: number;
   navValue: number;
+  incomeTax: number;
+  residentTax: number;
 }> {
-  const { fundId, date, units, amount, navValue } = input;
+  const { fundId, date, units, amount, navValue, incomeTax, residentTax } = input;
 
   const fundAndDateResult = validateFundAndDate({ fundId, date });
   if (!fundAndDateResult.success) {
@@ -527,6 +553,22 @@ function validateSaleTransactionInput(input: {
   if (!navValueResult.success) {
     return navValueResult;
   }
+  const incomeTaxResult = validateNonNegativeNumber(
+    incomeTax,
+    '所得税は0以上の有限数で入力してください。',
+    'incomeTax'
+  );
+  if (!incomeTaxResult.success) {
+    return incomeTaxResult;
+  }
+  const residentTaxResult = validateNonNegativeNumber(
+    residentTax,
+    '住民税は0以上の有限数で入力してください。',
+    'residentTax'
+  );
+  if (!residentTaxResult.success) {
+    return residentTaxResult;
+  }
 
   // 各入力バリデータの検証済み戻り値(.value)を集約して返す（元の入力変数は使い続けない）。
   // fundId・date は validateFundAndDate の検証済み value をそのまま展開する。
@@ -537,6 +579,8 @@ function validateSaleTransactionInput(input: {
       units: unitsResult.value,
       amount: amountResult.value,
       navValue: navValueResult.value,
+      incomeTax: incomeTaxResult.value,
+      residentTax: residentTaxResult.value,
     },
   };
 }
