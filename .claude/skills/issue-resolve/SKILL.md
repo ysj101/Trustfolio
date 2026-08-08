@@ -208,8 +208,9 @@ gh pr merge <PR番号> --squash --delete-branch
 1. デプロイ対象がマージコミットであることを確認する:
    ```bash
    git log --oneline -1
+   gh pr view <PR番号> --json mergeCommit --jq .mergeCommit.oid
    ```
-   - 出力が工程7で確認したマージコミット（`gh pr view` の `mergeCommit.oid` 先頭と一致）でなければデプロイせず、工程7の後処理からやり直す。
+   - 2つの出力（ローカル HEAD とマージコミット `mergeCommit.oid` の先頭）が一致しなければデプロイせず、工程7の後処理からやり直す。比較対象はセッション内の記憶に頼らず、上記コマンドでその場で再取得する。
 2. デプロイを実行する:
    ```bash
    pnpm push
