@@ -394,6 +394,8 @@ function processRecurringPurchase(
     amount: recurring.monthlyAmount,
     navValue: navValue.value,
     units: unitsResult.value,
+    incomeTax: null,
+    residentTax: null,
     recurringPurchaseId: recurring.id,
     idempotencyKey,
   });

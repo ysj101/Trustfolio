@@ -138,6 +138,8 @@ describe('TransactionUseCase', () => {
         amount: 10000,
         navValue: 10000,
         units: 10000,
+        incomeTax: null,
+        residentTax: null,
         recurringPurchaseId: null,
         idempotencyKey: null,
         createdAt: '2024-01-10T00:00:00.000Z',
@@ -150,6 +152,8 @@ describe('TransactionUseCase', () => {
       units: 15000,
       amount: 15000,
       navValue: 10000,
+      incomeTax: 0,
+      residentTax: 0,
     });
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -170,6 +174,8 @@ describe('TransactionUseCase', () => {
       units: 1000,
       amount: 1000,
       navValue: 1000,
+      incomeTax: 0,
+      residentTax: 0,
     });
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -199,6 +205,8 @@ describe('TransactionUseCase', () => {
         amount: 10000,
         navValue: 10000,
         units: 10000,
+        incomeTax: null,
+        residentTax: null,
         recurringPurchaseId: null,
         idempotencyKey: null,
         createdAt: '2024-01-10T00:00:00.000Z',
@@ -211,11 +219,157 @@ describe('TransactionUseCase', () => {
       units: 5000,
       amount: 6000,
       navValue: 12000,
+      incomeTax: 150,
+      residentTax: 50,
     });
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.value.units).toBe(5000);
       expect(result.value.amount).toBe(6000);
+      expect(result.value.incomeTax).toBe(150);
+      expect(result.value.residentTax).toBe(50);
+    }
+  });
+
+  it('売却登録では所得税・住民税の0円を許容する', () => {
+    // 前提: 税額が発生しなかった売却を登録する
+    // 事前条件: 売却口数を上回る購入取引が存在する
+    // 検証: 両税額が0のまま売却取引へ保存される
+    const fundRepository = createFundRepository([
+      {
+        id: '国内株式ファンド',
+        name: '国内株式インデックス',
+        rakutenFundId: null,
+        settlementBusinessDays: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+    ]);
+    const transactionRepository = createTransactionRepository([
+      {
+        id: '購入-001',
+        fundId: '国内株式ファンド',
+        type: 'SPOT_PURCHASE',
+        date: '2026-01-10',
+        amount: 100000,
+        navValue: 10000,
+        units: 100000,
+        incomeTax: null,
+        residentTax: null,
+        recurringPurchaseId: null,
+        idempotencyKey: null,
+        createdAt: '2026-01-10T00:00:00.000Z',
+      },
+    ]);
+    const result = createTransactionUseCase(
+      fundRepository,
+      transactionRepository
+    ).executeSaleTransaction({
+      fundId: '国内株式ファンド',
+      date: '2026-02-01',
+      units: 10000,
+      amount: 12000,
+      navValue: 12000,
+      incomeTax: 0,
+      residentTax: 0,
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.value.incomeTax).toBe(0);
+      expect(result.value.residentTax).toBe(0);
+    }
+  });
+
+  it('売却登録では所得税・住民税の負値を拒否する', () => {
+    // 前提: いずれかの税額に負値が入力される
+    // 事前条件: 税額以外の売却入力は妥当である
+    // 検証: 該当する税額フィールドのvalidationエラーを返す
+    const fundRepository = createFundRepository([]);
+    const useCase = createTransactionUseCase(fundRepository, createTransactionRepository([]));
+    const inputs = [
+      { incomeTax: -1, residentTax: 0, expectedField: 'incomeTax' },
+      { incomeTax: 0, residentTax: -1, expectedField: 'residentTax' },
+    ];
+
+    inputs.forEach(({ incomeTax, residentTax, expectedField }) => {
+      const result = useCase.executeSaleTransaction({
+        fundId: '国内株式ファンド',
+        date: '2026-02-01',
+        units: 10000,
+        amount: 12000,
+        navValue: 12000,
+        incomeTax,
+        residentTax,
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.type).toBe('validation');
+        expect(result.error.field).toBe(expectedField);
+      }
+    });
+  });
+
+  it('売却更新では所得税・住民税を新しい値に更新する', () => {
+    // 前提: 税額未記録の売却取引が存在する
+    // 事前条件: 同じ銘柄に十分な購入口数が存在する
+    // 検証: 更新後の売却取引に所得税と住民税が別々に保存される
+    const fundRepository = createFundRepository([
+      {
+        id: '先進国株式ファンド',
+        name: '先進国株式インデックス',
+        rakutenFundId: null,
+        settlementBusinessDays: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+    ]);
+    const transactionRepository = createTransactionRepository([
+      {
+        id: '購入-更新用',
+        fundId: '先進国株式ファンド',
+        type: 'SPOT_PURCHASE',
+        date: '2026-01-01',
+        amount: 100000,
+        navValue: 10000,
+        units: 100000,
+        incomeTax: null,
+        residentTax: null,
+        recurringPurchaseId: null,
+        idempotencyKey: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        id: '売却-更新用',
+        fundId: '先進国株式ファンド',
+        type: 'REDEMPTION',
+        date: '2026-02-01',
+        amount: 12000,
+        navValue: 12000,
+        units: 10000,
+        incomeTax: null,
+        residentTax: null,
+        recurringPurchaseId: null,
+        idempotencyKey: null,
+        createdAt: '2026-02-01T00:00:00.000Z',
+      },
+    ]);
+    const result = createTransactionUseCase(
+      fundRepository,
+      transactionRepository
+    ).updateSaleTransaction({
+      id: '売却-更新用',
+      fundId: '先進国株式ファンド',
+      date: '2026-02-01',
+      units: 10000,
+      amount: 12000,
+      navValue: 12000,
+      incomeTax: 1532,
+      residentTax: 500,
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.value.incomeTax).toBe(1532);
+      expect(result.value.residentTax).toBe(500);
     }
   });
 
@@ -241,6 +395,8 @@ describe('TransactionUseCase', () => {
         amount: 10000,
         navValue: 10000,
         units: 10000,
+        incomeTax: null,
+        residentTax: null,
         recurringPurchaseId: 'rec-1',
         idempotencyKey: 'rec-1_2024-01-10',
         createdAt: '2024-01-10T00:00:00.000Z',
@@ -282,6 +438,8 @@ describe('TransactionUseCase', () => {
         amount: 10000,
         navValue: 10000,
         units: 10000,
+        incomeTax: null,
+        residentTax: null,
         recurringPurchaseId: 'rec-1',
         idempotencyKey: 'rec-1_2024-01-10',
         createdAt: '2024-01-10T00:00:00.000Z',
@@ -345,6 +503,8 @@ describe('TransactionUseCase', () => {
         amount: 10000,
         navValue: 10000,
         units: 10000,
+        incomeTax: null,
+        residentTax: null,
         recurringPurchaseId: null,
         idempotencyKey: null,
         createdAt: '2024-01-10T00:00:00.000Z',
@@ -386,6 +546,8 @@ describe('TransactionUseCase', () => {
       units: 10000,
       amount: 10000,
       navValue: 10000,
+      incomeTax: 0,
+      residentTax: 0,
     });
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -415,6 +577,8 @@ describe('TransactionUseCase', () => {
         amount: 10000,
         navValue: 10000,
         units: 10000,
+        incomeTax: null,
+        residentTax: null,
         recurringPurchaseId: null,
         idempotencyKey: null,
         createdAt: '2024-01-10T00:00:00.000Z',
@@ -428,6 +592,8 @@ describe('TransactionUseCase', () => {
       units: 10000,
       amount: 10000,
       navValue: 10000,
+      incomeTax: 0,
+      residentTax: 0,
     });
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -457,6 +623,8 @@ describe('TransactionUseCase', () => {
         amount: 10000,
         navValue: 10000,
         units: 10000,
+        incomeTax: null,
+        residentTax: null,
         recurringPurchaseId: null,
         idempotencyKey: null,
         createdAt: '2024-01-10T00:00:00.000Z',

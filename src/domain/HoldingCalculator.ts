@@ -135,6 +135,9 @@ export function calculatePortfolio(
   totalInvestment: number;
   totalSaleAmount: number;
   realizedGain: number;
+  totalTax: number;
+  realizedGainAfterTax: number;
+  taxUnrecordedSaleCount: number;
   remainingInvestment: number;
   totalCurrentValue: number | null;
   totalUnrealizedGain: number | null;
@@ -156,6 +159,26 @@ export function calculatePortfolio(
 
   // 実現損益と売却金額の計算
   const { realizedGain, totalSaleAmount } = calculateRealizedGain(allTransactions);
+  // 税額未記録のnullは0円と同一視せず、記録済みの数値だけを合算する。
+  // 未記録の売却件数（taxUnrecordedSaleCount）を併せて算出し、
+  // 「税引後実現損益が完全な値かどうか」を表示側で判断できるようにする。
+  let totalTaxRaw = 0;
+  let taxUnrecordedSaleCount = 0;
+  allTransactions.forEach((transaction) => {
+    if (transaction.type !== 'REDEMPTION') {
+      return;
+    }
+    if (transaction.incomeTax === null || transaction.residentTax === null) {
+      taxUnrecordedSaleCount += 1;
+    }
+    totalTaxRaw +=
+      (transaction.incomeTax !== null ? transaction.incomeTax : 0) +
+      (transaction.residentTax !== null ? transaction.residentTax : 0);
+  });
+  const totalTax = Math.round(totalTaxRaw);
+  // 丸め後の totalTax を控除することで「realizedGainAfterTax = realizedGain - totalTax」の
+  // 契約を小数税額の場合でも厳密に成立させる（realizedGain は calculateRealizedGain で丸め済み）。
+  const realizedGainAfterTax = realizedGain - totalTax;
   // 各holdingの残存投資額（移動平均簿価）を合算
   const remainingInvestment = holdings.reduce((sum, h) => sum + h.remainingInvestment, 0);
 
@@ -164,6 +187,9 @@ export function calculatePortfolio(
       totalInvestment,
       totalSaleAmount,
       realizedGain,
+      totalTax,
+      realizedGainAfterTax,
+      taxUnrecordedSaleCount,
       remainingInvestment,
       totalCurrentValue: null,
       totalUnrealizedGain: null,
@@ -179,7 +205,10 @@ export function calculatePortfolio(
       ? Math.round((totalUnrealizedGain / remainingInvestment) * 10000) / 10000
       : 0;
 
-  const totalGain = realizedGain + totalUnrealizedGain;
+  // 総損益は記録済み税額を控除した実現損益（realizedGainAfterTax）をベースにする。
+  // issue #20「パフォーマンス計算に税金を反映」の要件に対応し、税引前の realizedGain は
+  // 参考情報としてフィールドに残す。
+  const totalGain = realizedGainAfterTax + totalUnrealizedGain;
   const totalGainRate =
     totalInvestment > 0 ? Math.round((totalGain / totalInvestment) * 10000) / 10000 : 0;
 
@@ -187,6 +216,9 @@ export function calculatePortfolio(
     totalInvestment,
     totalSaleAmount,
     realizedGain,
+    totalTax,
+    realizedGainAfterTax,
+    taxUnrecordedSaleCount,
     remainingInvestment,
     totalCurrentValue,
     totalUnrealizedGain,

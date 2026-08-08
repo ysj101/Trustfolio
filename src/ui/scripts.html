@@ -23,6 +23,8 @@
     const transactionAmountInput = document.getElementById('transactionAmount');
     const transactionUnitsInput = document.getElementById('transactionUnits');
     const transactionSaleAmountInput = document.getElementById('transactionSaleAmount');
+    const transactionIncomeTaxInput = document.getElementById('transactionIncomeTax');
+    const transactionResidentTaxInput = document.getElementById('transactionResidentTax');
     const transactionNavValue = document.getElementById('transactionNavValue');
     const transactionCalculatedLabel = document.getElementById('transactionCalculatedLabel');
     const transactionCalculatedValue = document.getElementById('transactionCalculatedValue');
@@ -142,10 +144,18 @@
     }
 
     function resetTransactionForm() {
-      // テキスト系入力欄のクリアは共通ヘルパーへ委譲し、基準価額/計算値の表示リセットのみ残す。
+      // テキスト系入力欄のクリアは共通ヘルパーへ委譲し、税額欄の初期値（0）復元と
+      // 基準価額/計算値の表示リセットのみ手動で残す（税額欄は空文字ではなく0が初期値のため）。
       window.TrustfolioUi.resetFormFields({
-        textInputs: [transactionDateInput, transactionAmountInput, transactionUnitsInput],
+        textInputs: [
+          transactionDateInput,
+          transactionAmountInput,
+          transactionUnitsInput,
+          transactionSaleAmountInput,
+        ],
       });
+      transactionIncomeTaxInput.value = '0';
+      transactionResidentTaxInput.value = '0';
       transactionNavValue.textContent = '-';
       transactionNavValue.className = calculatedValueMutedClass;
       delete transactionNavValue.dataset.value;
@@ -186,6 +196,11 @@
           .dispatchEvent(new Event('change'));
         transactionUnitsInput.value = String(Math.abs(transaction.units));
         transactionSaleAmountInput.value = String(transaction.amount);
+        // 既存の税額未記録取引（null）は、更新時に意図せず0円記録へ変わらないよう空欄で復元する。
+        transactionIncomeTaxInput.value =
+          transaction.incomeTax === null ? '' : String(transaction.incomeTax);
+        transactionResidentTaxInput.value =
+          transaction.residentTax === null ? '' : String(transaction.residentTax);
         transactionSubmitButton.textContent = '売却内容を更新';
       } else {
         // スポット購入の編集
@@ -645,8 +660,12 @@
           transactionAmountInput.required = true;
           transactionUnitsInput.required = false;
           transactionSaleAmountInput.required = false;
+          transactionIncomeTaxInput.required = false;
+          transactionResidentTaxInput.required = false;
           transactionUnitsInput.value = '';
           transactionSaleAmountInput.value = '';
+          transactionIncomeTaxInput.value = '0';
+          transactionResidentTaxInput.value = '0';
         } else {
           // 売却モード
           purchaseFields.classList.add('hidden');
@@ -657,6 +676,8 @@
           transactionAmountInput.required = false;
           transactionUnitsInput.required = true;
           transactionSaleAmountInput.required = true;
+          transactionIncomeTaxInput.required = true;
+          transactionResidentTaxInput.required = true;
           transactionAmountInput.value = '';
         }
         updateCalculatedValue();
@@ -818,6 +839,21 @@
         // 売却口数と売却金額から取引を実行
         const units = Number(transactionUnitsInput.value);
         const amount = Number(transactionSaleAmountInput.value);
+        const incomeTaxText = transactionIncomeTaxInput.value.trim();
+        const residentTaxText = transactionResidentTaxInput.value.trim();
+        const incomeTax = Number(incomeTaxText);
+        const residentTax = Number(residentTaxText);
+        if (
+          incomeTaxText === '' ||
+          residentTaxText === '' ||
+          !Number.isFinite(incomeTax) ||
+          !Number.isFinite(residentTax) ||
+          incomeTax < 0 ||
+          residentTax < 0
+        ) {
+          setMessage('所得税と住民税は0以上の数値で入力してください。', 'error');
+          return;
+        }
         setMessage(isEditing ? '売却を更新中...' : '売却登録中...', null);
         setLoading(true);
         try {
@@ -831,6 +867,8 @@
                   units,
                   amount,
                   navValue,
+                  incomeTax,
+                  residentTax,
                 }
               : {
                   action: 'executeSale',
@@ -839,6 +877,8 @@
                   units,
                   amount,
                   navValue,
+                  incomeTax,
+                  residentTax,
                 }
           );
           if (!response.success) {

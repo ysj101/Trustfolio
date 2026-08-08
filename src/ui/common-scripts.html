@@ -334,6 +334,19 @@
       detail.textContent = `${transaction.amount.toLocaleString()}円 / ${unitsDisplay} / 基準価額: ${navDisplay}`;
       contentChildren.push(detail);
 
+      const hasRecordedTax =
+        transaction.type === 'REDEMPTION' &&
+        (transaction.incomeTax !== null || transaction.residentTax !== null);
+      if (hasRecordedTax) {
+        const taxDetail = document.createElement('span');
+        taxDetail.className = options.detailClass;
+        // null（税額未記録）は0円と区別して「未記録」と表示する。金額表記は同一明細行の
+        // 既存表示（N,NNN円）と揃えるため formatCurrency を再利用する。
+        const formatTax = (value) => (value === null ? '未記録' : formatCurrency(value));
+        taxDetail.textContent = `税: 所得税 ${formatTax(transaction.incomeTax)} ／ 住民税 ${formatTax(transaction.residentTax)}`;
+        contentChildren.push(taxDetail);
+      }
+
       return createListItem({
         itemClass: options.itemClass,
         contentClass: options.contentClass,

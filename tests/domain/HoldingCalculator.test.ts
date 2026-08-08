@@ -32,6 +32,8 @@ describe('HoldingCalculator', () => {
         amount: 10000,
         navValue: 10000,
         units: 10000,
+        incomeTax: null,
+        residentTax: null,
         recurringPurchaseId: null,
         idempotencyKey: null,
         createdAt: '2024-01-10T00:00:00.000Z',
@@ -44,6 +46,8 @@ describe('HoldingCalculator', () => {
         amount: 11000,
         navValue: 11000,
         units: 10000,
+        incomeTax: null,
+        residentTax: null,
         recurringPurchaseId: null,
         idempotencyKey: null,
         createdAt: '2024-01-20T00:00:00.000Z',
@@ -66,6 +70,8 @@ describe('HoldingCalculator', () => {
         amount: 20000,
         navValue: 10000,
         units: 20000,
+        incomeTax: null,
+        residentTax: null,
         recurringPurchaseId: null,
         idempotencyKey: null,
         createdAt: '2024-01-10T00:00:00.000Z',
@@ -91,6 +97,8 @@ describe('HoldingCalculator', () => {
         amount: 10000,
         navValue: 10000,
         units: 10000,
+        incomeTax: null,
+        residentTax: null,
         recurringPurchaseId: null,
         idempotencyKey: null,
         createdAt: '2024-01-10T00:00:00.000Z',
@@ -103,6 +111,8 @@ describe('HoldingCalculator', () => {
         amount: 20000,
         navValue: 20000,
         units: 10000,
+        incomeTax: null,
+        residentTax: null,
         recurringPurchaseId: 'rec-1',
         idempotencyKey: 'rec-1_2024-02-10',
         createdAt: '2024-02-10T00:00:00.000Z',
@@ -115,6 +125,8 @@ describe('HoldingCalculator', () => {
         amount: 10000,
         navValue: 20000,
         units: 5000,
+        incomeTax: 306,
+        residentTax: 100,
         recurringPurchaseId: null,
         idempotencyKey: null,
         createdAt: '2024-03-10T00:00:00.000Z',
@@ -150,6 +162,8 @@ describe('HoldingCalculator', () => {
         amount: 10000,
         navValue: 10000,
         units: 10000,
+        incomeTax: null,
+        residentTax: null,
         recurringPurchaseId: null,
         idempotencyKey: null,
         createdAt: '2024-01-10T00:00:00.000Z',
@@ -162,6 +176,8 @@ describe('HoldingCalculator', () => {
         amount: 10000,
         navValue: 20000,
         units: 5000,
+        incomeTax: null,
+        residentTax: null,
         recurringPurchaseId: null,
         idempotencyKey: null,
         createdAt: '2024-02-10T00:00:00.000Z',
@@ -174,6 +190,8 @@ describe('HoldingCalculator', () => {
         amount: 10000,
         navValue: 20000,
         units: 5000,
+        incomeTax: null,
+        residentTax: null,
         recurringPurchaseId: null,
         idempotencyKey: null,
         createdAt: '2024-03-10T00:00:00.000Z',
@@ -214,6 +232,8 @@ describe('HoldingCalculator', () => {
         amount: 10000,
         navValue: 10000,
         units: 10000,
+        incomeTax: null,
+        residentTax: null,
         recurringPurchaseId: null,
         idempotencyKey: null,
         createdAt: '2024-01-10T00:00:00.000Z',
@@ -226,6 +246,8 @@ describe('HoldingCalculator', () => {
         amount: 3600,
         navValue: 12000,
         units: 3000,
+        incomeTax: null,
+        residentTax: null,
         recurringPurchaseId: null,
         idempotencyKey: null,
         createdAt: '2024-02-10T00:00:00.000Z',
@@ -238,6 +260,8 @@ describe('HoldingCalculator', () => {
         amount: 2800,
         navValue: 14000,
         units: 2000,
+        incomeTax: null,
+        residentTax: null,
         recurringPurchaseId: null,
         idempotencyKey: null,
         createdAt: '2024-03-10T00:00:00.000Z',
@@ -277,6 +301,8 @@ describe('HoldingCalculator', () => {
         amount: 10000,
         navValue: 10000,
         units: 10000,
+        incomeTax: null,
+        residentTax: null,
         recurringPurchaseId: null,
         idempotencyKey: null,
         createdAt: '2024-01-10T00:00:00.000Z',
@@ -289,6 +315,8 @@ describe('HoldingCalculator', () => {
         amount: 10000,
         navValue: 15000,
         units: 6667,
+        incomeTax: null,
+        residentTax: null,
         recurringPurchaseId: null,
         idempotencyKey: null,
         createdAt: '2024-02-10T00:00:00.000Z',
@@ -301,6 +329,8 @@ describe('HoldingCalculator', () => {
         amount: 6000,
         navValue: 12000,
         units: 5000,
+        incomeTax: null,
+        residentTax: null,
         recurringPurchaseId: null,
         idempotencyKey: null,
         createdAt: '2024-03-10T00:00:00.000Z',
@@ -323,6 +353,191 @@ describe('HoldingCalculator', () => {
     expect(result?.totalUnits).toBe(11667);
     expect(result?.remainingInvestment).toBe(14000);
     expect(result?.averageCost).toBe(12000);
+  });
+
+  it('記録済み税額だけを集計してポートフォリオの税引後実現損益を計算する', () => {
+    // 前提: 税額記録済みと税額未記録の売却取引が混在する
+    // 事前条件: nullは税額未記録であり、明示的な0円へ変換しない
+    // 検証: 記録済み税額だけがtotalTaxへ加算され、実現損益から控除される
+    const transactions: Transaction[] = [
+      {
+        id: '購入-税計算',
+        fundId: fund.id,
+        type: 'SPOT_PURCHASE',
+        date: '2026-01-01',
+        amount: 100000,
+        navValue: 10000,
+        units: 100000,
+        incomeTax: null,
+        residentTax: null,
+        recurringPurchaseId: null,
+        idempotencyKey: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        id: '売却-税記録済み',
+        fundId: fund.id,
+        type: 'REDEMPTION',
+        date: '2026-02-01',
+        amount: 12000,
+        navValue: 12000,
+        units: 10000,
+        incomeTax: 306,
+        residentTax: 100,
+        recurringPurchaseId: null,
+        idempotencyKey: null,
+        createdAt: '2026-02-01T00:00:00.000Z',
+      },
+      {
+        id: '売却-税未記録',
+        fundId: fund.id,
+        type: 'REDEMPTION',
+        date: '2026-03-01',
+        amount: 13000,
+        navValue: 13000,
+        units: 10000,
+        incomeTax: null,
+        residentTax: null,
+        recurringPurchaseId: null,
+        idempotencyKey: null,
+        createdAt: '2026-03-01T00:00:00.000Z',
+      },
+    ];
+    const summary = calculatePortfolio([], transactions);
+
+    expect(summary.totalTax).toBe(406);
+    // 実現損益は (12,000 - 10,000) + (13,000 - 10,000) = 5,000円。
+    expect(summary.realizedGainAfterTax).toBe(4594);
+    // 税額未記録の売却1件がカウントされ、税引後実現損益が参考値であると判別できる
+    expect(summary.taxUnrecordedSaleCount).toBe(1);
+  });
+
+  it('全売却の税額が記録済みの場合は税未記録件数が0になる', () => {
+    // 前提: 売却取引の税額（0円を含む）がすべて記録されている
+    // 事前条件: 明示的に記録された0円は「未記録」と区別される
+    // 検証: taxUnrecordedSaleCountが0になり、税引後実現損益が完全な値として扱える
+    const transactions: Transaction[] = [
+      {
+        id: '購入-税0円検証',
+        fundId: fund.id,
+        type: 'SPOT_PURCHASE',
+        date: '2026-01-01',
+        amount: 100000,
+        navValue: 10000,
+        units: 100000,
+        incomeTax: null,
+        residentTax: null,
+        recurringPurchaseId: null,
+        idempotencyKey: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        id: '売却-税0円記録済み',
+        fundId: fund.id,
+        type: 'REDEMPTION',
+        date: '2026-02-01',
+        amount: 12000,
+        navValue: 12000,
+        units: 10000,
+        incomeTax: 0,
+        residentTax: 0,
+        recurringPurchaseId: null,
+        idempotencyKey: null,
+        createdAt: '2026-02-01T00:00:00.000Z',
+      },
+    ];
+    const summary = calculatePortfolio([], transactions);
+
+    expect(summary.totalTax).toBe(0);
+    expect(summary.taxUnrecordedSaleCount).toBe(0);
+    // 実現損益 2,000円 - 税0円 = 2,000円
+    expect(summary.realizedGainAfterTax).toBe(2000);
+  });
+
+  it('小数の税額でも税引後実現損益は丸め後の税額合計との差で計算される', () => {
+    // 前提: 小数の税額（0.25円 + 0.25円 = 0.5円）が記録された売却がある
+    // 事前条件: 税額は「0以上の有限数」であり小数も許容される
+    // 検証: totalTaxは四捨五入（0.5→1円）され、realizedGainAfterTax = realizedGain - totalTax が厳密に成立する
+    const transactions: Transaction[] = [
+      {
+        id: '購入-小数税額検証',
+        fundId: fund.id,
+        type: 'SPOT_PURCHASE',
+        date: '2026-01-01',
+        amount: 100000,
+        navValue: 10000,
+        units: 100000,
+        incomeTax: null,
+        residentTax: null,
+        recurringPurchaseId: null,
+        idempotencyKey: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        id: '売却-小数税額',
+        fundId: fund.id,
+        type: 'REDEMPTION',
+        date: '2026-02-01',
+        amount: 12000,
+        navValue: 12000,
+        units: 10000,
+        incomeTax: 0.25,
+        residentTax: 0.25,
+        recurringPurchaseId: null,
+        idempotencyKey: null,
+        createdAt: '2026-02-01T00:00:00.000Z',
+      },
+    ];
+    const summary = calculatePortfolio([], transactions);
+
+    // 0.25 + 0.25 = 0.5円 → 四捨五入で1円
+    expect(summary.totalTax).toBe(1);
+    // 実現損益2,000円 - 丸め後税額1円 = 1,999円（丸め前0.5円を控除した1,999.5円ではない）
+    expect(summary.realizedGainAfterTax).toBe(1999);
+    expect(summary.realizedGainAfterTax).toBe(summary.realizedGain - summary.totalTax);
+  });
+
+  it('片方の税額だけが未記録の売却も税未記録件数に数える', () => {
+    // 前提: incomeTaxのみnull（未記録）でresidentTaxは記録済みの売却がある
+    // 事前条件: 片側でも未記録なら「税引後実現損益が完全な値でない」と判定する
+    // 検証: taxUnrecordedSaleCountが1になり、記録済み側の税額だけがtotalTaxへ加算される
+    const transactions: Transaction[] = [
+      {
+        id: '購入-片側未記録検証',
+        fundId: fund.id,
+        type: 'SPOT_PURCHASE',
+        date: '2026-01-01',
+        amount: 100000,
+        navValue: 10000,
+        units: 100000,
+        incomeTax: null,
+        residentTax: null,
+        recurringPurchaseId: null,
+        idempotencyKey: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        id: '売却-住民税のみ記録',
+        fundId: fund.id,
+        type: 'REDEMPTION',
+        date: '2026-02-01',
+        amount: 12000,
+        navValue: 12000,
+        units: 10000,
+        incomeTax: null,
+        residentTax: 500,
+        recurringPurchaseId: null,
+        idempotencyKey: null,
+        createdAt: '2026-02-01T00:00:00.000Z',
+      },
+    ];
+    const summary = calculatePortfolio([], transactions);
+
+    // 記録済みの住民税500円だけが合算される
+    expect(summary.totalTax).toBe(500);
+    expect(summary.taxUnrecordedSaleCount).toBe(1);
+    // 実現損益 2,000円 - 記録済み税額500円 = 1,500円（参考値）
+    expect(summary.realizedGainAfterTax).toBe(1500);
   });
 });
 
@@ -364,7 +579,7 @@ describe('PortfolioCalculator', () => {
     expect(summary.totalGain).toBeNull();
   });
 
-  it('実現損益と未実現損益を合算して総損益を計算する', () => {
+  it('税引後実現損益と未実現損益を合算して総損益を計算する', () => {
     // 前提: 実現損益と未実現損益が発生している
     // 事前条件: 購入と売却の取引履歴を用意する
     // 検証: totalGainとtotalGainRateが計算される
@@ -394,6 +609,8 @@ describe('PortfolioCalculator', () => {
         amount: 10000,
         navValue: 10000,
         units: 10000,
+        incomeTax: null,
+        residentTax: null,
         recurringPurchaseId: null,
         idempotencyKey: null,
         createdAt: '2024-01-10T00:00:00.000Z',
@@ -406,6 +623,8 @@ describe('PortfolioCalculator', () => {
         amount: 20000,
         navValue: 20000,
         units: 10000,
+        incomeTax: null,
+        residentTax: null,
         recurringPurchaseId: 'rec-1',
         idempotencyKey: 'rec-1_2024-02-10',
         createdAt: '2024-02-10T00:00:00.000Z',
@@ -418,6 +637,8 @@ describe('PortfolioCalculator', () => {
         amount: 10000,
         navValue: 20000,
         units: 5000,
+        incomeTax: 306,
+        residentTax: 100,
         recurringPurchaseId: null,
         idempotencyKey: null,
         createdAt: '2024-03-10T00:00:00.000Z',
@@ -426,11 +647,13 @@ describe('PortfolioCalculator', () => {
     const summary = calculatePortfolio(holdings, allTransactions);
     // 移動平均法: 売却原価=5,000×(30,000/20,000)=7,500、実現損益=10,000-7,500=2,500
     expect(summary.realizedGain).toBe(2500);
+    expect(summary.totalTax).toBe(406);
+    expect(summary.realizedGainAfterTax).toBe(2094);
     // remainingInvestment=22,500（holdings合算）、currentValue=22,500 → 未実現損益=0
     expect(summary.totalUnrealizedGain).toBe(0);
-    // 総損益 = 実現損益2,500 + 未実現損益0 = 2,500
-    expect(summary.totalGain).toBe(2500);
-    expect(summary.totalGainRate).toBe(0.0833);
+    // 総損益 = 税引後実現損益2,094 + 未実現損益0 = 2,094（記録済み税額406円を控除）
+    expect(summary.totalGain).toBe(2094);
+    expect(summary.totalGainRate).toBe(0.0698);
   });
 
   it('複数ファンドを保有している場合の実現損益が各ファンド独立で計算される', () => {
@@ -490,6 +713,8 @@ describe('PortfolioCalculator', () => {
         amount: 10000,
         navValue: 10000,
         units: 10000,
+        incomeTax: null,
+        residentTax: null,
         recurringPurchaseId: null,
         idempotencyKey: null,
         createdAt: '2024-01-10T00:00:00.000Z',
@@ -502,6 +727,8 @@ describe('PortfolioCalculator', () => {
         amount: 20000,
         navValue: 20000,
         units: 10000,
+        incomeTax: null,
+        residentTax: null,
         recurringPurchaseId: null,
         idempotencyKey: null,
         createdAt: '2024-01-15T00:00:00.000Z',
@@ -514,6 +741,8 @@ describe('PortfolioCalculator', () => {
         amount: 7500,
         navValue: 15000,
         units: 5000,
+        incomeTax: null,
+        residentTax: null,
         recurringPurchaseId: null,
         idempotencyKey: null,
         createdAt: '2024-02-10T00:00:00.000Z',

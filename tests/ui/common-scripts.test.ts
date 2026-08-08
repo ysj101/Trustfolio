@@ -485,7 +485,15 @@ describe('TrustfolioUi.createTransactionItem', () => {
     const ui = loadTrustfolioUi(documentMock, {});
 
     const li = ui.createTransactionItem(
-      { type: 'SPOT_PURCHASE', date: '2026-06-20', amount: 30000, units: 25000, navValue: 12000 },
+      {
+        type: 'SPOT_PURCHASE',
+        date: '2026-06-20',
+        amount: 30000,
+        units: 25000,
+        navValue: 12000,
+        incomeTax: null,
+        residentTax: null,
+      },
       BASE_OPTIONS
     );
 
@@ -509,7 +517,15 @@ describe('TrustfolioUi.createTransactionItem', () => {
     const ui = loadTrustfolioUi(documentMock, {});
 
     const li = ui.createTransactionItem(
-      { type: 'REDEMPTION', date: '2026-06-21', amount: 15000, units: -10000, navValue: 15000 },
+      {
+        type: 'REDEMPTION',
+        date: '2026-06-21',
+        amount: 15000,
+        units: -10000,
+        navValue: 15000,
+        incomeTax: null,
+        residentTax: null,
+      },
       BASE_OPTIONS
     );
 
@@ -519,6 +535,28 @@ describe('TrustfolioUi.createTransactionItem', () => {
     const detail = li.children[0]?.children[1];
     // units=-10000 → 絶対値 10,000口
     expect(detail?.textContent).toBe('15,000円 / 10,000口 / 基準価額: 15,000円');
+  });
+
+  it('売却の税額が記録済みの場合は所得税と住民税を別々に表示する', () => {
+    // 前提: 所得税と住民税が記録された売却取引がある
+    // 事前条件: 両税額は0以上の数値である
+    // 検証: 詳細行に「税: 所得税 X円 ／ 住民税 Y円」形式（同一明細行の金額表記と同じ N,NNN円 形式）で表示する
+    const documentMock = createDocumentMock();
+    const ui = loadTrustfolioUi(documentMock, {});
+    const li = ui.createTransactionItem(
+      {
+        type: 'REDEMPTION',
+        date: '2026-06-21',
+        amount: 15000,
+        units: 10000,
+        navValue: 15000,
+        incomeTax: 1532,
+        residentTax: 500,
+      },
+      BASE_OPTIONS
+    );
+
+    expect(li.children[0]?.children[2]?.textContent).toBe('税: 所得税 1,532円 ／ 住民税 500円');
   });
 
   it('SPOT_PURCHASE / REDEMPTION 以外は「積立購入」バッジを表示する', () => {
@@ -532,6 +570,8 @@ describe('TrustfolioUi.createTransactionItem', () => {
         amount: 10000,
         units: 8000,
         navValue: 12500,
+        incomeTax: null,
+        residentTax: null,
       },
       BASE_OPTIONS
     );

@@ -88,6 +88,37 @@ export function validatePositiveNumber(
 }
 
 /**
+ * 値が「0以上の有限数」であることを検証する共通バリデータ。
+ *
+ * 目的:
+ * - 売却時の所得税・住民税について、0円を許容しつつ、負値・NaN・±Infinityを
+ *   入力境界で即座に拒否する。
+ *
+ * 内容:
+ * - number型でない値・非有限数（NaN・±Infinity）・負値は validation エラーを返す。
+ * - 0以上の有限数はそのまま成功として返す（0円を正当な値として扱う）。
+ *
+ * 注意:
+ * - 0を拒否する {@link validatePositiveNumber} とは要件が異なるため、税額検証では
+ *   本関数を使用する。
+ *
+ * @param value - 検証対象の値。
+ * @param message - 失敗時に利用者へ提示するメッセージ。
+ * @param field - 失敗時に対象フィールドを示すキー。
+ * @returns 検証に成功すれば0以上の有限数を持つ {@link Result}。
+ */
+export function validateNonNegativeNumber(
+  value: unknown,
+  message: string,
+  field: string
+): Result<number> {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    return fail('validation', message, field);
+  }
+  return { success: true, value };
+}
+
+/**
  * 値が「積立設定の注文日（1〜28 の整数）」として妥当であることを検証する共通バリデータ。
  *
  * 目的:

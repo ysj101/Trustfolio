@@ -54,6 +54,8 @@ type ExecuteSaleRequest = {
   units: number;
   amount: number;
   navValue: number;
+  incomeTax: number;
+  residentTax: number;
 };
 
 type UpdateSpotPurchaseRequest = {
@@ -73,6 +75,8 @@ type UpdateSaleTransactionRequest = {
   units: number;
   amount: number;
   navValue: number;
+  incomeTax: number;
+  residentTax: number;
 };
 
 type DeleteSpotPurchaseRequest = {
@@ -222,6 +226,8 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
         units: request.units,
         amount: request.amount,
         navValue: request.navValue,
+        incomeTax: request.incomeTax,
+        residentTax: request.residentTax,
       });
     case 'updateSpotPurchase':
       return container.transactionUseCase.updateSpotPurchase({
@@ -239,6 +245,8 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
         units: request.units,
         amount: request.amount,
         navValue: request.navValue,
+        incomeTax: request.incomeTax,
+        residentTax: request.residentTax,
       });
     case 'deleteSpotPurchase':
       return container.transactionUseCase.deleteSpotPurchase(request.id, request.fundId);

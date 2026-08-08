@@ -234,6 +234,28 @@ export function createInMemorySheetRepository(
       if (rows.length === 0) {
         rows.push(Array.from(definition.headers));
       }
+
+      // 実物の SheetRepository.ensureHeader のうち「不足列の定義順位置への挿入（既存行は空セル）」と
+      // 「末尾の余剰列の削除」を簡略に再現する（既存列の移動・最終ヘッダー一致検証は再現しない）。
+      // 列追加を伴うスキーマ変更のテストで、「旧列構成のシートが読取前に
+      // 新列構成へ整形される」挙動を検証できるようにする。
+      const header = rows[0] ?? [];
+      definition.headers.forEach((expected, index) => {
+        if (header[index] !== expected) {
+          const currentIndex = header.indexOf(expected);
+          if (currentIndex === -1) {
+            rows.forEach((row, rowIndex) => {
+              row.splice(index, 0, rowIndex === 0 ? expected : '');
+            });
+          }
+        }
+      });
+      for (let i = header.length - 1; i >= definition.headers.length; i--) {
+        rows.forEach((row) => {
+          row.splice(i, 1);
+        });
+      }
+
       return ok({ name: definition.name, rows } as unknown as GoogleAppsScript.Spreadsheet.Sheet);
     },
     getRequiredSheet: (sheetName: string) => {

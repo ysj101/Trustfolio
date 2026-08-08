@@ -234,6 +234,20 @@ export function generateWeeklyReportEmailBody(report: WeeklyReport): string {
     portfolio.totalUnrealizedGainRate !== null
       ? formatRate(portfolio.totalUnrealizedGainRate)
       : '---';
+  // 総損益（税引後実現損益 + 未実現損益）。未実現損益ベースの既存行とは別に表示する。
+  const overallGainStr = portfolio.totalGain !== null ? formatNumber(portfolio.totalGain) : '---';
+  const overallGainRateStr =
+    portfolio.totalGainRate !== null ? formatRate(portfolio.totalGainRate) : '---';
+  const overallGainColor =
+    portfolio.totalGain !== null ? (portfolio.totalGain >= 0 ? '#1565c0' : '#c62828') : '#333';
+  const totalTaxStr = formatNumber(portfolio.totalTax);
+  const realizedGainAfterTaxStr = formatNumber(portfolio.realizedGainAfterTax);
+  const realizedGainAfterTaxColor = portfolio.realizedGainAfterTax >= 0 ? '#1565c0' : '#c62828';
+  // 税額未記録の売却がある場合、税引後実現損益は完全な税引後の値ではないため注記を付ける。
+  const taxUnrecordedNote =
+    portfolio.taxUnrecordedSaleCount > 0
+      ? `<br><span style="font-size: 11px; color: #999; font-weight: normal;">※税未記録の売却が${String(portfolio.taxUnrecordedSaleCount)}件あるため参考値</span>`
+      : '';
 
   // 損益の色を決定（全体）
   const totalGainColor =
@@ -290,14 +304,34 @@ export function generateWeeklyReportEmailBody(report: WeeklyReport): string {
             <td style="${STYLE.tdRight} color: ${totalValueChangeColor}; font-weight: bold; font-size: 12px;">${totalValueChangeStr}</td>
           </tr>
           <tr>
-            <td style="${STYLE.td}">損益</td>
+            <td style="${STYLE.td}">未実現損益</td>
             <td style="${STYLE.tdRight} color: ${totalGainColor}; font-weight: bold;">${totalGainStr}円</td>
             <td style="${STYLE.tdRight} color: ${totalGainChangeColor}; font-weight: bold; font-size: 12px;">${totalGainChangeStr}</td>
           </tr>
           <tr>
-            <td style="${STYLE.td}">損益率</td>
+            <td style="${STYLE.td}">未実現損益率</td>
             <td style="${STYLE.tdRight} color: ${totalGainColor}; font-weight: bold;">${totalGainRateStr}</td>
             <td style="${STYLE.tdRight} color: ${totalGainRateChangeColor}; font-weight: bold; font-size: 12px;">${totalGainRateChangeStr}</td>
+          </tr>
+          <tr>
+            <td style="${STYLE.td}">総損益（税引後実現＋未実現）</td>
+            <td style="${STYLE.tdRight} color: ${overallGainColor}; font-weight: bold;">${overallGainStr}円</td>
+            <td style="${STYLE.tdRight}">---</td>
+          </tr>
+          <tr>
+            <td style="${STYLE.td}">総損益率</td>
+            <td style="${STYLE.tdRight} color: ${overallGainColor}; font-weight: bold;">${overallGainRateStr}</td>
+            <td style="${STYLE.tdRight}">---</td>
+          </tr>
+          <tr>
+            <td style="${STYLE.td}">売却税額（記録分）</td>
+            <td style="${STYLE.tdRight}">${totalTaxStr}円</td>
+            <td style="${STYLE.tdRight}">---</td>
+          </tr>
+          <tr>
+            <td style="${STYLE.td}">税引後実現損益</td>
+            <td style="${STYLE.tdRight} color: ${realizedGainAfterTaxColor}; font-weight: bold;">${realizedGainAfterTaxStr}円${taxUnrecordedNote}</td>
+            <td style="${STYLE.tdRight}">---</td>
           </tr>
         </table>
 
