@@ -847,7 +847,9 @@
           incomeTaxText === '' ||
           residentTaxText === '' ||
           !Number.isFinite(incomeTax) ||
-          !Number.isFinite(residentTax)
+          !Number.isFinite(residentTax) ||
+          incomeTax < 0 ||
+          residentTax < 0
         ) {
           setMessage('所得税と住民税は0以上の数値で入力してください。', 'error');
           return;

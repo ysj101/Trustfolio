@@ -44,8 +44,10 @@ describe('EmailService HTML出力スナップショット', () => {
         totalCurrentValue: 1_120_000,
         totalUnrealizedGain: 120_000,
         totalUnrealizedGainRate: 0.12,
-        totalGain: 120_000,
-        totalGainRate: 0.12,
+        // calculatePortfolio の実計算（totalGain = realizedGainAfterTax + totalUnrealizedGain =
+        // -2,032 + 120,000 = 117,968、totalGainRate = 117,968 / 1,000,000 = 0.118）と整合させる
+        totalGain: 117_968,
+        totalGainRate: 0.118,
         remainingInvestmentChange: { difference: 50_000, changeRate: 5.26 },
         totalCurrentValueChange: { difference: 80_000, changeRate: 7.69 },
         totalUnrealizedGainChange: 30_000,
@@ -115,12 +117,12 @@ describe('EmailService HTML出力スナップショット', () => {
                 </tr>
                 <tr>
                   <td style="padding: 8px; border: 1px solid #ddd;">総損益（税引後実現＋未実現）</td>
-                  <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #1565c0; font-weight: bold;">120,000円</td>
+                  <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #1565c0; font-weight: bold;">117,968円</td>
                   <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">---</td>
                 </tr>
                 <tr>
                   <td style="padding: 8px; border: 1px solid #ddd;">総損益率</td>
-                  <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #1565c0; font-weight: bold;">+12.0%</td>
+                  <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #1565c0; font-weight: bold;">+11.8%</td>
                   <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">---</td>
                 </tr>
                 <tr>
