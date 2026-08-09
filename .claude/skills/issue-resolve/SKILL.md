@@ -1,6 +1,6 @@
 ---
 name: issue-resolve
-description: "GitHub issue を起点に「実装 → 品質ゲート(/code-review・/security-review・/simplify) → Codexレビュー収束 → PR作成 → CI緑＋Claude botコメント解消の確認 → squashマージ」までを一気通貫で実行する。引数に issue 番号を渡して使う。キーワード: issue対応, issue resolve, issue対応スキル, PRまで自動."
+description: "GitHub issue を起点に「実装 → 品質ゲート(/code-review・/security-review・/simplify) → Codexレビュー収束 → PR作成 → CI緑＋Claude botコメント解消の確認 → squashマージ → GASデプロイ(pnpm push)」までを一気通貫で実行する。引数に issue 番号を渡して使う。キーワード: issue対応, issue resolve, issue対応スキル, PRまで自動, デプロイまで自動."
 ---
 
 # issue対応フロー
@@ -27,7 +27,7 @@ GitHub issue 1件を、実装からマージ完了まで以下の確定フロー
 
 ```
 [0 issue取得] → [1 ブランチ作成] → [2 実装] → [3 品質ゲート] → [4 Codexレビュー]
-→ [5 コミット&PR作成] → [6 CI+Claude botコメント解消ループ] → [7 マージ] → [8 レポート]
+→ [5 コミット&PR作成] → [6 CI+Claude botコメント解消ループ] → [7 マージ] → [8 デプロイ] → [9 レポート]
 ```
 
 ---
@@ -60,6 +60,27 @@ git switch -c <type>/<slug>
 - CLAUDE.md の原則（実コード・実データ優先 / fail fast / 暗黙フォールバック禁止 / 日本語TSDoc・コメント）を厳守する。
 - Edit/Write のたびに lint フックが走る。**lint エラーは必ずその場で解消**してから次へ進む。
 - テストが存在する範囲では実行し、緑を確認する（`pnpm test` 等、リポジトリの実コマンドに従う）。
+
+### Codex への委譲時のハング対策（確認済み事実に基づく）
+
+グローバル CLAUDE.md の方針に従い実装を Codex（codex-rescue）へ委譲する場合、以下を必ず行う。
+
+> **背景（2026-08-09 の issue #20 対応で確認済みの実例）**: codex-rescue ジョブは、ランタイム側が異常終了するとジョブ台帳が「running / verifying」のまま残り、完了通知も来ないことがある（実例では最終検証コマンド `pnpm lint && pnpm test` の実行中にプロセスが消滅し、ログ無更新のまま 80 分以上「running」表示が継続した）。一方、**成果物（作業ツリーの差分）は完成していた**ため、ハング＝作業喪失ではない。
+
+1. **予防（委譲の仕方）**:
+   - 委譲プロンプトの完了条件を「変更の適用まで」とし、**最終検証（`pnpm lint && pnpm test`）は委譲に含めず Claude 側で実行する**（ハングは長時間の検証コマンド実行中に起きやすく、検証を外せばハングしても失うものがほぼない）。
+   - 大きな変更（目安: 20 ファイル超）は層ごと（domain+repository → usecase+api → ui+テスト）に分割して委譲する。
+2. **検知（ウォッチドッグ）**: 委譲直後に `scripts/codex-watch.sh`（リポジトリ内。同一内容のグローバル版が `~/.claude/scripts/codex-watch.sh` にもある）を Bash ツールの `run_in_background: true` で起動する:
+   ```bash
+   ./scripts/codex-watch.sh <job-id> --stale-min 15 --cancel
+   ```
+   - exit 0 = ジョブ完了（`result` で結果取得へ）。exit 2 = ハング判定（status が running のままログ mtime が 15 分無更新。`--cancel` によりキャンセル済み）。
+   - 単純なタイムアウトと異なり、ログが更新され続ける限り待つため、時間がかかっているだけの正常ジョブを誤検知しない。
+3. **引き取り（ハング検知後の復旧手順）**: 推測で再委譲せず、この順で確認する。
+   1. ジョブログ末尾で進捗を確認する（ウォッチドッグが tail を自動表示する）。
+   2. `git diff --stat` で作業ツリーの成果物の有無を確認する。
+   3. `pnpm lint && pnpm test` を Claude 側で直接実行し、緑なら成果物を引き取って工程3へ進む。
+   4. 成果物が不完全な場合のみ、残作業を明示して再委譲する。
 
 ## 3. 品質ゲート（/code-review → /security-review → /simplify）
 
@@ -174,11 +195,31 @@ gh pr merge <PR番号> --squash --delete-branch
    ```
    - 出力が空なら、`gh pr merge --delete-branch` がローカルブランチ削除まで完了している（確認済み事実: `git pull` 失敗時でもローカルブランチ削除自体は完了していた）。これで工程7完了。
    - 出力にブランチが残っている場合のみ手動で削除する。**このリポジトリは squash マージのみのため、ブランチ先端コミットは main の祖先にならず、`git branch -d` は「not fully merged」で失敗するのが正常な git の挙動である**。手順1で `state: MERGED` を外部確認済みであることを根拠に `git branch -D <branch>` を用いてよい（手順1の `MERGED` 確認なしに `-D` を使うことは禁止）。
-   - **権限分類器による拒否時の対処（確認済み事実）**: auto モードの権限分類器が `git branch -d` / `-D` を拒否することがある。拒否された場合は回避策を試みず、工程8のレポートの「未解決・要判断事項」に削除コマンドと手順1の確認結果をそのまま記載してユーザーに実行を依頼する。恒久対応としては、ユーザーが settings の permissions に allow ルールを追加すれば以後は自動実行できる旨を併記する。
+   - **権限分類器による拒否時の対処（確認済み事実）**: auto モードの権限分類器が `git branch -d` / `-D` を拒否することがある。拒否された場合は回避策を試みず、工程9のレポートの「未解決・要判断事項」に削除コマンドと手順1の確認結果をそのまま記載してユーザーに実行を依頼する。恒久対応としては、ユーザーが settings の permissions に allow ルールを追加すれば以後は自動実行できる旨を併記する。
 
 > マージは不可逆操作だが、ユーザーは「auto-merge 希望（ただし Claude 指摘確認前のマージは避けたい）」と合意済みのため、本スキルは 6 の解消確認を満たした時点で**確認を挟まず自動でマージ**する。6 が収束しない／CI が緑にならない場合はマージせずユーザーに報告する。
 
-## 8. レポート（日本語・主語省略禁止）
+## 8. デプロイ（GAS への反映）
+
+**工程7（マージとローカル後処理）の完了を確認した後にのみ**実行する。
+
+> このリポジトリのデプロイ手段は `pnpm push` のみである（確認済み事実: package.json の `push` スクリプト = `pnpm lint && pnpm build && clasp push --force`。`clasp deploy` 等の別手段は定義されていない）。`pnpm push` は**作業ツリーの src からビルドした dist を GAS プロジェクトへ反映する**ため、必ずマージコミット上で実行する。
+
+1. デプロイ対象がマージコミットであることを確認する:
+   ```bash
+   git log --oneline -1
+   gh pr view <PR番号> --json mergeCommit --jq .mergeCommit.oid
+   ```
+   - 2つの出力（ローカル HEAD とマージコミット `mergeCommit.oid` の先頭）が一致しなければデプロイせず、工程7の後処理からやり直す。比較対象はセッション内の記憶に頼らず、上記コマンドでその場で再取得する。
+2. デプロイを実行する:
+   ```bash
+   pnpm push
+   ```
+   - 成功判定: clasp の `Pushed <N> files at <時刻>` 出力を確認する（2026-07-27 の PR #192 対応では 8 ファイルが反映された）。
+   - ビルド時の「caniuse-lite is outdated」警告は無害であり、デプロイ結果に影響しない（確認済み事実）。対処する場合は `npx update-browserslist-db@latest` をユーザーに案内する。
+   - 失敗時（lint・ビルド・clasp のいずれかが非ゼロ終了）: 出力を添えてユーザーに報告して停止する。clasp の認証エラー等を推測で修復しない（`clasp login` や `pnpm setup:clasp` の実行はユーザー判断に委ねる）。
+
+## 9. レポート（日本語・主語省略禁止）
 
 最後に以下を日本語で報告する:
 
@@ -188,6 +229,7 @@ gh pr merge <PR番号> --squash --delete-branch
 - Codex レビュー: 反復回数・最終ステータス・advisory
 - Claude bot コメント解消ループ: ラウンド数・対応した指摘
 - CI: 各チェックの最終結果
+- デプロイ: `pnpm push` の実行結果（反映ファイル数・時刻、または失敗時の状況）
 - 未解決・要判断事項（あれば。なければ「なし」と明記）
 
 最後に高所からの要約セクションを置く。
@@ -203,3 +245,4 @@ gh pr merge <PR番号> --squash --delete-branch
 - 品質ゲート / Codex / Claude bot の指摘が**仕様変更を伴う**、または自動修正で収束しない。
 - CI が修正しても緑にならない。
 - マージ前提条件（CI緑・Claude指摘解消）が満たせない。
+- デプロイ（`pnpm push`）が失敗した（lint・ビルド・clasp のいずれの失敗でも、推測で修復せず報告する）。
