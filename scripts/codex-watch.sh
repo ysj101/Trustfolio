@@ -10,9 +10,15 @@
 #
 # 使い方:
 #   codex-watch.sh <job-id> [--stale-min N] [--interval N] [--cancel]
-#     --stale-min N : ログ無更新をハングとみなす閾値（分）。既定 15
+#     --stale-min N : ログ無更新をハングとみなす閾値（分）。既定 15。
+#                     ログパスが未取得のままの場合の「起動タイムアウト」にも同じ値を
+#                     流用する（起動準備に時間がかかるジョブでは値を大きめに調整する）
 #     --interval N  : ポーリング間隔（秒）。既定 30
 #     --cancel      : ハング判定時にジョブを自動キャンセルする
+#
+# テスト用フック:
+#   環境変数 CODEX_COMPANION_PATH に companion 互換スクリプトのパスを指定すると、
+#   プラグインの自動解決を上書きできる（ハング判定経路の検証用）。
 #
 # 終了コード:
 #   0 = ジョブが running でなくなった（完了・失敗・キャンセルいずれか。status を出力）
@@ -44,8 +50,9 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-# 最新バージョンの companion スクリプトを解決する（プラグイン更新でパスが変わるため）
-COMPANION=$(ls -1d "$HOME"/.claude/plugins/cache/openai-codex/codex/*/scripts/codex-companion.mjs 2>/dev/null | sort -V | tail -1)
+# 最新バージョンの companion スクリプトを解決する（プラグイン更新でパスが変わるため）。
+# CODEX_COMPANION_PATH が指定されていればそちらを優先する（テスト用フック）。
+COMPANION="${CODEX_COMPANION_PATH:-$(ls -1d "$HOME"/.claude/plugins/cache/openai-codex/codex/*/scripts/codex-companion.mjs 2>/dev/null | sort -V | tail -1)}"
 if [ -z "$COMPANION" ]; then
   echo "codex-companion.mjs が見つかりません" >&2
   exit 3
