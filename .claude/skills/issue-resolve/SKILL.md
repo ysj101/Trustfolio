@@ -70,9 +70,9 @@ git switch -c <type>/<slug>
 1. **予防（委譲の仕方）**:
    - 委譲プロンプトの完了条件を「変更の適用まで」とし、**最終検証（`pnpm lint && pnpm test`）は委譲に含めず Claude 側で実行する**（ハングは長時間の検証コマンド実行中に起きやすく、検証を外せばハングしても失うものがほぼない）。
    - 大きな変更（目安: 20 ファイル超）は層ごと（domain+repository → usecase+api → ui+テスト）に分割して委譲する。
-2. **検知（ウォッチドッグ）**: 委譲直後に `~/.claude/scripts/codex-watch.sh` を Bash ツールの `run_in_background: true` で起動する:
+2. **検知（ウォッチドッグ）**: 委譲直後に `scripts/codex-watch.sh`（リポジトリ内。同一内容のグローバル版が `~/.claude/scripts/codex-watch.sh` にもある）を Bash ツールの `run_in_background: true` で起動する:
    ```bash
-   ~/.claude/scripts/codex-watch.sh <job-id> --stale-min 15 --cancel
+   ./scripts/codex-watch.sh <job-id> --stale-min 15 --cancel
    ```
    - exit 0 = ジョブ完了（`result` で結果取得へ）。exit 2 = ハング判定（status が running のままログ mtime が 15 分無更新。`--cancel` によりキャンセル済み）。
    - 単純なタイムアウトと異なり、ログが更新され続ける限り待つため、時間がかかっているだけの正常ジョブを誤検知しない。
