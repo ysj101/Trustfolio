@@ -221,15 +221,16 @@ gh pr merge <PR番号> --squash --delete-branch
    - ビルド時の「caniuse-lite is outdated」警告は無害であり、デプロイ結果に影響しない（確認済み事実）。対処する場合は `npx update-browserslist-db@latest` をユーザーに案内する。
    - 失敗時（lint・ビルド・clasp のいずれかが非ゼロ終了）: 出力を添えてユーザーに報告して停止する。clasp の認証エラー等を推測で修復しない（`clasp login` や `pnpm setup:clasp` の実行はユーザー判断に委ねる）。
    - `Script is already up to date.` は「スクリプト本体に差分なし」を意味する（src に影響しない変更のみをマージした場合の正常な出力であり、エラーではない）。
-3. ウェブアプリのデプロイバージョンを更新する（**UI・API に影響する変更をデプロイした場合は必須**。src に影響しない変更のみなら省略可）:
+3. ウェブアプリのデプロイバージョンを更新する。実施要否は次の単一フローで判定する: **(a)** 手順2の出力が `Script is already up to date.` → 省略可。**(b)** `Pushed <N> files` が出力され、かつ `clasp deployments` に非 `@HEAD` のデプロイが存在する → **必須**。**(c)** `Pushed <N> files` でもデプロイが `@HEAD` の1つのみ → 不要（push だけで最新が配信される）:
    ```bash
    npx clasp deployments
    npx clasp version "<変更内容の説明>"
    npx clasp deploy -i <バージョン固定デプロイのID> -V <作成されたバージョン番号>
    ```
    - `clasp deployments` の出力から `@HEAD` **ではない**方のデプロイ ID を対象にする（デプロイ ID を使い回すことで /exec URL は変わらない）。
+   - 非 `@HEAD` のデプロイが**複数**存在する場合は、どれが利用中の /exec URL か推測で選ばず、対象をユーザーに確認する。
    - 成功判定: `Deployed <ID> @<新バージョン>` の出力後、`npx clasp deployments` を再実行して対象デプロイが新バージョンを指していることを確認する（確認済み事実: 直後の一覧表示には旧バージョンが表示されることがあり、数秒後の再実行で反映される）。
-   - デプロイが `@HEAD` の 1 つしか存在しない場合、この手順は不要（push だけで最新が配信される）。
+   - 失敗時（`clasp version` / `clasp deploy` のいずれかが非ゼロ終了、または再確認で新バージョンを指さない場合）: 出力を添えてユーザーに報告して停止する。認証エラー等を推測で修復しない（手順2の失敗時ルールと同じ）。
 
 ## 9. レポート（日本語・主語省略禁止）
 
@@ -258,3 +259,4 @@ gh pr merge <PR番号> --squash --delete-branch
 - CI が修正しても緑にならない。
 - マージ前提条件（CI緑・Claude指摘解消）が満たせない。
 - デプロイ（`pnpm push`）が失敗した（lint・ビルド・clasp のいずれの失敗でも、推測で修復せず報告する）。
+- ウェブアプリのデプロイバージョン更新（`clasp version` / `clasp deploy`）が失敗した、または非 `@HEAD` のデプロイが複数あり対象を特定できない。
