@@ -10,9 +10,15 @@
 #
 # 使い方:
 #   codex-watch.sh <job-id> [--stale-min N] [--interval N] [--cancel]
-#     --stale-min N : ログ無更新をハングとみなす閾値（分）。既定 15
+#     --stale-min N : ログ無更新をハングとみなす閾値（分）。既定 15。
+#                     ログパスが未取得のままの場合の「起動タイムアウト」にも同じ値を
+#                     流用する（起動準備に時間がかかるジョブでは値を大きめに調整する）
 #     --interval N  : ポーリング間隔（秒）。既定 30
 #     --cancel      : ハング判定時にジョブを自動キャンセルする
+#
+# テスト用フック:
+#   環境変数 CODEX_COMPANION_PATH に companion 互換スクリプトのパスを指定すると、
+#   プラグインの自動解決を上書きできる（ハング判定経路の検証用）。
 #
 # 終了コード:
 #   0 = ジョブが running でなくなった（完了・失敗・キャンセルいずれか。status を出力）
@@ -44,10 +50,13 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-# 最新バージョンの companion スクリプトを解決する（プラグイン更新でパスが変わるため）
-COMPANION=$(ls -1d "$HOME"/.claude/plugins/cache/openai-codex/codex/*/scripts/codex-companion.mjs 2>/dev/null | sort -V | tail -1)
-if [ -z "$COMPANION" ]; then
-  echo "codex-companion.mjs が見つかりません" >&2
+# 最新バージョンの companion スクリプトを解決する（プラグイン更新でパスが変わるため）。
+# CODEX_COMPANION_PATH が指定されていればそちらを優先する（テスト用フック）。
+COMPANION="${CODEX_COMPANION_PATH:-$(ls -1d "$HOME"/.claude/plugins/cache/openai-codex/codex/*/scripts/codex-companion.mjs 2>/dev/null | sort -V | tail -1)}"
+# CODEX_COMPANION_PATH の誤設定（存在しないパス）でも同じメッセージで fail fast させるため、
+# 空文字チェックに加えてファイルの実在も確認する。
+if [ -z "$COMPANION" ] || [ ! -f "$COMPANION" ]; then
+  echo "codex-companion.mjs が見つかりません: ${COMPANION:-（自動解決に失敗）}" >&2
   exit 3
 fi
 
@@ -62,14 +71,42 @@ if echo "$status_output" | grep -q 'No job found'; then
   exit 3
 fi
 
-# status 出力からログパスを取得する（例: 「  Log: /path/to/job.log」）
-LOG_PATH=$(echo "$status_output" | sed -n 's/^[[:space:]]*Log:[[:space:]]*//p' | head -1)
+# status 出力からログパスを取得する（例: 「  Log: /path/to/job.log」）。
+# 委譲直後はジョブがまだログを生成しておらず Log: 行が無いことがあるため、
+# 取得できるまで毎ループ再取得する（1回きりの取得だとハング検知が無効化されたまま
+# 動き続けるサイレントな機能欠落になる）。
+LOG_PATH=""
+START_TIME=$(date +%s)
+
+resolve_log_path() {
+  if [ -z "$LOG_PATH" ]; then
+    LOG_PATH=$(echo "$status_output" | sed -n 's/^[[:space:]]*Log:[[:space:]]*//p' | head -1)
+  fi
+}
+resolve_log_path
 
 while :; do
   if ! echo "$status_output" | grep -q '| running |'; then
     echo "=== ジョブは running ではなくなりました ==="
     echo "$status_output"
     exit 0
+  fi
+
+  # ログパスが未取得のまま閾値時間を超えた場合も、検知不能のまま待ち続けず
+  # ハング相当として fail fast で通知する。
+  if [ -z "$LOG_PATH" ] || [ ! -f "$LOG_PATH" ]; then
+    now=$(date +%s)
+    elapsed_min=$(( (now - START_TIME) / 60 ))
+    if [ "$elapsed_min" -ge "$STALE_MIN" ]; then
+      echo "=== ハング判定: 起動から ${elapsed_min} 分経過してもジョブログを取得できません（閾値 ${STALE_MIN} 分） ==="
+      echo "$status_output"
+      if [ "$AUTO_CANCEL" -eq 1 ]; then
+        echo "--- 自動キャンセルを実行します ---"
+        node "$COMPANION" cancel "$JOB_ID" 2>&1
+      fi
+      echo "成果物は作業ツリーに残っている可能性があります。git diff と lint / test で直接検証して引き取りを判断してください。"
+      exit 2
+    fi
   fi
 
   if [ -n "$LOG_PATH" ] && [ -f "$LOG_PATH" ]; then
@@ -93,4 +130,5 @@ while :; do
 
   sleep "$INTERVAL"
   fetch_status
+  resolve_log_path
 done
