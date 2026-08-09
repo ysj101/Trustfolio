@@ -53,8 +53,10 @@ done
 # 最新バージョンの companion スクリプトを解決する（プラグイン更新でパスが変わるため）。
 # CODEX_COMPANION_PATH が指定されていればそちらを優先する（テスト用フック）。
 COMPANION="${CODEX_COMPANION_PATH:-$(ls -1d "$HOME"/.claude/plugins/cache/openai-codex/codex/*/scripts/codex-companion.mjs 2>/dev/null | sort -V | tail -1)}"
-if [ -z "$COMPANION" ]; then
-  echo "codex-companion.mjs が見つかりません" >&2
+# CODEX_COMPANION_PATH の誤設定（存在しないパス）でも同じメッセージで fail fast させるため、
+# 空文字チェックに加えてファイルの実在も確認する。
+if [ -z "$COMPANION" ] || [ ! -f "$COMPANION" ]; then
+  echo "codex-companion.mjs が見つかりません: ${COMPANION:-（自動解決に失敗）}" >&2
   exit 3
 fi
 
