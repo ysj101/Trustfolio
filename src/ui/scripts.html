@@ -328,9 +328,7 @@
                 if (state.editingTransactionId === transaction.id) {
                   setTransactionEditMode(null);
                 }
-                await loadTransactions(state.selectedTransactionFundId);
-                await loadHoldings();
-                await loadPortfolioSummary();
+                await reloadAfterTransactionMutation(state.selectedTransactionFundId);
               },
             })
           );
@@ -575,6 +573,33 @@
         throw new Error(response.error.message);
       }
       renderRecurringTransactionHistory(response.value);
+    }
+
+    /**
+     * 取引の登録・更新・削除の成功後に、取引データに依存する表示を再読込する。
+     *
+     * 対象は「銘柄別の取引履歴」「保有情報」「ポートフォリオサマリー」
+     * 「全銘柄の取引履歴」の4つで、相互に依存しないため loadFunds と同じ
+     * Promise.allSettled パターンで並列に取得する。
+     * 一部の取得が失敗しても残りの表示は更新し、失敗分はエラーメッセージに集約する。
+     *
+     * @param fundId 銘柄別の取引履歴を再読込する対象のファンドID
+     */
+    async function reloadAfterTransactionMutation(fundId) {
+      const results = await Promise.allSettled([
+        loadTransactions(fundId),
+        loadHoldings(),
+        loadPortfolioSummary(),
+        loadRecurringTransactionHistory(),
+      ]);
+
+      const errors = results
+        .filter((r) => r.status === 'rejected')
+        .map((r) => r.reason?.message || '不明なエラー');
+
+      if (errors.length > 0) {
+        setMessage(`一部のデータ取得に失敗しました: ${errors.join(', ')}`, 'error');
+      }
     }
 
     function renderRecurringTransactionHistory(allTransactions) {
@@ -827,9 +852,7 @@
             'success'
           );
           setTransactionEditMode(null);
-          await loadTransactions(fundId);
-          await loadHoldings();
-          await loadPortfolioSummary();
+          await reloadAfterTransactionMutation(fundId);
         } catch (error) {
           setMessage(error.message, 'error');
         } finally {
@@ -895,9 +918,7 @@
               true;
             transactionTypeRadios[0].dispatchEvent(new Event('change'));
           }
-          await loadTransactions(fundId);
-          await loadHoldings();
-          await loadPortfolioSummary();
+          await reloadAfterTransactionMutation(fundId);
         } catch (error) {
           setMessage(error.message, 'error');
         } finally {
