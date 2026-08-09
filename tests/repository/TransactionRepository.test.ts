@@ -38,6 +38,57 @@ describe('TransactionRepository', () => {
     }
   });
 
+  it('listByFundIdは同一取引日の取引を登録日時の降順で返す', () => {
+    // 前提: 同じ取引日に登録日時が異なる取引が複数存在する
+    // 事前条件: 全世界株式ファンドの取引シートでは古い登録日時の取引が先に保存されている
+    // 検証: 新しく登録された取引から順に返る
+    const sheetName = getTransactionSheetName('全世界株式ファンド');
+    const sheetRepository = createInMemorySheetRepository({
+      [sheetName]: [
+        headerRow(SHEET_NAMES.TRANSACTIONS),
+        [
+          '全世界株式-午前登録',
+          '全世界株式ファンド',
+          'SPOT_PURCHASE',
+          '2026-08-10',
+          10000,
+          25000,
+          4000,
+          '',
+          '',
+          '',
+          '',
+          '2026-08-10T01:00:00.000Z',
+        ],
+        [
+          '全世界株式-午後登録',
+          '全世界株式ファンド',
+          'SPOT_PURCHASE',
+          '2026-08-10',
+          20000,
+          25000,
+          8000,
+          '',
+          '',
+          '',
+          '',
+          '2026-08-10T07:00:00.000Z',
+        ],
+      ],
+    });
+    const repository = createTransactionRepository(sheetRepository);
+
+    const result = repository.listByFundId('全世界株式ファンド');
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.value.map((transaction) => transaction.id)).toEqual([
+        '全世界株式-午後登録',
+        '全世界株式-午前登録',
+      ]);
+    }
+  });
+
   it('旧10列（税額カラム追加前）のシートを読取時に自動マイグレーションして解析する', () => {
     // 前提: incomeTax / residentTax カラム追加前の旧10列構成のシートが存在する
     // 事前条件: 旧ヘッダー（units の次が recurringPurchaseId）と旧10要素のデータ行を持つ
@@ -228,6 +279,115 @@ describe('TransactionRepository', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.value).toHaveLength(1);
+    }
+  });
+
+  it('listAllは同一取引日の取引を登録日時の降順で返す', () => {
+    // 前提: 異なるファンドに同じ取引日かつ登録日時が異なる取引が存在する
+    // 事前条件: 国内株式ファンドの取引より先進国株式インデックスの取引が後から登録されている
+    // 注意: 取引シート名はファンドIDの末尾3文字から決まる（getFundIdSuffix）ため、
+    //       2つのファンドIDは末尾3文字が衝突しない名前にする必要がある
+    // 検証: ファンドをまたいで集約した後も新しく登録された取引から順に返る
+    const domesticSheetName = getTransactionSheetName('国内株式ファンド');
+    const developedSheetName = getTransactionSheetName('先進国株式インデックス');
+    const sheetRepository = createInMemorySheetRepository({
+      [domesticSheetName]: [
+        headerRow(SHEET_NAMES.TRANSACTIONS),
+        [
+          '国内株式-先行登録',
+          '国内株式ファンド',
+          'SPOT_PURCHASE',
+          '2026-08-10',
+          15000,
+          30000,
+          5000,
+          '',
+          '',
+          '',
+          '',
+          '2026-08-10T02:00:00.000Z',
+        ],
+      ],
+      [developedSheetName]: [
+        headerRow(SHEET_NAMES.TRANSACTIONS),
+        [
+          '先進国株式-後続登録',
+          '先進国株式インデックス',
+          'SPOT_PURCHASE',
+          '2026-08-10',
+          25000,
+          35000,
+          7143,
+          '',
+          '',
+          '',
+          '',
+          '2026-08-10T08:00:00.000Z',
+        ],
+      ],
+    });
+    const repository = createTransactionRepository(sheetRepository);
+
+    const result = repository.listAll(['国内株式ファンド', '先進国株式インデックス']);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.value.map((transaction) => transaction.id)).toEqual([
+        '先進国株式-後続登録',
+        '国内株式-先行登録',
+      ]);
+    }
+  });
+
+  it('listByFundIdsGroupedは同一取引日の取引を登録日時の降順で返す', () => {
+    // 前提: 同じファンドに同じ取引日かつ登録日時が異なる取引が複数存在する
+    // 事前条件: バランスファンドの取引シートでは古い登録日時の取引が先に保存されている
+    // 検証: ファンド別にグループ化した後も新しく登録された取引から順に返る
+    const sheetName = getTransactionSheetName('バランスファンド');
+    const sheetRepository = createInMemorySheetRepository({
+      [sheetName]: [
+        headerRow(SHEET_NAMES.TRANSACTIONS),
+        [
+          'バランス-午前登録',
+          'バランスファンド',
+          'SPOT_PURCHASE',
+          '2026-08-10',
+          12000,
+          28000,
+          4286,
+          '',
+          '',
+          '',
+          '',
+          '2026-08-10T03:00:00.000Z',
+        ],
+        [
+          'バランス-午後登録',
+          'バランスファンド',
+          'SPOT_PURCHASE',
+          '2026-08-10',
+          18000,
+          28000,
+          6429,
+          '',
+          '',
+          '',
+          '',
+          '2026-08-10T09:00:00.000Z',
+        ],
+      ],
+    });
+    const repository = createTransactionRepository(sheetRepository);
+
+    const result = repository.listByFundIdsGrouped(['バランスファンド']);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      const transactions = result.value.get('バランスファンド');
+      expect(transactions?.map((transaction) => transaction.id)).toEqual([
+        'バランス-午後登録',
+        'バランス-午前登録',
+      ]);
     }
   });
 

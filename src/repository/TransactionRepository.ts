@@ -29,6 +29,26 @@ export type TransactionRepository = {
 };
 
 /**
+ * 取引一覧を取引日の降順に並べ、同一取引日の取引は登録日時の降順に並べる。
+ *
+ * 取引履歴では新しい取引を先に表示するため、dateを第1ソートキー、createdAtを第2ソートキーとして比較する。
+ * この関数は受け取った配列自体を変更するため、呼び出し元が保持する並び順も更新される点に注意する。
+ *
+ * @param transactions 並べ替える取引一覧
+ */
+function sortTransactionsByDateDescending(transactions: Transaction[]): void {
+  transactions.sort((a, b) => {
+    if (a.date !== b.date) {
+      return a.date < b.date ? 1 : -1;
+    }
+    if (a.createdAt === b.createdAt) {
+      return 0;
+    }
+    return a.createdAt < b.createdAt ? 1 : -1;
+  });
+}
+
+/**
  * 取引履歴シートへのアクセスを担当する。
  */
 export function createTransactionRepository(
@@ -51,7 +71,7 @@ export function createTransactionRepository(
       }
 
       const transactions = parsedResult.value;
-      transactions.sort((a, b) => (a.date < b.date ? 1 : -1));
+      sortTransactionsByDateDescending(transactions);
 
       return { success: true, value: transactions };
     },
@@ -77,7 +97,7 @@ export function createTransactionRepository(
         allTransactions.push(...parsedResult.value);
       }
 
-      allTransactions.sort((a, b) => (a.date < b.date ? 1 : -1));
+      sortTransactionsByDateDescending(allTransactions);
 
       return { success: true, value: allTransactions };
     },
@@ -108,9 +128,9 @@ export function createTransactionRepository(
           return parsedResult;
         }
 
-        // 日付でソート（降順）
+        // 取引日で降順に並べ、同一取引日は登録日時の降順に並べる
         const transactions = parsedResult.value;
-        transactions.sort((a, b) => (a.date < b.date ? 1 : -1));
+        sortTransactionsByDateDescending(transactions);
 
         // Mapに格納
         transactionsMap.set(fundId, transactions);
