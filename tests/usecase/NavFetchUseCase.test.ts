@@ -5,7 +5,7 @@ import type { NavRepository } from '../../src/repository/NavRepository';
 import type { TransactionRepository } from '../../src/repository/TransactionRepository';
 import type { PerformanceRepository } from '../../src/repository/PerformanceRepository';
 import type { RakutenService } from '../../src/service/RakutenService';
-import type { Fund, PerformanceRecord } from '../../src/domain/types';
+import type { Fund, PerformanceRecord, Transaction } from '../../src/domain/types';
 import { ok, fail } from '../fakes';
 
 describe('NavFetchUseCase', () => {
@@ -188,6 +188,126 @@ describe('NavFetchUseCase', () => {
     const result = useCase.fetchAndRegisterAllNavs();
     expect(result.success).toBe(true);
     expect(globalRecorded).toBe(true);
+  });
+
+  it('ポートフォリオの評価損益率が欠損する場合は全体実績が記録されない', () => {
+    // 前提: 複数ファンドを保有しており、そのうち1ファンドは楽天ファンドID未設定のため
+    //   基準価額の取得がスキップされ、最新の基準価額が一度も登録されていない（現在値が欠損する）。
+    // 事前条件: 各ファンドに購入取引が存在し、全体実績は未登録で、楽天ファンドID設定済みの
+    //   ファンドは基準価額の取得・登録に成功する（successCount > 0 となり全体実績記録が実行される）。
+    // 検証: calculatePortfolio が評価損益率を null にした場合、全体実績の作成が呼び出されない。
+    const funds: Fund[] = [
+      {
+        id: 'fund-with-nav',
+        name: '基準価額ありファンド',
+        rakutenFundId: 'ABCD1234EFGH',
+        settlementBusinessDays: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'fund-without-nav',
+        name: '基準価額欠損ファンド',
+        // 楽天ファンドID未設定 → processFund がスキップし createNav が呼ばれないため、
+        // findLatestByFundId が null を返す（= 現在値欠損）状態が実リポジトリの挙動と整合する。
+        rakutenFundId: null,
+        settlementBusinessDays: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+      },
+    ];
+    const transactions: Transaction[] = [
+      {
+        id: 'transaction-with-nav',
+        fundId: 'fund-with-nav',
+        type: 'SPOT_PURCHASE',
+        date: '2024-02-01',
+        amount: 10000,
+        navValue: 10000,
+        units: 10000,
+        incomeTax: null,
+        residentTax: null,
+        recurringPurchaseId: null,
+        idempotencyKey: 'purchase-with-nav',
+        createdAt: '2024-02-01T00:00:00.000Z',
+      },
+      {
+        id: 'transaction-without-nav',
+        fundId: 'fund-without-nav',
+        type: 'SPOT_PURCHASE',
+        date: '2024-02-01',
+        amount: 20000,
+        navValue: 10000,
+        units: 20000,
+        incomeTax: null,
+        residentTax: null,
+        recurringPurchaseId: null,
+        idempotencyKey: 'purchase-without-nav',
+        createdAt: '2024-02-01T00:00:00.000Z',
+      },
+    ];
+
+    const fundRepository: FundRepository = {
+      listFunds: () => ok(funds),
+      findByName: () => ok(null),
+      findById: () => ok(null),
+      createFund: () => ok(undefined),
+      updateFund: () => ok(undefined),
+    };
+
+    const navRepository: NavRepository = {
+      listByFundId: () => ok([]),
+      findByFundAndDate: () => ok(null),
+      findLatestByFundId: (fundId) =>
+        fundId === 'fund-without-nav'
+          ? ok(null)
+          : ok({
+              fundId,
+              date: '2024-03-05',
+              value: 11000,
+              createdAt: '2024-03-05T00:00:00.000Z',
+            }),
+      createNav: () => ok(undefined),
+    };
+
+    const transactionRepository: TransactionRepository = {
+      listByFundId: (fundId) =>
+        ok(transactions.filter((transaction) => transaction.fundId === fundId)),
+      listAll: () => ok(transactions),
+      createTransaction: () => ok(undefined),
+      findByIdempotencyKey: () => ok(null),
+      findById: () => ok(null),
+      updateTransaction: () => ok(undefined),
+      deleteTransaction: () => ok(undefined),
+    };
+
+    const createGlobalPerformance = vi.fn(() => ok(undefined));
+    const performanceRepository: PerformanceRepository = {
+      createPerformance: () => ok(undefined),
+      createGlobalPerformance,
+      findByFundAndDate: () => ok(null),
+      findGlobalByDate: () => ok(null),
+      findLatestByFundId: () => ok(null),
+    };
+
+    const rakutenService: RakutenService = {
+      fetchLatestNav: (rakutenFundId) =>
+        ok({
+          rakutenFundId,
+          nav: { date: '2024-03-05', value: 11000 },
+        }),
+    };
+
+    const useCase = createNavFetchUseCase(
+      fundRepository,
+      navRepository,
+      transactionRepository,
+      performanceRepository,
+      rakutenService
+    );
+
+    const result = useCase.fetchAndRegisterAllNavs();
+
+    expect(result.success).toBe(true);
+    expect(createGlobalPerformance).not.toHaveBeenCalled();
   });
 
   it('ファンド別実績記録に失敗した場合は [ERROR] 重要度でログ出力される', () => {
