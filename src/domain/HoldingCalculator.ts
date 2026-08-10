@@ -125,6 +125,12 @@ export function calculateHolding(
 /**
  * ポートフォリオサマリーを計算する。
  *
+ * 不変条件: いずれかの保有で現在値（currentValue）が欠損している場合、
+ * totalCurrentValue・totalUnrealizedGain・totalUnrealizedGainRate・totalGain・totalGainRate の
+ * 5 値を常に同時に null にする（一部だけ null になることはない）。呼び出し側の欠損ガード
+ * （例: NavFetchUseCase の recordGlobalPerformance）はこの不変条件に依存しているため、
+ * 部分的に null を返すよう変更する場合は呼び出し側の見直しが必須である。
+ *
  * @param holdings 保有情報リスト
  * @param allTransactions すべての取引履歴（実現損益計算のため）
  */

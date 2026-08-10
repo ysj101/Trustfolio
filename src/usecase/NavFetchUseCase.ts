@@ -497,7 +497,14 @@ function recordGlobalPerformance(
   // 3. ポートフォリオサマリー計算
   const portfolio = calculatePortfolio(holdings, allTransactionsResult.value);
 
-  if (portfolio.totalCurrentValue === null || portfolio.totalUnrealizedGain === null) {
+  // calculatePortfolio は、いずれかの保有で現在値が欠損した場合に totalCurrentValue・
+  // totalUnrealizedGain・totalUnrealizedGainRate を常に同時に null にする（詳細は
+  // calculatePortfolio の TSDoc を参照）。欠損時は 0 等で補完せず、記録をスキップする。
+  if (
+    portfolio.totalCurrentValue === null ||
+    portfolio.totalUnrealizedGain === null ||
+    portfolio.totalUnrealizedGainRate === null
+  ) {
     return { success: true, value: undefined };
   }
 
@@ -510,7 +517,7 @@ function recordGlobalPerformance(
     remainingInvestment: portfolio.remainingInvestment,
     currentValue: portfolio.totalCurrentValue,
     totalGain: portfolio.totalUnrealizedGain,
-    unrealizedGainRate: portfolio.totalUnrealizedGainRate ?? 0,
+    unrealizedGainRate: portfolio.totalUnrealizedGainRate,
     createdAt: clock.nowIso(),
   };
 
