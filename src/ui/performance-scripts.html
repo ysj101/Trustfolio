@@ -366,6 +366,7 @@
         const result = await callApi({ action: 'getPortfolioPerformanceHistory' });
 
         if (!result || !result.success) {
+          // error 欠損・message 空文字時は汎用メッセージへ置換する（意図した仕様。issue #154 で精査済み）。
           const errorMessage = result?.error?.message || 'データの取得に失敗しました。';
           setMessage(errorMessage, 'error');
           setLoading(false);
