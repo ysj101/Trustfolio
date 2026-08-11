@@ -19,6 +19,7 @@ import { createStubSheetRepository, ok, fail } from '../fakes';
  * 仕様の中心は以下の3点である:
  * - initializeAllSheets: 基本シート → 全体実績シート → ファンド別シート（取引/実績）の順で
  *   ensureSheet を呼び、ファンドID末尾3文字（シート名サフィックス）の重複を conflict として弾く。
+ *   銘柄一覧（listFunds）の取得に失敗した場合は、その失敗を伝播する（fail fast。黙ってスキップしない）。
  * - ensureNavFetchSheets: NAV 自動取得に必要な _funds と _nav_records のみを保証する。
  * - ensureMarketIndexSheet: _market_indices のみを保証する。
  */
@@ -149,11 +150,10 @@ describe('initializeAllSheets', () => {
     expect(ensuredDefinitions).toHaveLength(1);
   });
 
-  it('銘柄一覧の取得に失敗した場合はファンド別シートをスキップして成功を返す（既存挙動の固定）', () => {
+  it('銘柄一覧の取得に失敗した場合はその失敗を伝播する', () => {
     // 前提: 銘柄一覧の取得が失敗する（シート読み取りエラー等）
     // 事前条件: 基本シート・全体実績シートの保証は成功する
-    // 検証: ファンド別シートの生成はスキップされるが、ユースケース全体は成功を返す
-    //   （listFunds 失敗を伝播しないのが現行実装の挙動であり、本テストはそれを固定する）
+    // 検証: 銘柄一覧の取得失敗がそのまま伝播し、基本シート・全体実績シートまでが保証される
     const { repository, ensuredDefinitions } = createRecordingSheetRepository();
     const fundRepository = createFundRepositoryStub(() =>
       fail('unexpected', '銘柄シートの読み取りに失敗しました。')
@@ -162,7 +162,10 @@ describe('initializeAllSheets', () => {
     const useCase = createSheetInitializationUseCase(repository, fundRepository);
     const result = useCase.initializeAllSheets();
 
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.message).toBe('銘柄シートの読み取りに失敗しました。');
+    }
     expect(ensuredDefinitions.map((d) => d.name)).toEqual([
       ...SHEET_DEFINITIONS.map((d) => d.name),
       PERFORMANCE_SHEET_NAME,
