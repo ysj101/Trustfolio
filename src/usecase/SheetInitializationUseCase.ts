@@ -9,7 +9,7 @@ import {
   getTransactionSheetName,
   type SheetDefinition,
 } from '../Config';
-import { fail } from '../domain/result';
+import { fail, propagateFailure } from '../domain/result';
 import type { Result } from '../domain/types';
 import type { FundRepository } from '../repository/FundRepository';
 import type { SheetRepository } from '../repository/SheetRepository';
@@ -30,6 +30,7 @@ export type SheetInitializationUseCase = {
    * - 全体実績シート（{@link PERFORMANCE_SHEET_NAME}）を作成する。
    * - 登録済み全ファンドについて、取引シートと実績シートを作成する。
    *   この際、ファンドID末尾3文字（シート名サフィックス）の重複が無いことを検証する。
+   * - 銘柄一覧の取得に失敗した場合は、その失敗を伝播する（fail fast。黙ってスキップしない）。
    *
    * @returns 成功時は完了メッセージ、失敗時はエラー
    */
@@ -106,36 +107,38 @@ export function createSheetInitializationUseCase(
 
       // 全ファンドの取引シートと実績シートを作成
       const fundsResult = fundRepository.listFunds();
-      if (fundsResult.success) {
-        // ファンドID末尾3文字（シート名サフィックス）の重複を検証
-        const suffixMap = new Map<string, string>();
-        for (const fund of fundsResult.value) {
-          const suffix = getFundIdSuffix(fund.id);
-          const existingId = suffixMap.get(suffix);
-          if (existingId !== undefined) {
-            return fail('conflict', `ファンドID末尾3文字が重複しています。対象末尾: ${suffix}`);
-          }
-          suffixMap.set(suffix, fund.id);
+      if (!fundsResult.success) {
+        return propagateFailure(fundsResult);
+      }
+
+      // ファンドID末尾3文字（シート名サフィックス）の重複を検証
+      const suffixMap = new Map<string, string>();
+      for (const fund of fundsResult.value) {
+        const suffix = getFundIdSuffix(fund.id);
+        const existingId = suffixMap.get(suffix);
+        if (existingId !== undefined) {
+          return fail('conflict', `ファンドID末尾3文字が重複しています。対象末尾: ${suffix}`);
+        }
+        suffixMap.set(suffix, fund.id);
+      }
+
+      for (const fund of fundsResult.value) {
+        // 取引シートを作成
+        const transactionResult = ensureSheet({
+          name: getTransactionSheetName(fund.id),
+          headers: SHEET_HEADERS[SHEET_NAMES.TRANSACTIONS],
+        });
+        if (!transactionResult.success) {
+          return transactionResult;
         }
 
-        for (const fund of fundsResult.value) {
-          // 取引シートを作成
-          const transactionResult = ensureSheet({
-            name: getTransactionSheetName(fund.id),
-            headers: SHEET_HEADERS[SHEET_NAMES.TRANSACTIONS],
-          });
-          if (!transactionResult.success) {
-            return transactionResult;
-          }
-
-          // 実績シートを作成
-          const performanceResult = ensureSheet({
-            name: getPerformanceSheetName(fund.id),
-            headers: PERFORMANCE_HEADERS,
-          });
-          if (!performanceResult.success) {
-            return performanceResult;
-          }
+        // 実績シートを作成
+        const performanceResult = ensureSheet({
+          name: getPerformanceSheetName(fund.id),
+          headers: PERFORMANCE_HEADERS,
+        });
+        if (!performanceResult.success) {
+          return performanceResult;
         }
       }
 
