@@ -323,7 +323,12 @@
               confirmMessage: `${deleteLabel}を削除します。よろしいですか？`,
               progressMessage: `${deleteLabel}を削除中...`,
               successMessage: `${deleteLabel}を削除しました。`,
-              request: { action: 'deleteSpotPurchase', id: transaction.id },
+              // 削除対象の取引が属する銘柄IDを必ず送信する（サーバ側は fundId から取引シートを特定するため）。
+              request: {
+                action: 'deleteSpotPurchase',
+                id: transaction.id,
+                fundId: transaction.fundId,
+              },
               onSuccess: async () => {
                 if (state.editingTransactionId === transaction.id) {
                   setTransactionEditMode(null);
