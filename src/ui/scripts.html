@@ -770,17 +770,27 @@
         return;
       }
 
-      // 【表示専用の概算】ここで計算する口数・金額は入力中のプレビュー表示のみに使う。
-      // 保存される正式な値はサーバー側（domain/PurchaseCalculator.calculateUnits）が
-      // 計算するため、この概算が保存値になることはない。係数 10000 は投資信託の
-      // 基準価額が「1万口あたりの価額」である慣行に基づく（サーバー側の UNITS_BASE と同義）。
+      // 【入力中のプレビュー表示】ここで計算する口数・金額は画面表示のみに使い、
+      // この値がそのままサーバーへ送信されることはない。取引種別ごとの位置づけは以下のとおり:
+      //   - 購入（購入金額→取得口数）: 保存される口数はサーバー側
+      //     domain/PurchaseCalculator.ts の calculateUnits が計算する。利用者が
+      //     プレビューと保存値の食い違いを目にしないよう、丸め方式を calculateUnits と
+      //     厳密に一致させて Math.ceil（切り上げ）を用いる。calculateUnits の丸め方式を
+      //     変更する際は、必ず本箇所も同時に更新すること。
+      //   - 売却（売却口数→売却金額）: 保存される売却金額は利用者が「売却金額」欄へ
+      //     手入力した値であり、ここでの計算結果は保存されない（usecase/TransactionUseCase.ts の
+      //     売却登録・更新処理は、同等の計算を行う domain/PurchaseCalculator.ts の
+      //     calculateValue を用いず、手入力値をそのまま保存する）。したがってこの金額は
+      //     入力の目安を示す参考値であり、丸め方式を保存値に合わせる必要はない。
+      // 係数 10000 は投資信託の基準価額が「1万口あたりの価額」である慣行に基づく
+      // （サーバー側の UNITS_BASE と同義）。
       const UNITS_BASE = 10000;
 
       if (transactionType === 'purchase') {
-        // 購入金額から口数を概算
+        // 購入金額から取得口数を算出（サーバー側 calculateUnits と同じ Math.ceil で切り上げる）
         const amount = Number(transactionAmountInput.value || 0);
         if (amount > 0) {
-          const units = Math.round((amount / navValue) * UNITS_BASE);
+          const units = Math.ceil((amount / navValue) * UNITS_BASE);
           transactionCalculatedValue.textContent = `${units.toLocaleString()}口`;
           transactionCalculatedValue.className = calculatedValueAccentClass;
         } else {
@@ -788,7 +798,7 @@
           transactionCalculatedValue.className = calculatedValueMutedClass;
         }
       } else {
-        // 売却口数から金額を概算
+        // 売却口数から売却金額の参考値を算出する（保存値は利用者の手入力のため参考表示）
         const units = Number(transactionUnitsInput.value || 0);
         if (units > 0) {
           const amount = Math.round((units / UNITS_BASE) * navValue);
