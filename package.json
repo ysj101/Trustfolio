@@ -27,17 +27,17 @@
     "@google/clasp": "^3.3.0",
     "@tailwindcss/cli": "^4.3.3",
     "@types/google-apps-script": "^2.0.12",
-    "@vitest/coverage-v8": "^4.1.10",
+    "@vitest/coverage-v8": "^4.1.11",
     "husky": "^9.1.7",
     "lint-staged": "^17.3.0",
-    "oxfmt": "0.63.0",
-    "oxlint": "1.78.0",
+    "oxfmt": "0.64.0",
+    "oxlint": "1.79.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
     "typescript-js-api": "npm:typescript@^6.0.3",
     "vite": "8.2.1",
     "vite-plus": "0.2.9",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   },
   "lint-staged": {
     "*.{ts,js,mjs,cjs,json,css,html}": [
