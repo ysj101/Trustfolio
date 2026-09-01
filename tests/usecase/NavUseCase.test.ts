@@ -59,6 +59,8 @@ describe('NavUseCase', () => {
         name: '日本株インデックス',
         rakutenFundId: 'ABCD1234EFGH',
         settlementBusinessDays: 2,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ];

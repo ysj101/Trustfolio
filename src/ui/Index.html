@@ -418,6 +418,30 @@
                   title="12桁の英数字を入力してください"
                   class="w-full rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
                 />
+                <label for="fundNavSource" class="text-xs font-medium text-slate-400">
+                  NAV取得元
+                </label>
+                <select
+                  id="fundNavSource"
+                  name="fundNavSource"
+                  class="w-full rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                >
+                  <option value="">未設定</option>
+                  <option value="wealthadvisor">wealthadvisor</option>
+                </select>
+                <label for="fundNavSourceCode" class="text-xs font-medium text-slate-400">
+                  取得元コード
+                </label>
+                <!-- スラッシュ区切りの形式だけを案内し、厳密な検証はサーバー側のWEALTH_ADVISOR_CODE_PATTERNが担う。 -->
+                <input
+                  type="text"
+                  id="fundNavSourceCode"
+                  name="fundNavSourceCode"
+                  placeholder="例: sbi_am/sa_202306080A"
+                  pattern="[^/]+/[^/]+"
+                  title="&lt;company&gt;/&lt;pageId&gt;形式で入力してください"
+                  class="w-full rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                />
                 <label for="fundSettlementBusinessDays" class="text-xs font-medium text-slate-400">
                   約定までの営業日数
                 </label>

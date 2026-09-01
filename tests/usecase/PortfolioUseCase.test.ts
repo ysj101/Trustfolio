@@ -17,6 +17,8 @@ describe('PortfolioUseCase', () => {
         name: '日本株インデックス',
         rakutenFundId: null,
         settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ];
@@ -138,6 +140,8 @@ describe('PortfolioUseCase', () => {
             name: '国内株式',
             rakutenFundId: null,
             settlementBusinessDays: null,
+            navSource: null,
+            navSourceCode: null,
             createdAt: '2024-01-01T00:00:00.000Z',
           },
         ]),

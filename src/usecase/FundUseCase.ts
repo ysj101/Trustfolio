@@ -1,9 +1,26 @@
+import { fail, propagateFailure } from '../domain/result';
 import type { Fund, Result } from '../domain/types';
-import { propagateFailure } from '../domain/result';
 import type { FundRepository } from '../repository/FundRepository';
+import { WEALTH_ADVISOR_CODE_PATTERN } from '../service/WealthAdvisorService';
 import { getFundIdSuffix } from '../Config';
 import { generateUlid } from '../utils/ulid';
 import { clock } from '../utils/dateTime';
+
+/**
+ * 銘柄更新の入力値。
+ * navSourceとnavSourceCodeは両方のプロパティが不在（undefined）の場合に既存値を維持し、
+ * 両方へ明示的にnullを指定した場合に取得元設定をクリアする。
+ */
+export type UpdateFundInput = {
+  id: string;
+  name: string;
+  rakutenFundId: string | null;
+  settlementBusinessDays: number | null;
+  /** undefinedは既存値維持、nullは明示的なクリアを表す。 */
+  navSource?: 'wealthadvisor' | null;
+  /** undefinedは既存値維持、nullは明示的なクリアを表す。 */
+  navSourceCode?: string | null;
+};
 
 export type FundUseCase = {
   listFunds: () => Result<Fund[]>;
@@ -11,13 +28,10 @@ export type FundUseCase = {
     name: string;
     rakutenFundId: string | null;
     settlementBusinessDays: number | null;
+    navSource: 'wealthadvisor' | null;
+    navSourceCode: string | null;
   }) => Result<Fund>;
-  updateFund: (input: {
-    id: string;
-    name: string;
-    rakutenFundId: string | null;
-    settlementBusinessDays: number | null;
-  }) => Result<Fund>;
+  updateFund: (input: UpdateFundInput) => Result<Fund>;
 };
 
 /**
@@ -32,8 +46,10 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
       name: string;
       rakutenFundId: string | null;
       settlementBusinessDays: number | null;
+      navSource: 'wealthadvisor' | null;
+      navSourceCode: string | null;
     }): Result<Fund> => {
-      const { name, rakutenFundId, settlementBusinessDays } = input;
+      const { name, rakutenFundId, settlementBusinessDays, navSource, navSourceCode } = input;
 
       if (typeof name !== 'string' || name.trim() === '') {
         return {
@@ -55,6 +71,10 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
           return settlementValidation;
         }
       }
+      const navSourceValidation = validateNavSource(rakutenFundId, navSource, navSourceCode);
+      if (!navSourceValidation.success) {
+        return navSourceValidation;
+      }
 
       const trimmedName = name.trim();
       const existingResult = fundRepository.findByName(trimmedName);
@@ -74,6 +94,8 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
         rakutenFundId:
           rakutenFundId !== null && rakutenFundId.trim() !== '' ? rakutenFundId.trim() : null,
         settlementBusinessDays,
+        navSource,
+        navSourceCode: navSourceValidation.value,
         createdAt: clock.nowIso(),
       };
 
@@ -89,13 +111,8 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
 
       return { success: true, value: fund };
     },
-    updateFund: (input: {
-      id: string;
-      name: string;
-      rakutenFundId: string | null;
-      settlementBusinessDays: number | null;
-    }): Result<Fund> => {
-      const { id, name, rakutenFundId, settlementBusinessDays } = input;
+    updateFund: (input: UpdateFundInput): Result<Fund> => {
+      const { id, name, rakutenFundId, settlementBusinessDays, navSource, navSourceCode } = input;
 
       if (typeof id !== 'string' || id.trim() === '') {
         return {
@@ -124,6 +141,13 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
           return settlementValidation;
         }
       }
+      if ((navSource === undefined) !== (navSourceCode === undefined)) {
+        return fail(
+          'validation',
+          'NAV取得元と取得元コードは両方を指定するか、両方を省略してください。',
+          navSource === undefined ? 'navSource' : 'navSourceCode'
+        );
+      }
 
       const existingResult = fundRepository.findById(id);
       if (!existingResult.success) {
@@ -134,6 +158,29 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
           success: false,
           error: { type: 'not_found', message: '対象の銘柄が存在しません。', field: 'id' },
         };
+      }
+      let resolvedNavSource: 'wealthadvisor' | null;
+      let resolvedNavSourceCode: string | null;
+      if (navSource === undefined && navSourceCode === undefined) {
+        resolvedNavSource = existingResult.value.navSource;
+        resolvedNavSourceCode = existingResult.value.navSourceCode;
+      } else if (navSource !== undefined && navSourceCode !== undefined) {
+        resolvedNavSource = navSource;
+        resolvedNavSourceCode = navSourceCode;
+      } else {
+        // 片方だけの省略は上で拒否済みだが、型の絞り込みに依存せず防御的に失敗させる。
+        return fail(
+          'validation',
+          'NAV取得元と取得元コードは両方を指定するか、両方を省略してください。'
+        );
+      }
+      const navSourceValidation = validateNavSource(
+        rakutenFundId,
+        resolvedNavSource,
+        resolvedNavSourceCode
+      );
+      if (!navSourceValidation.success) {
+        return navSourceValidation;
       }
 
       const trimmedName = name.trim();
@@ -155,6 +202,8 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
         rakutenFundId:
           rakutenFundId !== null && rakutenFundId.trim() !== '' ? rakutenFundId.trim() : null,
         settlementBusinessDays,
+        navSource: resolvedNavSource,
+        navSourceCode: navSourceValidation.value,
         createdAt: existingResult.value.createdAt,
       };
 
@@ -171,6 +220,58 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
       return { success: true, value: updatedFund };
     },
   };
+}
+
+/**
+ * 基準価額取得元の組み合わせとWealth Advisor取得元コードを検証・正規化する。
+ * 楽天ファンドIDと他取得元の二重指定、および取得元とコードの片側だけの指定を即座に拒否し、
+ * 成功時はtrim済みの取得元コードまたは未設定を表すnullを返す。
+ */
+function validateNavSource(
+  rakutenFundId: string | null,
+  navSource: 'wealthadvisor' | null,
+  navSourceCode: string | null
+): Result<string | null> {
+  // doPostのJSON境界ではアクション固有フィールドがunknownからキャストされるため、
+  // TypeScript上の入力型だけに依存せず実行時の値も検証する。
+  if (navSource !== null && navSource !== 'wealthadvisor') {
+    return fail('validation', 'NAV取得元が不正です。', 'navSource');
+  }
+  if (navSourceCode !== null && typeof navSourceCode !== 'string') {
+    return fail('validation', '取得元コードは文字列で入力してください。', 'navSourceCode');
+  }
+  const hasRakutenFundId = rakutenFundId !== null && rakutenFundId.trim() !== '';
+  if (hasRakutenFundId && navSource !== null) {
+    return fail(
+      'validation',
+      '基準価額の取得元は楽天ファンドIDか他取得元のどちらか一方だけ指定してください。'
+    );
+  }
+  if (navSource === null) {
+    if (navSourceCode !== null) {
+      return fail(
+        'validation',
+        'NAV取得元が未設定の場合、取得元コードは指定できません。',
+        'navSourceCode'
+      );
+    }
+    return { success: true, value: null };
+  }
+  if (navSourceCode === null) {
+    return fail('validation', 'Wealth Advisorの取得元コードを入力してください。', 'navSourceCode');
+  }
+  const trimmedNavSourceCode = navSourceCode.trim();
+  if (trimmedNavSourceCode === '') {
+    return fail('validation', 'Wealth Advisorの取得元コードを入力してください。', 'navSourceCode');
+  }
+  if (!WEALTH_ADVISOR_CODE_PATTERN.test(trimmedNavSourceCode)) {
+    return fail(
+      'validation',
+      'Wealth Advisorの取得元コードは<company>/<pageId>形式で入力してください。',
+      'navSourceCode'
+    );
+  }
+  return { success: true, value: trimmedNavSourceCode };
 }
 
 /**

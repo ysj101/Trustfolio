@@ -34,12 +34,34 @@ export type Fund = {
    */
   rakutenFundId: string | null;
   /**
+   * NAV取得元種別。
+   * `wealthadvisor`はWealth Advisorから取得することを表す。
+   * nullはwealthadvisor以外であり、楽天ファンドIDによる楽天証券からの取得、または取得元未設定を表す。
+   */
+  navSource: 'wealthadvisor' | null;
+  /**
+   * {@link Fund.navSource}で使用する取得元コード。
+   * Wealth Advisorの場合は`<company>/<pageId>`形式で保持し、取得元未設定の場合はnullとする。
+   */
+  navSourceCode: string | null;
+  /**
    * 約定までの営業日数。
    * 積立の約定日計算に使用する。
    * 未設定の場合はnull。
    */
   settlementBusinessDays: number | null;
   createdAt: string;
+};
+
+/**
+ * NAV取得元から抽出した基準価額データ。
+ * 基準価額の単位は円/1万口とし、日付はYYYY-MM-DD形式で保持する。
+ */
+export type FetchedNavData = {
+  /** 基準価額の日付（YYYY-MM-DD形式）。 */
+  date: string;
+  /** 基準価額（円/1万口）。 */
+  value: number;
 };
 
 /**

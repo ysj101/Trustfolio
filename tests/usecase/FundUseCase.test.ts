@@ -36,6 +36,8 @@ describe('FundUseCase', () => {
       name: ' ',
       rakutenFundId: null,
       settlementBusinessDays: null,
+      navSource: null,
+      navSourceCode: null,
     });
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -53,6 +55,8 @@ describe('FundUseCase', () => {
         name: 'つみたて日本株',
         rakutenFundId: null,
         settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ]);
@@ -61,6 +65,8 @@ describe('FundUseCase', () => {
       name: 'つみたて日本株',
       rakutenFundId: ' ABCD1234EFGH ',
       settlementBusinessDays: 3,
+      navSource: null,
+      navSourceCode: null,
     });
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -78,6 +84,8 @@ describe('FundUseCase', () => {
       name: '  世界株インデックス  ',
       rakutenFundId: ' ABCD1234EFGH ',
       settlementBusinessDays: 2,
+      navSource: null,
+      navSourceCode: null,
     });
     expect(result.success).toBe(true);
     if (result.success) {
@@ -99,6 +107,8 @@ describe('FundUseCase', () => {
       name: '国内債券ファンド',
       rakutenFundId: null,
       settlementBusinessDays: null,
+      navSource: null,
+      navSourceCode: null,
     });
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -116,6 +126,8 @@ describe('FundUseCase', () => {
         name: '新興国株式',
         rakutenFundId: null,
         settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
       {
@@ -123,6 +135,8 @@ describe('FundUseCase', () => {
         name: '国内債券',
         rakutenFundId: null,
         settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2024-01-02T00:00:00.000Z',
       },
     ]);
@@ -132,6 +146,8 @@ describe('FundUseCase', () => {
       name: '新興国株式',
       rakutenFundId: null,
       settlementBusinessDays: null,
+      navSource: null,
+      navSourceCode: null,
     });
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -149,6 +165,8 @@ describe('FundUseCase', () => {
         name: '国内株式',
         rakutenFundId: 'ABCD1234EFGH',
         settlementBusinessDays: 1,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ]);
@@ -158,6 +176,8 @@ describe('FundUseCase', () => {
       name: '国内株式（更新後）',
       rakutenFundId: 'ABCD1234EFGH',
       settlementBusinessDays: 2,
+      navSource: null,
+      navSourceCode: null,
     });
     expect(result.success).toBe(true);
     if (result.success) {
@@ -176,6 +196,8 @@ describe('FundUseCase', () => {
         name: '国内債券',
         rakutenFundId: null,
         settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
       {
@@ -183,6 +205,8 @@ describe('FundUseCase', () => {
         name: '国内株式',
         rakutenFundId: null,
         settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2024-01-02T00:00:00.000Z',
       },
     ]);
@@ -192,10 +216,219 @@ describe('FundUseCase', () => {
       name: '国内債券（更新）',
       rakutenFundId: null,
       settlementBusinessDays: null,
+      navSource: null,
+      navSourceCode: null,
     });
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error.type).toBe('conflict');
+    }
+  });
+
+  it('wealthadvisor取得元と正しい取得元コードで銘柄を作成する', () => {
+    // 前提: SBI証券限定販売ファンドには楽天ファンドIDが存在しない。
+    // 事前条件: navSourceとnavSourceCodeを組で指定する。
+    // 検証: 取得元コードがトリムされて作成結果へ保持される。
+    const useCase = createFundUseCase(createFundRepository());
+    const result = useCase.createFund({
+      name: 'ＳＢＩ・iシェアーズ・ゴールドファンド（為替ヘッジなし）',
+      rakutenFundId: null,
+      settlementBusinessDays: 2,
+      navSource: 'wealthadvisor',
+      navSourceCode: ' sbi_am/sa_202306080A ',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.value.navSource).toBe('wealthadvisor');
+      expect(result.value.navSourceCode).toBe('sbi_am/sa_202306080A');
+    }
+  });
+
+  it('wealthadvisor取得元で取得元コードが欠落した場合はvalidationエラーになる', () => {
+    // 前提: navSourceだけがwealthadvisorに設定されている。
+    // 事前条件: navSourceCodeはnullである。
+    // 検証: navSourceCodeフィールドのvalidationエラーを返す。
+    const result = createFundUseCase(createFundRepository()).createFund({
+      name: 'ＳＢＩ・iシェアーズ・ゴールドファンド（為替ヘッジなし）',
+      rakutenFundId: null,
+      settlementBusinessDays: 2,
+      navSource: 'wealthadvisor',
+      navSourceCode: null,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.type).toBe('validation');
+      expect(result.error.field).toBe('navSourceCode');
+    }
+  });
+
+  it('wealthadvisor取得元コードの形式が不正な場合はvalidationエラーになる', () => {
+    // 前提: navSourceはwealthadvisorだが取得元コードにcompanyとpageIdの区切りがない。
+    // 事前条件: 楽天ファンドIDは未設定である。
+    // 検証: navSourceCodeフィールドのvalidationエラーを返す。
+    const result = createFundUseCase(createFundRepository()).createFund({
+      name: 'ＳＢＩ・iシェアーズ・ゴールドファンド（為替ヘッジなし）',
+      rakutenFundId: null,
+      settlementBusinessDays: 2,
+      navSource: 'wealthadvisor',
+      navSourceCode: 'sbi_am',
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.type).toBe('validation');
+      expect(result.error.field).toBe('navSourceCode');
+    }
+  });
+
+  it('NAV取得元が未設定で取得元コードだけがある場合はvalidationエラーになる', () => {
+    // 前提: navSourceはnullだがnavSourceCodeが指定されている。
+    // 事前条件: 楽天ファンドIDも未設定である。
+    // 検証: 片側だけの指定をvalidationエラーで拒否する。
+    const result = createFundUseCase(createFundRepository()).createFund({
+      name: 'ＳＢＩ・iシェアーズ・ゴールドファンド（為替ヘッジなし）',
+      rakutenFundId: null,
+      settlementBusinessDays: 2,
+      navSource: null,
+      navSourceCode: 'sbi_am/sa_202306080A',
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.type).toBe('validation');
+    }
+  });
+
+  it('楽天ファンドIDとwealthadvisor取得元の二重指定はvalidationエラーになる', () => {
+    // 前提: 1銘柄に楽天ファンドIDとWealth Advisor取得元が両方指定されている。
+    // 事前条件: 各コード単独の形式は正しい。
+    // 検証: 取得元の排他制約をvalidationエラーで適用する。
+    const result = createFundUseCase(createFundRepository()).createFund({
+      name: 'ＳＢＩ・iシェアーズ・ゴールドファンド（為替ヘッジなし）',
+      rakutenFundId: 'ABCD1234EFGH',
+      settlementBusinessDays: 2,
+      navSource: 'wealthadvisor',
+      navSourceCode: 'sbi_am/sa_202306080A',
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.type).toBe('validation');
+      expect(result.error.message).toContain('どちらか一方');
+    }
+  });
+
+  it('更新時も楽天ファンドIDとwealthadvisor取得元の二重指定を拒否する', () => {
+    // 前提: 更新対象のSBIファンドが登録済みである。
+    // 事前条件: 更新入力に楽天ファンドIDとWealth Advisor取得元を両方指定する。
+    // 検証: 永続化前にvalidationエラーを返す。
+    const repository = createFundRepository([
+      {
+        id: 'fund-sbi-gold',
+        name: 'ＳＢＩ・iシェアーズ・ゴールドファンド（為替ヘッジなし）',
+        rakutenFundId: null,
+        settlementBusinessDays: 2,
+        navSource: 'wealthadvisor',
+        navSourceCode: 'sbi_am/sa_202306080A',
+        createdAt: '2026-09-02T00:00:00.000Z',
+      },
+    ]);
+    const result = createFundUseCase(repository).updateFund({
+      id: 'fund-sbi-gold',
+      name: 'ＳＢＩ・iシェアーズ・ゴールドファンド（為替ヘッジなし）',
+      rakutenFundId: 'ABCD1234EFGH',
+      settlementBusinessDays: 2,
+      navSource: 'wealthadvisor',
+      navSourceCode: 'sbi_am/sa_202306080A',
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.type).toBe('validation');
+    }
+  });
+
+  it('旧形式更新で取得元2項目を省略した場合は既存のWealth Advisor設定を維持する', () => {
+    // 前提: Wealth Advisor取得元が設定済みのSBI証券限定販売ファンドが存在する。
+    // 事前条件: 旧形式クライアントがnavSourceとnavSourceCodeを含めずに名称を更新する。
+    // 検証: 更新後も既存の取得元種別と取得元コードが維持される。
+    const repository = createFundRepository([
+      {
+        id: 'fund-sbi-gold',
+        name: 'ＳＢＩ・iシェアーズ・ゴールドファンド（為替ヘッジなし）',
+        rakutenFundId: null,
+        settlementBusinessDays: 2,
+        navSource: 'wealthadvisor',
+        navSourceCode: 'sbi_am/sa_202306080A',
+        createdAt: '2026-09-02T00:00:00.000Z',
+      },
+    ]);
+    const result = createFundUseCase(repository).updateFund({
+      id: 'fund-sbi-gold',
+      name: 'ＳＢＩ・iシェアーズ・ゴールドファンド（更新）',
+      rakutenFundId: null,
+      settlementBusinessDays: 3,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.value.navSource).toBe('wealthadvisor');
+      expect(result.value.navSourceCode).toBe('sbi_am/sa_202306080A');
+    }
+  });
+
+  it('更新時に取得元2項目へ明示的なnullを指定すると既存設定をクリアする', () => {
+    // 前提: Wealth Advisor取得元が設定済みのSBI証券限定販売ファンドが存在する。
+    // 事前条件: navSourceとnavSourceCodeの両方へ明示的にnullを指定する。
+    // 検証: 更新後の取得元種別と取得元コードが両方nullになる。
+    const repository = createFundRepository([
+      {
+        id: 'fund-sbi-gold',
+        name: 'ＳＢＩ・iシェアーズ・ゴールドファンド（為替ヘッジなし）',
+        rakutenFundId: null,
+        settlementBusinessDays: 2,
+        navSource: 'wealthadvisor',
+        navSourceCode: 'sbi_am/sa_202306080A',
+        createdAt: '2026-09-02T00:00:00.000Z',
+      },
+    ]);
+    const result = createFundUseCase(repository).updateFund({
+      id: 'fund-sbi-gold',
+      name: 'ＳＢＩ・iシェアーズ・ゴールドファンド（取得元解除）',
+      rakutenFundId: null,
+      settlementBusinessDays: 2,
+      navSource: null,
+      navSourceCode: null,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.value.navSource).toBeNull();
+      expect(result.value.navSourceCode).toBeNull();
+    }
+  });
+
+  it('更新時に取得元2項目の片方だけを省略するとvalidationエラーになる', () => {
+    // 前提: Wealth Advisor取得元が設定済みのファンドが存在する。
+    // 事前条件: navSourceを省略し、navSourceCodeだけを明示する。
+    // 検証: 既存値との暗黙結合を行わずvalidationエラーで拒否する。
+    const repository = createFundRepository([
+      {
+        id: 'fund-sbi-gold',
+        name: 'ＳＢＩ・限定販売ファンド',
+        rakutenFundId: null,
+        settlementBusinessDays: 2,
+        navSource: 'wealthadvisor',
+        navSourceCode: 'sbi_am/sa_202306080A',
+        createdAt: '2026-09-02T00:00:00.000Z',
+      },
+    ]);
+    const result = createFundUseCase(repository).updateFund({
+      id: 'fund-sbi-gold',
+      name: 'ＳＢＩ・限定販売ファンド',
+      rakutenFundId: null,
+      settlementBusinessDays: 2,
+      navSource: undefined,
+      navSourceCode: 'sbi_am/sa_202306080A',
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.type).toBe('validation');
+      expect(result.error.field).toBe('navSource');
     }
   });
 });

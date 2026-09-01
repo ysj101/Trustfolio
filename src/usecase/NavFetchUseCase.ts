@@ -1,10 +1,11 @@
 import { calculateHolding, calculatePortfolio } from '../domain/HoldingCalculator';
-import type { Fund, Nav, PerformanceRecord, Result } from '../domain/types';
+import type { FetchedNavData, Fund, Nav, PerformanceRecord, Result } from '../domain/types';
 import type { FundRepository } from '../repository/FundRepository';
 import type { NavRepository } from '../repository/NavRepository';
 import type { PerformanceRepository } from '../repository/PerformanceRepository';
 import type { TransactionRepository } from '../repository/TransactionRepository';
 import type { RakutenService } from '../service/RakutenService';
+import type { WealthAdvisorService } from '../service/WealthAdvisorService';
 import { logError } from '../utils/logger';
 import { clock } from '../utils/dateTime';
 
@@ -63,7 +64,7 @@ export type NavFetchResult = {
   totalCount: number;
   /** 成功した銘柄数 */
   successCount: number;
-  /** スキップした銘柄数（楽天ファンドID未設定） */
+  /** スキップした銘柄数（基準価額取得元未設定） */
   skippedCount: number;
   /** 既に登録済みの銘柄数 */
   alreadyExistsCount: number;
@@ -147,8 +148,8 @@ export function isNavFetchResult(value: unknown): value is NavFetchResult {
 
 export type NavFetchUseCase = {
   /**
-   * 全銘柄の最新基準価額を楽天証券から取得し、登録する。
-   * 楽天ファンドIDが設定されていない銘柄はスキップする。
+   * 全銘柄の最新基準価額を設定された取得元から取得し、登録する。
+   * 基準価額取得元が設定されていない銘柄はスキップする。
    * 同一日付の基準価額が既に登録されている場合もスキップする。
    */
   fetchAndRegisterAllNavs: () => Result<NavFetchResult>;
@@ -162,7 +163,8 @@ export function createNavFetchUseCase(
   navRepository: NavRepository,
   transactionRepository: TransactionRepository,
   performanceRepository: PerformanceRepository,
-  rakutenService: RakutenService
+  rakutenService: RakutenService,
+  wealthAdvisorService: WealthAdvisorService
 ): NavFetchUseCase {
   return {
     fetchAndRegisterAllNavs: (): Result<NavFetchResult> => {
@@ -183,7 +185,8 @@ export function createNavFetchUseCase(
           navRepository,
           transactionRepository,
           performanceRepository,
-          rakutenService
+          rakutenService,
+          wealthAdvisorService
         );
         items.push(outcome.item);
         if (outcome.performanceFailure !== null) {
@@ -273,23 +276,63 @@ function processFund(
   navRepository: NavRepository,
   transactionRepository: TransactionRepository,
   performanceRepository: PerformanceRepository,
-  rakutenService: RakutenService
+  rakutenService: RakutenService,
+  wealthAdvisorService: WealthAdvisorService
 ): ProcessFundOutcome {
-  // 楽天ファンドIDが未設定の場合はスキップ
-  if (fund.rakutenFundId === null) {
+  // FundRepositoryは不正な組み合わせを読取時に拒否するが、将来別経路からFundが渡されても
+  // 外部取得へ進まないよう、二重指定とコード欠落の防御的検証をここにも維持する。
+  if (fund.navSource === 'wealthadvisor' && fund.rakutenFundId !== null) {
     return {
       item: {
         fundId: fund.id,
         fundName: fund.name,
-        status: 'skipped',
-        message: '楽天ファンドIDが設定されていません。',
+        status: 'failed',
+        message: '取得元が二重に指定されています。',
       },
       performanceFailure: null,
     };
   }
 
-  // 楽天証券から基準価額を取得
-  const fetchResult = rakutenService.fetchLatestNav(fund.rakutenFundId);
+  // 取得元を明示的に分岐し、別取得元への暗黙フォールバックを行わない。
+  // FundRepositoryで拒否する孤立コードもFund型では表現可能なため、別経路から渡された場合を防御する。
+  let fetchResult: Result<{ nav: FetchedNavData }>;
+  if (fund.navSource === 'wealthadvisor') {
+    if (fund.navSourceCode === null) {
+      return {
+        item: {
+          fundId: fund.id,
+          fundName: fund.name,
+          status: 'failed',
+          message: 'Wealth Advisorの取得元コードが設定されていません。',
+        },
+        performanceFailure: null,
+      };
+    }
+    fetchResult = wealthAdvisorService.fetchLatestNav(fund.navSourceCode);
+  } else if (fund.navSource === null && fund.navSourceCode === null) {
+    if (fund.rakutenFundId === null) {
+      return {
+        item: {
+          fundId: fund.id,
+          fundName: fund.name,
+          status: 'skipped',
+          message: '基準価額の取得元が設定されていません。',
+        },
+        performanceFailure: null,
+      };
+    }
+    fetchResult = rakutenService.fetchLatestNav(fund.rakutenFundId);
+  } else {
+    return {
+      item: {
+        fundId: fund.id,
+        fundName: fund.name,
+        status: 'failed',
+        message: '取得元の設定が不整合です。',
+      },
+      performanceFailure: null,
+    };
+  }
   if (!fetchResult.success) {
     return {
       item: {
@@ -303,18 +346,6 @@ function processFund(
   }
 
   const navData = fetchResult.value.nav;
-  if (navData === null) {
-    return {
-      item: {
-        fundId: fund.id,
-        fundName: fund.name,
-        status: 'failed',
-        message: '基準価額データを取得できませんでした。',
-      },
-      performanceFailure: null,
-    };
-  }
-
   // 同一日付の基準価額が既に登録されているか確認
   const existingResult = navRepository.findByFundAndDate(fund.id, navData.date);
   if (!existingResult.success) {

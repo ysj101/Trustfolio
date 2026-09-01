@@ -8,6 +8,7 @@ import {
   parseAllRows,
   parseNumberCell,
   parseOptionalNonNegativeNumberCell,
+  parseOptionalStringCell,
   parseRequiredStringCell,
   parseSheetDate,
 } from '../../src/repository/SheetMapping';
@@ -275,6 +276,46 @@ describe('parseOptionalNonNegativeNumberCell', () => {
         expect(result.error.type).toBe('unexpected');
       }
     });
+  });
+});
+
+describe('parseOptionalStringCell', () => {
+  it('空セルをnullへ変換し、文字列の前後空白を除去する', () => {
+    // 前提: 任意文字列列には未設定セルまたは前後空白付きの値が保存される。
+    // 事前条件: 空文字・空白のみ・null・undefined・前後空白付き文字列を入力する。
+    // 検証: 空相当はnull、値がある文字列はtrim済みの文字列として返す。
+    expect(parseOptionalStringCell('', 'funds', 'navSourceCode', 0)).toEqual({
+      success: true,
+      value: null,
+    });
+    expect(parseOptionalStringCell('   ', 'funds', 'navSourceCode', 0)).toEqual({
+      success: true,
+      value: null,
+    });
+    expect(parseOptionalStringCell(null, 'funds', 'navSourceCode', 0)).toEqual({
+      success: true,
+      value: null,
+    });
+    expect(parseOptionalStringCell(undefined, 'funds', 'navSourceCode', 0)).toEqual({
+      success: true,
+      value: null,
+    });
+    expect(parseOptionalStringCell(' sbi_am/sa_202306080A ', 'funds', 'navSourceCode', 0)).toEqual({
+      success: true,
+      value: 'sbi_am/sa_202306080A',
+    });
+  });
+
+  it('文字列以外の値は行番号付きunexpectedエラーにする', () => {
+    // 前提: 任意文字列列へ数値が誤って保存されている。
+    // 事前条件: fundsシートの3行目に相当する行インデックス1を指定する。
+    // 検証: 暗黙の文字列変換を行わず、シート名・行番号・列名を含むエラーを返す。
+    const result = parseOptionalStringCell(20230608, 'funds', 'navSourceCode', 1);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.type).toBe('unexpected');
+      expect(result.error.message).toBe('fundsの3行目のnavSourceCodeが不正です。');
+    }
   });
 });
 

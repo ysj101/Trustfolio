@@ -14,6 +14,8 @@
     const fundForm = document.getElementById('fundForm');
     const fundNameInput = document.getElementById('fundName');
     const fundRakutenFundIdInput = document.getElementById('fundRakutenFundId');
+    const fundNavSourceSelect = document.getElementById('fundNavSource');
+    const fundNavSourceCodeInput = document.getElementById('fundNavSourceCode');
     const fundSettlementBusinessDaysInput = document.getElementById('fundSettlementBusinessDays');
     const fundList = document.getElementById('fundList');
     const transactionForm = document.getElementById('transactionForm');
@@ -647,6 +649,8 @@
       event.preventDefault();
       const name = fundNameInput.value;
       const rakutenFundId = fundRakutenFundIdInput.value.trim() || null;
+      const navSource = fundNavSourceSelect.value === 'wealthadvisor' ? 'wealthadvisor' : null;
+      const navSourceCode = fundNavSourceCodeInput.value.trim() || null;
       const settlementBusinessDaysText = fundSettlementBusinessDaysInput.value.trim();
       const settlementBusinessDays =
         settlementBusinessDaysText === '' ? null : Number(settlementBusinessDaysText);
@@ -658,6 +662,8 @@
           name,
           rakutenFundId,
           settlementBusinessDays,
+          navSource,
+          navSourceCode,
         });
         if (!response.success) {
           setMessage(response.error.message, 'error');
@@ -665,6 +671,8 @@
         }
         fundNameInput.value = '';
         fundRakutenFundIdInput.value = '';
+        fundNavSourceSelect.value = '';
+        fundNavSourceCodeInput.value = '';
         fundSettlementBusinessDaysInput.value = '';
         setMessage('銘柄を登録しました。', 'success');
         await loadFunds();

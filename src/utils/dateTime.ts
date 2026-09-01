@@ -114,6 +114,40 @@ export function parseUtcIsoDate(value: string): Date {
 }
 
 /**
+ * `YYYY-MM-DD`形式の文字列が実在する暦日かをUTC基準で検証する。
+ *
+ * 内容:
+ * - 形式から年月日を数値化し、UTCのDateへ設定した値を同じ年月日へround-tripできるか確認する。
+ * - `2026-02-30`のようにDateが翌月へ繰り上げる日付は不正として返す。
+ *
+ * 注意:
+ * - 本関数は暦日の厳密検証が必要な外部データ境界で使用する。
+ * - 既存ユースケースが利用するdomain/validators.tsの互換動作は変更しない。
+ *
+ * @param value - 検証対象の文字列。
+ * @returns 指定値が実在する暦日ならtrue。
+ */
+export function isValidIsoDate(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (match === null) {
+    return false;
+  }
+  const [, yearText, monthText, dayText] = match;
+  if (yearText === undefined || monthText === undefined || dayText === undefined) {
+    return false;
+  }
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const date = new Date(0);
+  date.setUTCHours(0, 0, 0, 0);
+  date.setUTCFullYear(year, month - 1, day);
+  return (
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+  );
+}
+
+/**
  * 現在時刻の生成を集約するクロック抽象。
  *
  * 目的:
