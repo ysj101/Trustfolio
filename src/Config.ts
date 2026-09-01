@@ -16,7 +16,15 @@ export const SHEET_NAMES = {
  * ヘッダーの順序が壊れている場合は即座に失敗させる。
  */
 export const SHEET_HEADERS = {
-  [SHEET_NAMES.FUNDS]: ['id', 'name', 'rakutenFundId', 'settlementBusinessDays', 'createdAt'],
+  [SHEET_NAMES.FUNDS]: [
+    'id',
+    'name',
+    'rakutenFundId',
+    'settlementBusinessDays',
+    'navSource',
+    'navSourceCode',
+    'createdAt',
+  ],
   [SHEET_NAMES.NAV_RECORDS]: ['fundId', 'date', 'value', 'createdAt'],
   [SHEET_NAMES.TRANSACTIONS]: [
     'id',

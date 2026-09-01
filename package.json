@@ -21,6 +21,7 @@
     "test": "vitest",
     "test:rakuten": "node scripts/rakuten-integration-test.mjs",
     "test:nav-fetch": "node scripts/nav-fetch-test.mjs",
+    "test:wealthadvisor": "node scripts/wealthadvisor-fetch-test.mjs",
     "prepare": "husky"
   },
   "devDependencies": {

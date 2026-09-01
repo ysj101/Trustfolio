@@ -31,6 +31,8 @@ function createTestFund(id: string, name: string): Fund {
     name,
     rakutenFundId: null,
     settlementBusinessDays: null,
+    navSource: null,
+    navSourceCode: null,
     createdAt: '2024-01-01T00:00:00.000Z',
   };
 }
