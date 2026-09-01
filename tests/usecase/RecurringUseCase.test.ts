@@ -107,6 +107,8 @@ describe('RecurringUseCase', () => {
         name: '国内株式',
         rakutenFundId: null,
         settlementBusinessDays: 1,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ];
@@ -230,6 +232,8 @@ describe('RecurringUseCase', () => {
         name: '国内株式',
         rakutenFundId: null,
         settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ];
@@ -268,6 +272,8 @@ describe('RecurringUseCase', () => {
         name: '海外株式',
         rakutenFundId: null,
         settlementBusinessDays: -1,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ];
@@ -307,6 +313,8 @@ describe('RecurringUseCase', () => {
           name: '国内株式',
           rakutenFundId: null,
           settlementBusinessDays: 1,
+          navSource: null,
+          navSourceCode: null,
           createdAt: '2024-01-01T00:00:00.000Z',
         },
       ]),
@@ -356,6 +364,8 @@ describe('RecurringUseCase', () => {
         name: 'テストファンド',
         rakutenFundId: null,
         settlementBusinessDays: 1,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ];
@@ -415,6 +425,8 @@ describe('RecurringUseCase', () => {
         name: 'テストファンド',
         rakutenFundId: null,
         settlementBusinessDays: 1,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ];
@@ -474,6 +486,8 @@ describe('RecurringUseCase', () => {
         name: 'テストファンド',
         rakutenFundId: null,
         settlementBusinessDays: 1,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ];

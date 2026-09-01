@@ -17,6 +17,8 @@ const 全世界株式ファンド: Fund = {
   name: '全世界株式インデックスファンド',
   rakutenFundId: null,
   settlementBusinessDays: null,
+  navSource: null,
+  navSourceCode: null,
   createdAt: '2024-01-01T00:00:00.000Z',
 };
 

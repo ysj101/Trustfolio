@@ -9,6 +9,7 @@ import { createTransactionRepository } from '../repository/TransactionRepository
 import { createEmailService } from '../service/EmailService';
 import { createMarketIndexService } from '../service/MarketIndexService';
 import { createRakutenService } from '../service/RakutenService';
+import { createWealthAdvisorService } from '../service/WealthAdvisorService';
 import { createFundUseCase, type FundUseCase } from './FundUseCase';
 import { createHoldingUseCase, type HoldingUseCase } from './HoldingUseCase';
 import {
@@ -89,6 +90,7 @@ export function createAppContainer(): Result<AppContainer> {
 
   // サービス層
   const rakutenService = createRakutenService();
+  const wealthAdvisorService = createWealthAdvisorService();
   const marketIndexService = createMarketIndexService();
   const emailService = createEmailService();
 
@@ -121,7 +123,8 @@ export function createAppContainer(): Result<AppContainer> {
         navRepository,
         transactionRepository,
         performanceRepository,
-        rakutenService
+        rakutenService,
+        wealthAdvisorService
       ),
       weeklyReportUseCase: createWeeklyReportUseCase(
         portfolioUseCase,

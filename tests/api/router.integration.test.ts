@@ -46,7 +46,7 @@ describe('router integration', () => {
     const sheetRepository = createInMemorySheetRepository({
       [SHEET_NAMES.FUNDS]: [
         headerRow(SHEET_NAMES.FUNDS),
-        [fundId, '国内株式', '', 0, '2024-01-01T00:00:00.000Z'],
+        [fundId, '国内株式', '', 0, '', '', '2024-01-01T00:00:00.000Z'],
       ],
       [SHEET_NAMES.NAV_RECORDS]: [
         headerRow(SHEET_NAMES.NAV_RECORDS),
@@ -69,6 +69,8 @@ describe('router integration', () => {
       name: '海外株式',
       rakutenFundId: null,
       settlementBusinessDays: 2,
+      navSource: null,
+      navSourceCode: null,
     });
     expect(createResult.success).toBe(true);
 
@@ -86,11 +88,123 @@ describe('router integration', () => {
         name: '海外株式（更新）',
         rakutenFundId: null,
         settlementBusinessDays: 2,
+        navSource: null,
+        navSourceCode: null,
       });
       expect(updateResult.success).toBe(true);
       return;
     }
     expect(listResult.success).toBe(false);
+  });
+
+  it('未指定の取得元項目をnullへ正規化し、wealthadvisor項目をAPI境界から保存する', () => {
+    // 前提: API利用者は新項目を省略でき、別の銘柄ではWealth Advisor取得元を明示できる。
+    // 事前条件: 初期化済みのfundsシートを使用する。
+    // 検証: 省略時は両項目がnullとなり、明示時は指定値が作成結果へ保持される。
+    const omittedResult = handleApiRequest({
+      action: 'createFund',
+      name: '先進国債券インデックスファンド',
+      rakutenFundId: null,
+      settlementBusinessDays: 2,
+    });
+    expect(omittedResult.success).toBe(true);
+    if (omittedResult.success) {
+      const created = omittedResult.value as { navSource?: unknown; navSourceCode?: unknown };
+      expect(created.navSource).toBeNull();
+      expect(created.navSourceCode).toBeNull();
+    }
+
+    const wealthAdvisorResult = handleApiRequest({
+      action: 'createFund',
+      name: 'ＳＢＩ・iシェアーズ・ゴールドファンド（為替ヘッジなし）',
+      rakutenFundId: null,
+      settlementBusinessDays: 2,
+      navSource: 'wealthadvisor',
+      navSourceCode: 'sbi_am/sa_202306080A',
+    });
+    expect(wealthAdvisorResult.success).toBe(true);
+    if (wealthAdvisorResult.success) {
+      const created = wealthAdvisorResult.value as {
+        id?: unknown;
+        navSource?: unknown;
+        navSourceCode?: unknown;
+      };
+      expect(created.navSource).toBe('wealthadvisor');
+      expect(created.navSourceCode).toBe('sbi_am/sa_202306080A');
+      expect(typeof created.id).toBe('string');
+      if (typeof created.id === 'string') {
+        const updateResult = handleApiRequest({
+          action: 'updateFund',
+          id: created.id,
+          name: 'ＳＢＩ・iシェアーズ・ゴールドファンド（為替ヘッジなし・更新）',
+          rakutenFundId: null,
+          settlementBusinessDays: 3,
+          navSource: 'wealthadvisor',
+          navSourceCode: 'sbi_am/sa_202306080A',
+        });
+        expect(updateResult.success).toBe(true);
+        if (updateResult.success) {
+          const updated = updateResult.value as { navSourceCode?: unknown };
+          expect(updated.navSourceCode).toBe('sbi_am/sa_202306080A');
+        }
+      }
+    }
+  });
+
+  it('旧形式updateFundでは取得元を維持し、明示nullでは取得元をクリアする', () => {
+    // 前提: Wealth Advisor取得元を設定したSBI証券限定販売ファンドをAPI経由で作成する。
+    // 事前条件: 最初の更新は取得元2項目を含まない旧形式、次の更新は両項目へnullを指定する。
+    // 検証: 旧形式更新では既存設定が維持され、明示nullの更新では両項目がクリアされる。
+    const createResult = handleApiRequest({
+      action: 'createFund',
+      name: 'ＳＢＩ・iシェアーズ・ゴールドファンド（為替ヘッジなし）',
+      rakutenFundId: null,
+      settlementBusinessDays: 2,
+      navSource: 'wealthadvisor',
+      navSourceCode: 'sbi_am/sa_202306080A',
+    });
+    expect(createResult.success).toBe(true);
+    if (!createResult.success) {
+      return;
+    }
+    const created = createResult.value as { id?: unknown };
+    expect(typeof created.id).toBe('string');
+    if (typeof created.id !== 'string') {
+      return;
+    }
+
+    const legacyUpdateResult = handleApiRequest({
+      action: 'updateFund',
+      id: created.id,
+      name: 'ＳＢＩ・iシェアーズ・ゴールドファンド（旧形式更新）',
+      rakutenFundId: null,
+      settlementBusinessDays: 3,
+    });
+    expect(legacyUpdateResult.success).toBe(true);
+    if (legacyUpdateResult.success) {
+      const updated = legacyUpdateResult.value as {
+        navSource?: unknown;
+        navSourceCode?: unknown;
+      };
+      expect(updated.navSource).toBe('wealthadvisor');
+      expect(updated.navSourceCode).toBe('sbi_am/sa_202306080A');
+    }
+
+    const clearResult = handleApiRequest({
+      action: 'updateFund',
+      id: created.id,
+      name: 'ＳＢＩ・iシェアーズ・ゴールドファンド（取得元解除）',
+      rakutenFundId: null,
+      settlementBusinessDays: 3,
+      navSource: null,
+      navSourceCode: null,
+    });
+    expect(clearResult.success).toBe(true);
+    if (clearResult.success) {
+      const cleared = clearResult.value as { navSource?: unknown; navSourceCode?: unknown };
+      expect(cleared.navSource).toBeNull();
+      expect(cleared.navSourceCode).toBeNull();
+    }
   });
 
   it('取引登録と取得が成功する', () => {

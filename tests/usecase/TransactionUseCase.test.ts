@@ -57,6 +57,8 @@ describe('TransactionUseCase', () => {
         name: '国内株式',
         rakutenFundId: null,
         settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ]);
@@ -84,6 +86,8 @@ describe('TransactionUseCase', () => {
         name: '海外株式',
         rakutenFundId: null,
         settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ]);
@@ -126,6 +130,8 @@ describe('TransactionUseCase', () => {
         name: '国内株式',
         rakutenFundId: null,
         settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ]);
@@ -193,6 +199,8 @@ describe('TransactionUseCase', () => {
         name: '国内株式',
         rakutenFundId: null,
         settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ]);
@@ -241,6 +249,8 @@ describe('TransactionUseCase', () => {
         name: '国内株式インデックス',
         rakutenFundId: null,
         settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2026-01-01T00:00:00.000Z',
       },
     ]);
@@ -319,6 +329,8 @@ describe('TransactionUseCase', () => {
         name: '先進国株式インデックス',
         rakutenFundId: null,
         settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2026-01-01T00:00:00.000Z',
       },
     ]);
@@ -383,6 +395,8 @@ describe('TransactionUseCase', () => {
         name: '国内株式',
         rakutenFundId: null,
         settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ]);
@@ -426,6 +440,8 @@ describe('TransactionUseCase', () => {
         name: '国内株式',
         rakutenFundId: null,
         settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ]);
@@ -463,6 +479,8 @@ describe('TransactionUseCase', () => {
         name: '国内株式',
         rakutenFundId: null,
         settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ]);
@@ -491,6 +509,8 @@ describe('TransactionUseCase', () => {
         name: '国内株式',
         rakutenFundId: null,
         settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ]);
@@ -534,6 +554,8 @@ describe('TransactionUseCase', () => {
         name: '国内株式',
         rakutenFundId: null,
         settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ]);
@@ -565,6 +587,8 @@ describe('TransactionUseCase', () => {
         name: '国内株式',
         rakutenFundId: null,
         settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ]);
@@ -611,6 +635,8 @@ describe('TransactionUseCase', () => {
         name: '国内株式',
         rakutenFundId: null,
         settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ]);

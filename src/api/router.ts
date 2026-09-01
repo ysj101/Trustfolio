@@ -15,6 +15,8 @@ type CreateFundRequest = {
   name: string;
   rakutenFundId: string | null;
   settlementBusinessDays: number | null;
+  navSource?: 'wealthadvisor' | null;
+  navSourceCode?: string | null;
 };
 
 type UpdateFundRequest = {
@@ -23,6 +25,10 @@ type UpdateFundRequest = {
   name: string;
   rakutenFundId: string | null;
   settlementBusinessDays: number | null;
+  /** プロパティ不在は既存値維持、明示的なnullは取得元設定のクリアを表す。 */
+  navSource?: 'wealthadvisor' | null;
+  /** プロパティ不在は既存値維持、明示的なnullは取得元設定のクリアを表す。 */
+  navSourceCode?: string | null;
 };
 
 type GetNavHistoryRequest = {
@@ -198,6 +204,8 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
         name: request.name,
         rakutenFundId: request.rakutenFundId,
         settlementBusinessDays: request.settlementBusinessDays,
+        navSource: request.navSource ?? null,
+        navSourceCode: request.navSourceCode ?? null,
       });
     case 'updateFund':
       return container.fundUseCase.updateFund({
@@ -205,6 +213,8 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
         name: request.name,
         rakutenFundId: request.rakutenFundId,
         settlementBusinessDays: request.settlementBusinessDays,
+        navSource: request.navSource,
+        navSourceCode: request.navSourceCode,
       });
     case 'getNavHistory':
       return container.navUseCase.getNavHistory(request.fundId);

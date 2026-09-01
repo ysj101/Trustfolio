@@ -56,6 +56,8 @@ const fund: Fund = {
   name: 'テストファンド',
   rakutenFundId: null,
   settlementBusinessDays: 2,
+  navSource: null,
+  navSourceCode: null,
   createdAt: '2024-01-01T00:00:00.000Z',
 };
 

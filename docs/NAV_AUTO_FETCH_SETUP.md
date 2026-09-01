@@ -4,10 +4,24 @@
 
 本ドキュメントでは、保有している投資信託の基準価額（NAV）を毎日自動で取得するための設定手順を説明します。
 
+Trustfolioは楽天証券のファンド詳細ページに加えて、SBI証券限定販売ファンドなどを掲載するWealth AdvisorのファンドページからNAVを取得できます。1銘柄には楽天ファンドIDまたはWealth Advisor取得元のどちらか一方だけを設定してください。
+
+## Wealth Advisor取得元の設定
+
+`_funds`シートまたは投資信託登録フォームで、対象銘柄に次の値を設定します。
+
+- `rakutenFundId`: 空欄
+- `navSource`: `wealthadvisor`
+- `navSourceCode`: `<company>/<pageId>`形式のコード
+
+協会コード`8931A236`の「ＳＢＩ・iシェアーズ・ゴールドファンド（為替ヘッジなし）」では、`navSourceCode`に`sbi_am/sa_202306080A`を設定します。このコードから、Trustfolioは`https://apl.wealthadvisor.jp/webasp/sbi_am/pc/basic/sa_202306080A.html`へアクセスします。
+
+既存の`_funds`シートには、シート初期化、夜間のNAV自動取得、または銘柄の新規登録・更新を実行した時点で、`SheetRepository.ensureHeader`が`alignColumnsToHeaders`を使用して`navSource`列と`navSourceCode`列を自動挿入し、定義済みの列順へ並べ替えます。銘柄の新規登録・更新でも書き込み前に列移行が自動実行されるため、デプロイ後にシート初期化を事前実行することは必須ではありません。移行を明示的に先に完了させたい場合は、スプレッドシートのメニューから「シート初期化」を実行できます。利用者が専用の移行スクリプトを実行する必要はありません。自動移行が実行されるまでの間も、Trustfolioは既知の旧5列シートをそのまま読み取れます。`createdAt`列は移行後も最後尾です。
+
 ## 前提条件
 
 - Google Apps Scriptプロジェクトが既にデプロイされていること
-- `fetchAllNavs`関数が実装されていること（main.ts:73-96）
+- [main.ts](../src/main.ts)に`fetchAllNavs`関数が実装されていること
 - スプレッドシートに保有銘柄が登録されていること
 
 ## トリガー設定方法
@@ -85,17 +99,19 @@
 - **総数**: 処理対象の銘柄数（全保有銘柄）
 - **成功**: NAVの取得と登録に成功した銘柄数
 - **既存**: 同一日付のNAVが既に登録されていた銘柄数
-- **スキップ**: 楽天ファンドIDが設定されていない銘柄数
-- **失敗**: 楽天証券からのNAV取得に失敗した銘柄数
+- **スキップ**: 楽天ファンドIDとWealth Advisor取得元のどちらも設定されていない銘柄数
+- **失敗**: 設定された取得元からのNAV取得に失敗した銘柄数
 
 ### エラー発生時の対処
 
-#### 「楽天ファンドIDが設定されていません」とスキップされる場合
+#### 「基準価額の取得元が設定されていません」とスキップされる場合
 
-1. スプレッドシートの`funds`シートを開く
+1. スプレッドシートの`_funds`シートを開く
 2. 該当銘柄の`rakutenFundId`列を確認
 3. 楽天証券のファンド詳細ページURLから12桁のIDを取得して設定
    - 例: `https://www.rakuten-sec.co.jp/web/fund/detail/?ID=JP90C000FXB7` → `JP90C000FXB7`
+
+Wealth Advisorから取得する銘柄では、楽天ファンドIDを空欄にし、`navSource`と`navSourceCode`を「Wealth Advisor取得元の設定」の内容どおりに設定します。
 
 #### NAV取得に失敗する場合
 
@@ -104,6 +120,8 @@
 3. 楽天証券のHTML構造が変更されている可能性がある場合
    - issue登録して開発チームに報告
    - `RakutenService.ts`のHTMLパース処理の修正が必要
+
+Wealth Advisorを取得元にしている場合は、対象URLが表示できることと`navSourceCode`が正しいことを確認してください。Wealth AdvisorのHTML構造が変更された場合は、`WealthAdvisorService.ts`のHTMLパース処理を修正する必要があります。
 
 ## 自動実行のモニタリング
 
@@ -160,4 +178,5 @@
 - [main.ts](../src/main.ts) - トリガー設定関数とfetchAllNavs関数
 - [NavFetchUseCase.ts](../src/usecase/NavFetchUseCase.ts) - NAV取得ロジック
 - [RakutenService.ts](../src/service/RakutenService.ts) - 楽天証券スクレイピング
+- [WealthAdvisorService.ts](../src/service/WealthAdvisorService.ts) - Wealth Advisorスクレイピング
 - [NavRepository.ts](../src/repository/NavRepository.ts) - NAVデータ永続化

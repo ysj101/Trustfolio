@@ -5,8 +5,14 @@ import type { NavRepository } from '../../src/repository/NavRepository';
 import type { TransactionRepository } from '../../src/repository/TransactionRepository';
 import type { PerformanceRepository } from '../../src/repository/PerformanceRepository';
 import type { RakutenService } from '../../src/service/RakutenService';
+import type { WealthAdvisorService } from '../../src/service/WealthAdvisorService';
 import type { Fund, PerformanceRecord, Transaction } from '../../src/domain/types';
 import { ok, fail } from '../fakes';
+
+const wealthAdvisorService: WealthAdvisorService = {
+  fetchLatestNav: (navSourceCode) =>
+    ok({ navSourceCode, nav: { date: '2026-09-01', value: 26093 } }),
+};
 
 describe('NavFetchUseCase', () => {
   it('ステータス別に結果が集計される', () => {
@@ -19,6 +25,8 @@ describe('NavFetchUseCase', () => {
         name: '未設定ファンド',
         rakutenFundId: null,
         settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
       {
@@ -26,6 +34,8 @@ describe('NavFetchUseCase', () => {
         name: '成功ファンド',
         rakutenFundId: 'ABCD1234EFGH',
         settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
       {
@@ -33,6 +43,8 @@ describe('NavFetchUseCase', () => {
         name: '既存ファンド',
         rakutenFundId: 'IJKL1234MNOP',
         settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
       {
@@ -40,6 +52,8 @@ describe('NavFetchUseCase', () => {
         name: '失敗ファンド',
         rakutenFundId: 'QRST1234UVWX',
         settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ];
@@ -104,7 +118,8 @@ describe('NavFetchUseCase', () => {
       navRepository,
       transactionRepository,
       performanceRepository,
-      rakutenService
+      rakutenService,
+      wealthAdvisorService
     );
 
     const result = useCase.fetchAndRegisterAllNavs();
@@ -128,6 +143,8 @@ describe('NavFetchUseCase', () => {
         name: '成功ファンド',
         rakutenFundId: 'ABCD1234EFGH',
         settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ];
@@ -182,7 +199,8 @@ describe('NavFetchUseCase', () => {
       navRepository,
       transactionRepository,
       performanceRepository,
-      rakutenService
+      rakutenService,
+      wealthAdvisorService
     );
 
     const result = useCase.fetchAndRegisterAllNavs();
@@ -191,7 +209,7 @@ describe('NavFetchUseCase', () => {
   });
 
   it('ポートフォリオの評価損益率が欠損する場合は全体実績が記録されない', () => {
-    // 前提: 複数ファンドを保有しており、そのうち1ファンドは楽天ファンドID未設定のため
+    // 前提: 複数ファンドを保有しており、そのうち1ファンドは基準価額取得元未設定のため
     //   基準価額の取得がスキップされ、最新の基準価額が一度も登録されていない（現在値が欠損する）。
     // 事前条件: 各ファンドに購入取引が存在し、全体実績は未登録で、楽天ファンドID設定済みの
     //   ファンドは基準価額の取得・登録に成功する（successCount > 0 となり全体実績記録が実行される）。
@@ -202,15 +220,19 @@ describe('NavFetchUseCase', () => {
         name: '基準価額ありファンド',
         rakutenFundId: 'ABCD1234EFGH',
         settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
       {
         id: 'fund-without-nav',
         name: '基準価額欠損ファンド',
-        // 楽天ファンドID未設定 → processFund がスキップし createNav が呼ばれないため、
+        // 基準価額取得元未設定 → processFund がスキップし createNav が呼ばれないため、
         // findLatestByFundId が null を返す（= 現在値欠損）状態が実リポジトリの挙動と整合する。
         rakutenFundId: null,
         settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ];
@@ -301,7 +323,8 @@ describe('NavFetchUseCase', () => {
       navRepository,
       transactionRepository,
       performanceRepository,
-      rakutenService
+      rakutenService,
+      wealthAdvisorService
     );
 
     const result = useCase.fetchAndRegisterAllNavs();
@@ -324,6 +347,8 @@ describe('NavFetchUseCase', () => {
         name: '成功ファンド',
         rakutenFundId: 'ABCD1234EFGH',
         settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ];
@@ -391,7 +416,8 @@ describe('NavFetchUseCase', () => {
       navRepository,
       transactionRepository,
       performanceRepository,
-      rakutenService
+      rakutenService,
+      wealthAdvisorService
     );
 
     const result = useCase.fetchAndRegisterAllNavs();
@@ -429,6 +455,8 @@ describe('NavFetchUseCase', () => {
         name: '成功ファンド',
         rakutenFundId: 'ABCD1234EFGH',
         settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ];
@@ -496,7 +524,8 @@ describe('NavFetchUseCase', () => {
       navRepository,
       transactionRepository,
       performanceRepository,
-      rakutenService
+      rakutenService,
+      wealthAdvisorService
     );
 
     const result = useCase.fetchAndRegisterAllNavs();
@@ -518,5 +547,177 @@ describe('NavFetchUseCase', () => {
         },
       ]);
     }
+  });
+
+  it('wealthadvisor取得、設定欠落、二重指定、取得元未設定を明示的に分類する', () => {
+    // 前提: Wealth Advisor成功、取得元コード欠落、楽天との二重指定、取得元未設定の4銘柄が存在する。
+    // 事前条件: Wealth Advisorサービスは実在に近いSBIゴールドファンドのNAVを返す。
+    // 検証: 各銘柄がsuccess、failed、failed、skippedに分類され、別取得元へフォールバックしない。
+    const funds: Fund[] = [
+      {
+        id: 'fund-wealthadvisor-success',
+        name: 'ＳＢＩ・iシェアーズ・ゴールドファンド（為替ヘッジなし）',
+        rakutenFundId: null,
+        settlementBusinessDays: 2,
+        navSource: 'wealthadvisor',
+        navSourceCode: 'sbi_am/sa_202306080A',
+        createdAt: '2026-09-02T00:00:00.000Z',
+      },
+      {
+        id: 'fund-code-missing',
+        name: 'ＳＢＩ・限定販売ファンド（コード欠落）',
+        rakutenFundId: null,
+        settlementBusinessDays: 2,
+        navSource: 'wealthadvisor',
+        navSourceCode: null,
+        createdAt: '2026-09-02T00:00:00.000Z',
+      },
+      {
+        id: 'fund-duplicated-source',
+        name: 'ＳＢＩ・限定販売ファンド（二重指定）',
+        rakutenFundId: 'ABCD1234EFGH',
+        settlementBusinessDays: 2,
+        navSource: 'wealthadvisor',
+        navSourceCode: 'sbi_am/sa_202306080A',
+        createdAt: '2026-09-02T00:00:00.000Z',
+      },
+      {
+        id: 'fund-no-source',
+        name: '取得元未設定ファンド',
+        rakutenFundId: null,
+        settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
+        createdAt: '2026-09-02T00:00:00.000Z',
+      },
+    ];
+    const fundRepository: FundRepository = {
+      listFunds: () => ok(funds),
+      findByName: () => ok(null),
+      findById: () => ok(null),
+      createFund: () => ok(undefined),
+      updateFund: () => ok(undefined),
+    };
+    const navRepository: NavRepository = {
+      listByFundId: () => ok([]),
+      findByFundAndDate: () => ok(null),
+      findLatestByFundId: () => ok(null),
+      findLatestByFundIds: () => ok(new Map()),
+      createNav: () => ok(undefined),
+    };
+    const transactionRepository: TransactionRepository = {
+      listByFundId: () => ok([]),
+      listAll: () => ok([]),
+      listByFundIdsGrouped: () => ok(new Map()),
+      createTransaction: () => ok(undefined),
+      findByIdempotencyKey: () => ok(null),
+      findById: () => ok(null),
+      updateTransaction: () => ok(undefined),
+      deleteTransaction: () => ok(undefined),
+    };
+    const performanceRepository: PerformanceRepository = {
+      createPerformance: () => ok(undefined),
+      createGlobalPerformance: () => ok(undefined),
+      findByFundAndDate: () => ok(null),
+      findGlobalByDate: () => ok(null),
+      findLatestByFundId: () => ok(null),
+      listGlobalHistory: () => ok([]),
+      findGlobalByDateRange: () => ok([]),
+      findByFundAndDateRange: () => ok([]),
+    };
+    const rakutenService: RakutenService = {
+      fetchLatestNav: () => fail('unexpected', '楽天サービスは呼び出されてはいけません。'),
+    };
+    const result = createNavFetchUseCase(
+      fundRepository,
+      navRepository,
+      transactionRepository,
+      performanceRepository,
+      rakutenService,
+      wealthAdvisorService
+    ).fetchAndRegisterAllNavs();
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.value.items.map((item) => item.status)).toEqual([
+        'success',
+        'failed',
+        'failed',
+        'skipped',
+      ]);
+      expect(result.value.items[1]?.message).toContain('取得元コード');
+      expect(result.value.items[2]?.message).toBe('取得元が二重に指定されています。');
+      expect(result.value.items[3]?.message).toBe('基準価額の取得元が設定されていません。');
+    }
+  });
+
+  it('孤立したnavSourceCodeではどちらの取得サービスも呼ばずfailedにする', () => {
+    // 前提: navSourceがnullなのにnavSourceCodeと楽天ファンドIDが同時に存在する不整合なFundである。
+    // 事前条件: FundRepository以外の将来経路からFundが渡された状況を再現する。
+    // 検証: 楽天・Wealth Advisorの両サービスを呼ばず、設定不整合としてfailedを返す。
+    const fund: Fund = {
+      id: 'fund-orphan-source-code',
+      name: 'ＳＢＩ・取得元不整合ファンド',
+      rakutenFundId: 'ABCD1234EFGH',
+      settlementBusinessDays: 2,
+      navSource: null,
+      navSourceCode: 'sbi_am/sa_202306080A',
+      createdAt: '2026-09-02T00:00:00.000Z',
+    };
+    const fundRepository: FundRepository = {
+      listFunds: () => ok([fund]),
+      findByName: () => ok(null),
+      findById: () => ok(null),
+      createFund: () => ok(undefined),
+      updateFund: () => ok(undefined),
+    };
+    const navRepository: NavRepository = {
+      listByFundId: () => ok([]),
+      findByFundAndDate: () => ok(null),
+      findLatestByFundId: () => ok(null),
+      findLatestByFundIds: () => ok(new Map()),
+      createNav: () => ok(undefined),
+    };
+    const transactionRepository: TransactionRepository = {
+      listByFundId: () => ok([]),
+      listAll: () => ok([]),
+      listByFundIdsGrouped: () => ok(new Map()),
+      createTransaction: () => ok(undefined),
+      findByIdempotencyKey: () => ok(null),
+      findById: () => ok(null),
+      updateTransaction: () => ok(undefined),
+      deleteTransaction: () => ok(undefined),
+    };
+    const performanceRepository: PerformanceRepository = {
+      createPerformance: () => ok(undefined),
+      createGlobalPerformance: () => ok(undefined),
+      findByFundAndDate: () => ok(null),
+      findGlobalByDate: () => ok(null),
+      findLatestByFundId: () => ok(null),
+      listGlobalHistory: () => ok([]),
+      findGlobalByDateRange: () => ok([]),
+      findByFundAndDateRange: () => ok([]),
+    };
+    const rakutenFetch = vi.fn(() => fail('unexpected', '呼び出されてはいけません。'));
+    const wealthAdvisorFetch = vi.fn(() => fail('unexpected', '呼び出されてはいけません。'));
+    const rakutenService: RakutenService = { fetchLatestNav: rakutenFetch };
+    const defensiveWealthAdvisorService: WealthAdvisorService = {
+      fetchLatestNav: wealthAdvisorFetch,
+    };
+
+    const result = createNavFetchUseCase(
+      fundRepository,
+      navRepository,
+      transactionRepository,
+      performanceRepository,
+      rakutenService,
+      defensiveWealthAdvisorService
+    ).fetchAndRegisterAllNavs();
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.value.items[0]?.status).toBe('failed');
+      expect(result.value.items[0]?.message).toBe('取得元の設定が不整合です。');
+    }
+    expect(rakutenFetch).not.toHaveBeenCalled();
+    expect(wealthAdvisorFetch).not.toHaveBeenCalled();
   });
 });

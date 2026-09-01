@@ -1,14 +1,10 @@
-import type { Result } from '../domain/types';
+import type { FetchedNavData, Result } from '../domain/types';
+import { HTML_FETCH_HEADERS, safeFetchHtml } from './htmlFetcher';
 
 /**
  * 楽天証券から取得した基準価額データ。
  */
-export type RakutenNavData = {
-  /** 日付（YYYY-MM-DD形式） */
-  date: string;
-  /** 基準価額（円/1万口） */
-  value: number;
-};
+export type RakutenNavData = FetchedNavData;
 
 /**
  * 楽天証券からの基準価額取得結果。
@@ -17,7 +13,7 @@ export type FetchNavResult = {
   /** 楽天ファンドID */
   rakutenFundId: string;
   /** 取得した基準価額データ（最新1件） */
-  nav: RakutenNavData | null;
+  nav: RakutenNavData;
 };
 
 /**
@@ -101,13 +97,9 @@ export function fetchRakutenQuote(rakutenFundId: string): Result<RakutenQuoteRes
   }
 
   const url = `https://www.rakuten-sec.co.jp/web/fund/detail/?ID=${trimmed}`;
-  const response = safeFetch(url, {
+  const response = safeFetchHtml(url, {
     method: 'get',
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (compatible; TrustfolioBot/1.0)',
-      accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8',
-    },
+    headers: HTML_FETCH_HEADERS,
     muteHttpExceptions: true,
   });
 
@@ -143,21 +135,6 @@ export function fetchRakutenQuote(rakutenFundId: string): Result<RakutenQuoteRes
       nav,
     },
   };
-}
-
-/**
- * 外部APIへのHTTPリクエストを安全に実行する（腐敗防止層）。
- * ネットワークエラーなどの例外をキャッチしてnullを返す。
- */
-function safeFetch(
-  url: string,
-  options: GoogleAppsScript.URL_Fetch.URLFetchRequestOptions
-): GoogleAppsScript.URL_Fetch.HTTPResponse | null {
-  try {
-    return UrlFetchApp.fetch(url, options);
-  } catch {
-    return null;
-  }
 }
 
 /**

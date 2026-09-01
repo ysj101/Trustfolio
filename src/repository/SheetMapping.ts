@@ -192,6 +192,43 @@ export function parseOptionalNonNegativeNumberCell(
 }
 
 /**
+ * 任意の文字列セルを「trim済み文字列またはnull」として読み込む。
+ *
+ * 目的:
+ * - Repositoryごとに重複する、任意文字列セルの型検証と前後空白除去を一本化する。
+ *
+ * 内容:
+ * - 空文字・空白のみの文字列・null・undefinedは未設定を表すnullへ変換する。
+ * - 文字列は前後空白を除去して返す。
+ * - 文字列以外の値はシート行番号付きのunexpectedエラーとしてfail fastに検出する。
+ *
+ * 注意:
+ * - 数値などを文字列へ暗黙変換しない。
+ * - 失敗時は「`<シートラベル>の<N>行目の<フィールド名>が不正です。`」形式を使用する。
+ *
+ * @param value - 検証対象のセル値。
+ * @param sheetLabel - エラーメッセージに用いるシートのラベル。
+ * @param fieldName - エラーメッセージに用いるフィールド名。
+ * @param index - 0始まりの行インデックス。
+ * @returns 空セルならnull、文字列ならtrim済みの値を持つ {@link Result}。
+ */
+export function parseOptionalStringCell(
+  value: unknown,
+  sheetLabel: string,
+  fieldName: string,
+  index: number
+): Result<string | null> {
+  if (value === '' || value === null || value === undefined) {
+    return { success: true, value: null };
+  }
+  if (typeof value !== 'string') {
+    return fail('unexpected', `${sheetLabel}の${String(index + 2)}行目の${fieldName}が不正です。`);
+  }
+  const trimmed = value.trim();
+  return { success: true, value: trimmed === '' ? null : trimmed };
+}
+
+/**
  * 任意項目のセル値を「trim 済みの文字列 or null」へ正規化する。
  *
  * 目的:
