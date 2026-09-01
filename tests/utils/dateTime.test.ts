@@ -5,7 +5,7 @@ import {
   formatIsoDateParts,
   formatJstDate,
   formatJstTimestamp,
-  isValidIsoDate,
+  isValidCalendarIsoDate,
   parseUtcIsoDate,
 } from '../../src/utils/dateTime';
 
@@ -88,14 +88,14 @@ describe('parseUtcIsoDate', () => {
   });
 });
 
-describe('isValidIsoDate', () => {
+describe('isValidCalendarIsoDate', () => {
   it('実在する暦日だけをtrueとして返す', () => {
     // 前提: 外部データ境界で暦日の厳密検証が必要である。
     // 事前条件: 実在する日、Dateが繰り上げる2月30日、月範囲外の99月99日を入力する。
     // 検証: UTC round-tripで年月日が一致する実在日だけがtrueになる。
-    expect(isValidIsoDate('2026-09-01')).toBe(true);
-    expect(isValidIsoDate('2026-02-30')).toBe(false);
-    expect(isValidIsoDate('2026-99-99')).toBe(false);
+    expect(isValidCalendarIsoDate('2026-09-01')).toBe(true);
+    expect(isValidCalendarIsoDate('2026-02-30')).toBe(false);
+    expect(isValidCalendarIsoDate('2026-99-99')).toBe(false);
   });
 });
 

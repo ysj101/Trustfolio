@@ -268,7 +268,13 @@
         name.textContent = fund.name;
         const meta = document.createElement('span');
         meta.className = listMetaClass;
-        const codeText = fund.rakutenFundId ? ` (${fund.rakutenFundId})` : '';
+        // 取得元コードの表示: 楽天ファンドID、または Wealth Advisor の取得元コード。
+        // どちらも未設定の銘柄は取得元なしとしてコードを表示しない。
+        const codeText = fund.rakutenFundId
+          ? ` (${fund.rakutenFundId})`
+          : fund.navSource === 'wealthadvisor' && fund.navSourceCode
+            ? ` (WA: ${fund.navSourceCode})`
+            : '';
         meta.textContent = `${fund.createdAt.split('T')[0]}${codeText}`;
         item.appendChild(name);
         item.appendChild(meta);

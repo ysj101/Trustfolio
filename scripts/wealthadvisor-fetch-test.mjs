@@ -28,7 +28,7 @@ const WEALTH_ADVISOR_CODE_PATTERN = /^([a-z0-9_]+)\/([A-Za-z0-9_.\-]+)$/;
 const MAX_WEALTH_ADVISOR_NAV_VALUE = 100_000_000;
 
 /** YYYY-MM-DD形式の値が実在する暦日かをUTC基準のround-tripで検証する。 */
-function isValidIsoDate(value) {
+function isValidCalendarIsoDate(value) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (match === null) {
     return false;
@@ -72,7 +72,7 @@ export function parseNavFromWealthAdvisorHtml(html) {
     return null;
   }
   const date = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-  if (!isValidIsoDate(date)) {
+  if (!isValidCalendarIsoDate(date)) {
     return null;
   }
   return { date, value };

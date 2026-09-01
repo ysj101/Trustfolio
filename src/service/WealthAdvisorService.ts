@@ -1,6 +1,6 @@
 import { fail } from '../domain/result';
 import type { FetchedNavData, Result } from '../domain/types';
-import { formatIsoDateParts, isValidIsoDate } from '../utils/dateTime';
+import { formatIsoDateParts, isValidCalendarIsoDate } from '../utils/dateTime';
 import { HTML_FETCH_HEADERS, safeFetchHtml } from './htmlFetcher';
 
 /**
@@ -136,7 +136,7 @@ function parseNavFromWealthAdvisorHtml(html: string): WealthAdvisorNavData | nul
     return null;
   }
   const date = formatIsoDateParts(Number(year), Number(month), Number(day));
-  if (!isValidIsoDate(date)) {
+  if (!isValidCalendarIsoDate(date)) {
     return null;
   }
   return {

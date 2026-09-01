@@ -122,12 +122,14 @@ export function parseUtcIsoDate(value: string): Date {
  *
  * 注意:
  * - 本関数は暦日の厳密検証が必要な外部データ境界で使用する。
- * - 既存ユースケースが利用するdomain/validators.tsの互換動作は変更しない。
+ * - **domain/validators.tsのisValidIsoDateとは意味論が異なる。** validators.ts側は形式検証のみで
+ *   `2026-02-30`のような暦上存在しない日付を許容する既知の制限を持つ（既存ユースケースの互換動作を
+ *   維持するため変更しない）。暦日の実在まで検証する本関数は、混同を避けるため別名にしている。
  *
  * @param value - 検証対象の文字列。
  * @returns 指定値が実在する暦日ならtrue。
  */
-export function isValidIsoDate(value: string): boolean {
+export function isValidCalendarIsoDate(value: string): boolean {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (match === null) {
     return false;
