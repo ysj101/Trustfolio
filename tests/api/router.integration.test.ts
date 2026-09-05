@@ -46,7 +46,7 @@ describe('router integration', () => {
     const sheetRepository = createInMemorySheetRepository({
       [SHEET_NAMES.FUNDS]: [
         headerRow(SHEET_NAMES.FUNDS),
-        [fundId, '国内株式', '', 0, '', '', '2024-01-01T00:00:00.000Z'],
+        [fundId, '国内株式', '', 0, '', '', 'equity', '2024-01-01T00:00:00.000Z'],
       ],
       [SHEET_NAMES.NAV_RECORDS]: [
         headerRow(SHEET_NAMES.NAV_RECORDS),
@@ -71,6 +71,7 @@ describe('router integration', () => {
       settlementBusinessDays: 2,
       navSource: null,
       navSourceCode: null,
+      assetClass: 'equity',
     });
     expect(createResult.success).toBe(true);
 
@@ -106,6 +107,7 @@ describe('router integration', () => {
       name: '先進国債券インデックスファンド',
       rakutenFundId: null,
       settlementBusinessDays: 2,
+      assetClass: 'equity',
     });
     expect(omittedResult.success).toBe(true);
     if (omittedResult.success) {
@@ -121,6 +123,7 @@ describe('router integration', () => {
       settlementBusinessDays: 2,
       navSource: 'wealthadvisor',
       navSourceCode: 'sbi_am/sa_202306080A',
+      assetClass: 'gold',
     });
     expect(wealthAdvisorResult.success).toBe(true);
     if (wealthAdvisorResult.success) {
@@ -154,7 +157,8 @@ describe('router integration', () => {
   it('旧形式updateFundでは取得元を維持し、明示nullでは取得元をクリアする', () => {
     // 前提: Wealth Advisor取得元を設定したSBI証券限定販売ファンドをAPI経由で作成する。
     // 事前条件: 最初の更新は取得元2項目を含まない旧形式、次の更新は両項目へnullを指定する。
-    // 検証: 旧形式更新では既存設定が維持され、明示nullの更新では両項目がクリアされる。
+    // 検証: 旧形式更新（取得元2項目とassetClassを省略）では既存の取得元設定と資産クラス（gold）が維持され、
+    //       明示nullの更新では取得元2項目がクリアされる。
     const createResult = handleApiRequest({
       action: 'createFund',
       name: 'ＳＢＩ・iシェアーズ・ゴールドファンド（為替ヘッジなし）',
@@ -162,6 +166,7 @@ describe('router integration', () => {
       settlementBusinessDays: 2,
       navSource: 'wealthadvisor',
       navSourceCode: 'sbi_am/sa_202306080A',
+      assetClass: 'gold',
     });
     expect(createResult.success).toBe(true);
     if (!createResult.success) {
@@ -188,6 +193,7 @@ describe('router integration', () => {
       };
       expect(updated.navSource).toBe('wealthadvisor');
       expect(updated.navSourceCode).toBe('sbi_am/sa_202306080A');
+      expect((legacyUpdateResult.value as { assetClass?: unknown }).assetClass).toBe('gold');
     }
 
     const clearResult = handleApiRequest({
@@ -204,6 +210,28 @@ describe('router integration', () => {
       const cleared = clearResult.value as { navSource?: unknown; navSourceCode?: unknown };
       expect(cleared.navSource).toBeNull();
       expect(cleared.navSourceCode).toBeNull();
+    }
+  });
+
+  it('登録フォームの未選択値（空文字列）のassetClassをAPI境界でvalidationエラーにする', () => {
+    // 前提: 登録フォームの資産クラスselectは未選択時に空文字列を送る。
+    // 事前条件: 銘柄名・約定営業日数は妥当で、assetClassだけが空文字列である。
+    // 検証: 銘柄は作成されず、assetClassフィールドのvalidationエラーが返る。
+    const result = handleApiRequest({
+      action: 'createFund',
+      name: '未選択テスト銘柄',
+      rakutenFundId: null,
+      settlementBusinessDays: 2,
+      assetClass: '' as never,
+    });
+    expect(result).toEqual({
+      success: false,
+      error: { type: 'validation', message: '資産クラスを選択してください。', field: 'assetClass' },
+    });
+    const listResult = handleApiRequest({ action: 'listFunds' });
+    expect(listResult.success).toBe(true);
+    if (listResult.success && isFundList(listResult.value)) {
+      expect(listResult.value.some((fund) => fund.name === '未選択テスト銘柄')).toBe(false);
     }
   });
 

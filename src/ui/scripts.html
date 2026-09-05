@@ -13,6 +13,7 @@
     const app = document.querySelector('.app');
     const fundForm = document.getElementById('fundForm');
     const fundNameInput = document.getElementById('fundName');
+    const fundAssetClassSelect = document.getElementById('fundAssetClass');
     const fundRakutenFundIdInput = document.getElementById('fundRakutenFundId');
     const fundNavSourceSelect = document.getElementById('fundNavSource');
     const fundNavSourceCodeInput = document.getElementById('fundNavSourceCode');
@@ -86,7 +87,6 @@
     const badgeSpotClass = `${badgeBaseClass} bg-indigo-500/20 text-indigo-200`;
     const badgeRedemptionClass = `${badgeBaseClass} bg-rose-500/20 text-rose-200`;
     const badgeRecurringClass = `${badgeBaseClass} bg-emerald-500/20 text-emerald-200`;
-
     // 共通UIユーティリティ（common-scripts.html / window.TrustfolioUi）を参照する。
     // callApi / formatCurrency / setMessage / フォーマッタは画面間で共有している。
     const callApi = window.TrustfolioUi.callApi;
@@ -102,6 +102,69 @@
 
     // リスト行の操作ボタン生成は common-scripts（window.TrustfolioUi）へ集約済み。
     const createActionButton = window.TrustfolioUi.createActionButton;
+    const createAssetClassBadge = window.TrustfolioUi.createAssetClassBadge;
+
+    // 登録フォームの選択肢は共通定義から組み立てる。
+    window.TrustfolioUi.populateAssetClassSelect(fundAssetClassSelect);
+
+    /**
+     * 銘柄名と資産クラスバッジを構成する要素を生成する。
+     * 呼び出し側のflexコンテナへ直接追加し、同じflex要素が二重になることを防ぐ。
+     *
+     * @param {string} name - 銘柄名
+     * @param {'equity'|'gold'|null} assetClass - 銘柄の資産クラス
+     * @returns {{ success: true, value: [HTMLElement, HTMLSpanElement] } | { success: false, error: { type: 'unexpected', message: string } }}
+     *   成功時は銘柄名とバッジの要素配列、失敗時はバッジ生成エラー
+     */
+    function createFundTitle(name, assetClass) {
+      const nameElement = document.createElement('strong');
+      nameElement.textContent = name;
+      const badgeResult = createAssetClassBadge(assetClass);
+      if (!badgeResult.success) {
+        return badgeResult;
+      }
+      return { success: true, value: [nameElement, badgeResult.value] };
+    }
+
+    /**
+     * 確認ダイアログを伴わない更新処理の共通フロー。
+     * APIの成功値は後処理へ渡し、呼び出し側が追加取得なしで画面状態を更新できるようにする。
+     *
+     * メッセージの順序（既存の購入・売却・積立・削除フローと同一）:
+     *   進行中 → 成功 → 後処理（onSuccess）。
+     * 後処理側（loadFunds / reloadAfterTransactionMutation）が部分取得失敗のエラーを表示した場合や、
+     * 後処理が失敗結果 { success: false, error } を返した場合は、そのエラーが成功メッセージを上書きして残る。
+     * 成功メッセージを後処理の後に表示すると、後処理が表示したエラーを成功表示で隠してしまうため、
+     * 必ず後処理より先に表示する。
+     *
+     * @param {{
+     *   progressMessage: string;
+     *   successMessage: string;
+     *   request: object;
+     *   onSuccess: (value: unknown) => Promise<void | { success: true, value?: unknown } | { success: false, error: { message: string } }>;
+     * }} options - 更新処理の表示文言、APIリクエスト、成功後処理
+     */
+    async function runMutationFlow(options) {
+      setMessage(options.progressMessage, null);
+      setLoading(true);
+      try {
+        const response = await callApi(options.request);
+        if (!response.success) {
+          setMessage(response.error.message, 'error');
+          return;
+        }
+        setMessage(options.successMessage, 'success');
+        const onSuccessResult = await options.onSuccess(response.value);
+        if (onSuccessResult && onSuccessResult.success === false) {
+          // 後処理の失敗は成功メッセージを上書きしてエラーとして残す。
+          setMessage(onSuccessResult.error.message, 'error');
+        }
+      } catch (error) {
+        setMessage(error.message, 'error');
+      } finally {
+        setLoading(false);
+      }
+    }
 
     /**
      * 削除ボタン共通の実行フロー（H6 #152）。
@@ -128,21 +191,7 @@
       if (!confirm(options.confirmMessage)) {
         return;
       }
-      setMessage(options.progressMessage, null);
-      setLoading(true);
-      try {
-        const response = await callApi(options.request);
-        if (!response.success) {
-          setMessage(response.error.message, 'error');
-          return;
-        }
-        setMessage(options.successMessage, 'success');
-        await options.onSuccess();
-      } catch (error) {
-        setMessage(error.message, 'error');
-      } finally {
-        setLoading(false);
-      }
+      await runMutationFlow(options);
     }
 
     function resetTransactionForm() {
@@ -262,10 +311,12 @@
       }
 
       state.funds.forEach((fund) => {
-        const item = document.createElement('li');
-        item.className = listItemClass;
-        const name = document.createElement('strong');
-        name.textContent = fund.name;
+        const titleResult = createFundTitle(fund.name, fund.assetClass);
+        if (!titleResult.success) {
+          setMessage(titleResult.error.message, 'error');
+          return;
+        }
+        const titleElements = titleResult.value;
         const meta = document.createElement('span');
         meta.className = listMetaClass;
         // 取得元コードの表示: 楽天ファンドID、または Wealth Advisor の取得元コード。
@@ -276,8 +327,54 @@
             ? ` (WA: ${fund.navSourceCode})`
             : '';
         meta.textContent = `${fund.createdAt.split('T')[0]}${codeText}`;
-        item.appendChild(name);
-        item.appendChild(meta);
+        const actions = [meta];
+        const select = document.createElement('select');
+        select.className =
+          'rounded-lg border border-slate-800 bg-slate-950/40 px-2 py-1.5 text-xs text-slate-100 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30';
+        window.TrustfolioUi.populateAssetClassSelect(select);
+        select.value = fund.assetClass ?? '';
+        const settingButton = createActionButton('設定', ghostButtonClass, async () => {
+          if (select.value === '') {
+            setMessage('資産クラスを選択してください。', 'error');
+            return;
+          }
+          if (select.value === fund.assetClass) {
+            setMessage('資産クラスは変更されていません。', 'error');
+            return;
+          }
+          await runMutationFlow({
+            progressMessage: '資産クラスを設定中...',
+            successMessage: '資産クラスを設定しました。',
+            request: {
+              action: 'setFundAssetClass',
+              id: fund.id,
+              assetClass: select.value,
+            },
+            onSuccess: async (updatedFund) => {
+              const fundIndex = state.funds.findIndex((item) => item.id === updatedFund.id);
+              if (fundIndex === -1) {
+                return {
+                  success: false,
+                  error: {
+                    type: 'unexpected',
+                    message: `更新対象の銘柄が画面状態に存在しません: id=${updatedFund.id}`,
+                  },
+                };
+              }
+              state.funds[fundIndex] = updatedFund;
+              renderFunds();
+              await loadHoldings();
+            },
+          });
+        });
+        actions.push(select, settingButton);
+        const item = window.TrustfolioUi.createListItem({
+          itemClass: listItemClass,
+          contentClass: 'flex items-center gap-2',
+          contentChildren: titleElements,
+          actionsClass: listActionsClass,
+          actions,
+        });
         fundList.appendChild(item);
       });
     }
@@ -437,10 +534,12 @@
       }
 
       holdings.forEach((holding) => {
-        const item = document.createElement('li');
-        item.className = listItemClass;
-        const title = document.createElement('strong');
-        title.textContent = holding.fundName;
+        const titleResult = createFundTitle(holding.fundName, holding.assetClass);
+        if (!titleResult.success) {
+          setMessage(titleResult.error.message, 'error');
+          return;
+        }
+        const titleElements = titleResult.value;
         const detail = document.createElement('span');
         detail.className = 'text-right text-sm text-slate-300 min-w-[200px]';
 
@@ -459,8 +558,13 @@
           detail.innerHTML = `${holding.totalUnits.toLocaleString()}口 / ${valueText}<br><span class="${gainClass}">${gainText} (${rateText})</span>`;
         }
 
-        item.appendChild(title);
-        item.appendChild(detail);
+        const item = window.TrustfolioUi.createListItem({
+          itemClass: listItemClass,
+          contentClass: 'flex items-center gap-2',
+          contentChildren: titleElements,
+          actionsClass: listActionsClass,
+          actions: [detail],
+        });
         holdingList.appendChild(item);
       });
     }
@@ -654,39 +758,39 @@
     fundForm.addEventListener('submit', async (event) => {
       event.preventDefault();
       const name = fundNameInput.value;
+      const assetClass = fundAssetClassSelect.value;
       const rakutenFundId = fundRakutenFundIdInput.value.trim() || null;
       const navSource = fundNavSourceSelect.value === 'wealthadvisor' ? 'wealthadvisor' : null;
       const navSourceCode = fundNavSourceCodeInput.value.trim() || null;
       const settlementBusinessDaysText = fundSettlementBusinessDaysInput.value.trim();
       const settlementBusinessDays =
         settlementBusinessDaysText === '' ? null : Number(settlementBusinessDaysText);
-      setMessage('登録中...', null);
-      setLoading(true);
-      try {
-        const response = await callApi({
+      await runMutationFlow({
+        progressMessage: '登録中...',
+        successMessage: '銘柄を登録しました。',
+        request: {
           action: 'createFund',
           name,
           rakutenFundId,
           settlementBusinessDays,
           navSource,
           navSourceCode,
-        });
-        if (!response.success) {
-          setMessage(response.error.message, 'error');
-          return;
-        }
-        fundNameInput.value = '';
-        fundRakutenFundIdInput.value = '';
-        fundNavSourceSelect.value = '';
-        fundNavSourceCodeInput.value = '';
-        fundSettlementBusinessDaysInput.value = '';
-        setMessage('銘柄を登録しました。', 'success');
-        await loadFunds();
-      } catch (error) {
-        setMessage(error.message, 'error');
-      } finally {
-        setLoading(false);
-      }
+          assetClass,
+        },
+        onSuccess: async () => {
+          window.TrustfolioUi.resetFormFields({
+            textInputs: [
+              fundNameInput,
+              fundAssetClassSelect,
+              fundRakutenFundIdInput,
+              fundNavSourceSelect,
+              fundNavSourceCodeInput,
+              fundSettlementBusinessDaysInput,
+            ],
+          });
+          await loadFunds();
+        },
+      });
     });
 
     // 取引種別ラジオボタンの切り替え処理
@@ -850,43 +954,32 @@
       if (transactionType === 'purchase') {
         // 購入金額から取引を実行
         const amount = Number(transactionAmountInput.value);
-        // 購入処理
-        setMessage(isEditing ? 'スポット購入を更新中...' : '購入登録中...', null);
-        setLoading(true);
-        try {
-          const response = await callApi(
-            isEditing
-              ? {
-                  action: 'updateSpotPurchase',
-                  id: state.editingTransactionId,
-                  fundId,
-                  date,
-                  amount,
-                  navValue,
-                }
-              : {
-                  action: 'executeSpotPurchase',
-                  fundId,
-                  date,
-                  amount,
-                  navValue,
-                }
-          );
-          if (!response.success) {
-            setMessage(response.error.message, 'error');
-            return;
-          }
-          setMessage(
-            isEditing ? 'スポット購入の内容を更新しました。' : 'スポット購入を登録しました。',
-            'success'
-          );
-          setTransactionEditMode(null);
-          await reloadAfterTransactionMutation(fundId);
-        } catch (error) {
-          setMessage(error.message, 'error');
-        } finally {
-          setLoading(false);
-        }
+        await runMutationFlow({
+          progressMessage: isEditing ? 'スポット購入を更新中...' : '購入登録中...',
+          successMessage: isEditing
+            ? 'スポット購入の内容を更新しました。'
+            : 'スポット購入を登録しました。',
+          request: isEditing
+            ? {
+                action: 'updateSpotPurchase',
+                id: state.editingTransactionId,
+                fundId,
+                date,
+                amount,
+                navValue,
+              }
+            : {
+                action: 'executeSpotPurchase',
+                fundId,
+                date,
+                amount,
+                navValue,
+              },
+          onSuccess: async () => {
+            setTransactionEditMode(null);
+            await reloadAfterTransactionMutation(fundId);
+          },
+        });
       } else {
         // 売却口数と売却金額から取引を実行
         const units = Number(transactionUnitsInput.value);
@@ -906,53 +999,44 @@
           setMessage('所得税と住民税は0以上の数値で入力してください。', 'error');
           return;
         }
-        setMessage(isEditing ? '売却を更新中...' : '売却登録中...', null);
-        setLoading(true);
-        try {
-          const response = await callApi(
-            isEditing
-              ? {
-                  action: 'updateSaleTransaction',
-                  id: state.editingTransactionId,
-                  fundId,
-                  date,
-                  units,
-                  amount,
-                  navValue,
-                  incomeTax,
-                  residentTax,
-                }
-              : {
-                  action: 'executeSale',
-                  fundId,
-                  date,
-                  units,
-                  amount,
-                  navValue,
-                  incomeTax,
-                  residentTax,
-                }
-          );
-          if (!response.success) {
-            setMessage(response.error.message, 'error');
-            return;
-          }
-          setMessage(isEditing ? '売却の内容を更新しました。' : '売却を登録しました。', 'success');
-          if (isEditing) {
-            setTransactionEditMode(null);
-          } else {
-            transactionForm.reset();
-            // 購入モードに戻す
-            document.querySelector('input[name="transactionType"][value="purchase"]').checked =
-              true;
-            transactionTypeRadios[0].dispatchEvent(new Event('change'));
-          }
-          await reloadAfterTransactionMutation(fundId);
-        } catch (error) {
-          setMessage(error.message, 'error');
-        } finally {
-          setLoading(false);
-        }
+        await runMutationFlow({
+          progressMessage: isEditing ? '売却を更新中...' : '売却登録中...',
+          successMessage: isEditing ? '売却の内容を更新しました。' : '売却を登録しました。',
+          request: isEditing
+            ? {
+                action: 'updateSaleTransaction',
+                id: state.editingTransactionId,
+                fundId,
+                date,
+                units,
+                amount,
+                navValue,
+                incomeTax,
+                residentTax,
+              }
+            : {
+                action: 'executeSale',
+                fundId,
+                date,
+                units,
+                amount,
+                navValue,
+                incomeTax,
+                residentTax,
+              },
+          onSuccess: async () => {
+            if (isEditing) {
+              setTransactionEditMode(null);
+            } else {
+              transactionForm.reset();
+              // 購入モードに戻す
+              document.querySelector('input[name="transactionType"][value="purchase"]').checked =
+                true;
+              transactionTypeRadios[0].dispatchEvent(new Event('change'));
+            }
+            await reloadAfterTransactionMutation(fundId);
+          },
+        });
       }
     });
 
@@ -969,43 +1053,34 @@
       const endDate = recurringEndDateInput.value || null;
       const isActive = recurringIsActiveInput.checked;
       const isEditing = Boolean(state.editingRecurringId);
-      setMessage(isEditing ? '積立設定を更新中...' : '積立設定を登録中...', null);
-      setLoading(true);
-      try {
-        const response = await callApi(
-          isEditing
-            ? {
-                action: 'updateRecurringPurchase',
-                id: state.editingRecurringId,
-                fundId,
-                monthlyAmount,
-                executionDay,
-                startDate,
-                endDate,
-                isActive,
-              }
-            : {
-                action: 'createRecurringPurchase',
-                fundId,
-                monthlyAmount,
-                executionDay,
-                startDate,
-                endDate,
-                isActive,
-              }
-        );
-        if (!response.success) {
-          setMessage(response.error.message, 'error');
-          return;
-        }
-        setMessage(isEditing ? '積立設定を更新しました。' : '積立設定を追加しました。', 'success');
-        setRecurringEditMode(null);
-        await loadRecurringPurchases();
-      } catch (error) {
-        setMessage(error.message, 'error');
-      } finally {
-        setLoading(false);
-      }
+      await runMutationFlow({
+        progressMessage: isEditing ? '積立設定を更新中...' : '積立設定を登録中...',
+        successMessage: isEditing ? '積立設定を更新しました。' : '積立設定を追加しました。',
+        request: isEditing
+          ? {
+              action: 'updateRecurringPurchase',
+              id: state.editingRecurringId,
+              fundId,
+              monthlyAmount,
+              executionDay,
+              startDate,
+              endDate,
+              isActive,
+            }
+          : {
+              action: 'createRecurringPurchase',
+              fundId,
+              monthlyAmount,
+              executionDay,
+              startDate,
+              endDate,
+              isActive,
+            },
+        onSuccess: async () => {
+          setRecurringEditMode(null);
+          await loadRecurringPurchases();
+        },
+      });
     });
 
     recurringCancelEditButton.addEventListener('click', () => {

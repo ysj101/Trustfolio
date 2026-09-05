@@ -4,9 +4,27 @@ import {
   getPerformanceSheetName,
   getTransactionSheetName,
   getWeeklyReportEmail,
+  SHEET_HEADERS,
+  SHEET_NAMES,
 } from '../src/Config';
 
 describe('Config', () => {
+  it('_fundsシートのヘッダーを8列の定義順で返す', () => {
+    // 前提: assetClass列はcreatedAt列の直前に追加されている。
+    // 事前条件: _fundsの列順はConfigを唯一の定義元とする。
+    // 検証: assetClassを含む8列が期待する順序で定義されている。
+    expect(SHEET_HEADERS[SHEET_NAMES.FUNDS]).toEqual([
+      'id',
+      'name',
+      'rakutenFundId',
+      'settlementBusinessDays',
+      'navSource',
+      'navSourceCode',
+      'assetClass',
+      'createdAt',
+    ]);
+  });
+
   it('ファンドIDから取引シート名を生成する', () => {
     // 前提: ファンドIDが指定される
     // 事前条件: 変換ルールは固定である

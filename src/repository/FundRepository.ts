@@ -1,7 +1,14 @@
 import { SHEET_DEFINITIONS, SHEET_HEADERS, SHEET_NAMES } from '../Config';
 import { fail } from '../domain/result';
-import type { Fund, Result } from '../domain/types';
-import { parseAllRows, parseOptionalStringCell, parseRequiredStringCell } from './SheetMapping';
+import { ASSET_CLASSES, type AssetClass, type Fund, type Result } from '../domain/types';
+import {
+  parseAllRows,
+  createColumnIndex,
+  mapRowByHeaders,
+  parseOptionalEnumCell,
+  parseOptionalStringCell,
+  parseRequiredStringCell,
+} from './SheetMapping';
 import type { SheetRepository } from './SheetRepository';
 
 export type FundRepository = {
@@ -10,7 +17,39 @@ export type FundRepository = {
   findById: (id: string) => Result<Fund | null>;
   createFund: (fund: Fund) => Result<void>;
   updateFund: (fund: Fund) => Result<void>;
+  /**
+   * 指定銘柄の資産クラスを更新する。
+   * assetClassセルだけを書き換え、銘柄名や取得元などの他セルは変更しない。
+   */
+  updateAssetClass: (id: string, assetClass: AssetClass) => Result<void>;
 };
+
+type FundColumnName = (typeof SHEET_HEADERS)[typeof SHEET_NAMES.FUNDS][number];
+
+type FundRowCells = Record<FundColumnName, unknown>;
+
+/**
+ * 読み取り時に必須とする銘柄列。
+ * 旧5列より古い、または破損した構成（id・name・createdAtだけの構成など）は受理しない。
+ */
+const REQUIRED_FUND_COLUMNS = [
+  'id',
+  'name',
+  'rakutenFundId',
+  'settlementBusinessDays',
+  'createdAt',
+] as const satisfies readonly FundColumnName[];
+
+/**
+ * 読み取り時に省略を許可する銘柄列。
+ * navSource・navSourceCode・assetClassは、各列の導入前に作成された
+ * 旧5列・旧7列シートでは未設定を表すnullとして扱う。
+ */
+const OPTIONAL_FUND_COLUMNS = [
+  'navSource',
+  'navSourceCode',
+  'assetClass',
+] as const satisfies readonly FundColumnName[];
 
 /**
  * 投資信託シートへのアクセスを担当する。
@@ -18,15 +57,43 @@ export type FundRepository = {
 export function createFundRepository(sheetRepository: SheetRepository): FundRepository {
   const repository: FundRepository = {
     listFunds: (): Result<Fund[]> => {
-      const rowsResult = sheetRepository.readAllRows(SHEET_NAMES.FUNDS);
-      if (!rowsResult.success) {
-        return rowsResult;
+      const sheetResult = sheetRepository.readSheetWithHeader(SHEET_NAMES.FUNDS);
+      if (!sheetResult.success) {
+        return sheetResult;
       }
-
+      const columnIndexResult = createColumnIndex(
+        sheetResult.value.headers,
+        'funds',
+        REQUIRED_FUND_COLUMNS
+      );
+      if (!columnIndexResult.success) {
+        return columnIndexResult;
+      }
+      const hasNavSource = columnIndexResult.value.has('navSource');
+      const hasNavSourceCode = columnIndexResult.value.has('navSourceCode');
+      if (hasNavSource !== hasNavSourceCode) {
+        return fail(
+          'unexpected',
+          'fundsシートのヘッダーのnavSourceとnavSourceCodeは両方存在するか両方欠落している必要があります。'
+        );
+      }
       // 他リポジトリと同じ parseAllRows（空行スキップ付き）へ統一する（H3 #149）。
       // 従来は本リポジトリだけ手書きループで空行をスキップしておらず、空行が混入すると
       // id 不正エラーになっていた。統一により空行は他リポジトリ同様スキップされる。
-      return parseAllRows(rowsResult.value, parseRow);
+      return parseAllRows(sheetResult.value.rows, (row, index) => {
+        const cellsResult = mapRowByHeaders(
+          row,
+          columnIndexResult.value,
+          REQUIRED_FUND_COLUMNS,
+          OPTIONAL_FUND_COLUMNS,
+          'funds',
+          index
+        );
+        if (!cellsResult.success) {
+          return cellsResult;
+        }
+        return parseRow(cellsResult.value, index);
+      });
     },
     findByName: (name: string): Result<Fund | null> => {
       const listResult = repository.listFunds();
@@ -70,6 +137,32 @@ export function createFundRepository(sheetRepository: SheetRepository): FundRepo
 
       return sheetRepository.updateRow(SHEET_NAMES.FUNDS, rowIndex, toRow(fund));
     },
+    updateAssetClass: (id: string, assetClass: AssetClass): Result<void> => {
+      const migrationResult = ensureFundsSheetReadyForWrite(sheetRepository);
+      if (!migrationResult.success) {
+        return migrationResult;
+      }
+      const rowsResult = sheetRepository.readAllRows(SHEET_NAMES.FUNDS);
+      if (!rowsResult.success) {
+        return rowsResult;
+      }
+
+      const rowIndex = rowsResult.value.findIndex((row) => row[0] === id);
+      if (rowIndex === -1) {
+        return fail('not_found', `対象の銘柄が見つかりません: id=${id}`);
+      }
+      const assetClassColumnIndex = SHEET_HEADERS[SHEET_NAMES.FUNDS].indexOf('assetClass');
+      if (assetClassColumnIndex === -1) {
+        return fail('unexpected', 'fundsシートの定義にassetClass列がありません。');
+      }
+
+      return sheetRepository.updateCell(
+        SHEET_NAMES.FUNDS,
+        rowIndex,
+        assetClassColumnIndex,
+        assetClass
+      );
+    },
   };
 
   return repository;
@@ -77,8 +170,9 @@ export function createFundRepository(sheetRepository: SheetRepository): FundRepo
 
 /**
  * 銘柄シートを書き込み可能な現行列構成へ移行する。
- * 旧5列シートへ7列の新形式行を直接書くと、既存行のcreatedAt列がnavSource列として誤読されるため、
- * 登録・更新の直前に必ずヘッダー整列と列追加を完了させる。
+ * 読み取りはヘッダー名から列を対応付けるため移行せず、シートを変更しない。
+ * 銘柄全体の登録・更新とassetClassセル更新は現行列を前提とするため、
+ * 書き込み直前だけヘッダー整列と列追加を実行する。
  */
 function ensureFundsSheetReadyForWrite(sheetRepository: SheetRepository): Result<void> {
   const definition = SHEET_DEFINITIONS.find((item) => item.name === SHEET_NAMES.FUNDS);
@@ -104,31 +198,22 @@ function toRow(fund: Fund): unknown[] {
     fund.settlementBusinessDays ?? '',
     fund.navSource ?? '',
     fund.navSourceCode ?? '',
+    fund.assetClass ?? '',
     fund.createdAt,
   ];
 }
 
-function parseRow(row: unknown[], index: number): Result<Fund> {
-  let id: unknown;
-  let name: unknown;
-  let rakutenFundId: unknown;
-  let settlementBusinessDays: unknown;
-  let navSource: unknown;
-  let navSourceCode: unknown;
-  let createdAt: unknown;
-
-  if (row.length === 5) {
-    // ensureHeaderによる列追加はシート初期化またはNAV自動取得時に実行されるため、
-    // 移行が走るまでの読み取り互換として既知の旧5列フォーマットを明示的にサポートする。
-    // 本分岐は任意レイアウトへの暗黙フォールバックではなく、列順が確定した旧形式だけを対象とする。
-    [id, name, rakutenFundId, settlementBusinessDays, createdAt] = row;
-    navSource = null;
-    navSourceCode = null;
-  } else if (row.length === SHEET_HEADERS[SHEET_NAMES.FUNDS].length) {
-    [id, name, rakutenFundId, settlementBusinessDays, navSource, navSourceCode, createdAt] = row;
-  } else {
-    return fail('unexpected', `fundsの${String(index + 2)}行目の列数が不正です。`);
-  }
+function parseRow(cells: FundRowCells, index: number): Result<Fund> {
+  const {
+    id,
+    name,
+    rakutenFundId,
+    settlementBusinessDays,
+    navSource,
+    navSourceCode,
+    assetClass,
+    createdAt,
+  } = cells;
 
   const idResult = parseRequiredStringCell(id, 'funds', 'id', index);
   if (!idResult.success) {
@@ -156,7 +241,13 @@ function parseRow(row: unknown[], index: number): Result<Fund> {
   if (!parsedSettlementBusinessDays.success) {
     return parsedSettlementBusinessDays;
   }
-  const parsedNavSource = parseNavSource(navSource, index);
+  const parsedNavSource = parseOptionalEnumCell(
+    navSource,
+    ['wealthadvisor'],
+    'funds',
+    'navSource',
+    index
+  );
   if (!parsedNavSource.success) {
     return parsedNavSource;
   }
@@ -168,6 +259,16 @@ function parseRow(row: unknown[], index: number): Result<Fund> {
   );
   if (!parsedNavSourceCode.success) {
     return parsedNavSourceCode;
+  }
+  const parsedAssetClass = parseOptionalEnumCell(
+    assetClass,
+    ASSET_CLASSES,
+    'funds',
+    'assetClass',
+    index
+  );
+  if (!parsedAssetClass.success) {
+    return parsedAssetClass;
   }
   const combinationResult = validateNavSourceCombination(
     parsedRakutenFundId.value,
@@ -188,6 +289,7 @@ function parseRow(row: unknown[], index: number): Result<Fund> {
       settlementBusinessDays: parsedSettlementBusinessDays.value,
       navSource: parsedNavSource.value,
       navSourceCode: parsedNavSourceCode.value,
+      assetClass: parsedAssetClass.value,
       createdAt: createdAtResult.value,
     },
   };
@@ -222,21 +324,6 @@ function validateNavSourceCombination(
     );
   }
   return { success: true, value: undefined };
-}
-
-/**
- * シート上のNAV取得元種別を解析する。
- * 空セルは未設定を表すnullへ変換し、サポート外の文字列は行番号付きで即座に失敗させる。
- */
-function parseNavSource(value: unknown, index: number): Result<'wealthadvisor' | null> {
-  const parsed = parseOptionalStringCell(value, 'funds', 'navSource', index);
-  if (!parsed.success) {
-    return parsed;
-  }
-  if (parsed.value === null || parsed.value === 'wealthadvisor') {
-    return { success: true, value: parsed.value };
-  }
-  return fail('unexpected', `fundsの${String(index + 2)}行目のnavSourceが不正です。`);
 }
 
 function parseSettlementBusinessDays(value: unknown, index: number): Result<number | null> {

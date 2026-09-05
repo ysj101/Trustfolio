@@ -57,6 +57,7 @@ describe('EmailService HTML出力スナップショット', () => {
           {
             fundId: 'fund-001',
             fundName: 'eMAXIS Slim 米国株式',
+            assetClass: null,
             totalUnits: 500_000,
             averageCost: 12_000,
             totalInvestment: 600_000,
@@ -195,6 +196,7 @@ describe('EmailService HTML出力スナップショット', () => {
           {
             fundId: 'fund-002',
             fundName: 'ニッセイ外国株式インデックス',
+            assetClass: null,
             totalUnits: 100_000,
             averageCost: 11_000,
             totalInvestment: 110_000,

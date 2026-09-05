@@ -1,6 +1,31 @@
-import type { Result } from './types';
+import { ASSET_CLASSES, type AssetClass, type Result } from './types';
 import { fail } from './result';
 import { parseUtcIsoDate } from '../utils/dateTime';
+
+/**
+ * 値が定義済みの資産クラスであることを判定する。
+ * 許可集合は {@link ASSET_CLASSES} のみを参照し、入力境界と永続化境界の判定を一致させる。
+ *
+ * @param value - 判定対象の値。
+ * @returns `equity`または`gold`であればtrue。その場合、値は{@link AssetClass}へ絞り込まれる。
+ */
+export function isAssetClass(value: unknown): value is AssetClass {
+  return ASSET_CLASSES.some((assetClass) => assetClass === value);
+}
+
+/**
+ * 値が資産クラスの許可集合に含まれることを検証する。
+ * API境界から渡る実行時値を{@link isAssetClass}で判定し、不正値を暗黙変換せず拒否する。
+ *
+ * @param value - 検証対象の値。
+ * @returns 検証に成功すれば{@link AssetClass}を持つ{@link Result}。
+ */
+export function validateAssetClass(value: unknown): Result<AssetClass> {
+  if (!isAssetClass(value)) {
+    return fail('validation', '資産クラスを選択してください。', 'assetClass');
+  }
+  return { success: true, value };
+}
 
 /**
  * 文字列が `YYYY-MM-DD` 形式の妥当な日付かを判定する。

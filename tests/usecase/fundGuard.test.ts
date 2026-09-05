@@ -19,6 +19,7 @@ const 全世界株式ファンド: Fund = {
   settlementBusinessDays: null,
   navSource: null,
   navSourceCode: null,
+  assetClass: null,
   createdAt: '2024-01-01T00:00:00.000Z',
 };
 
@@ -33,6 +34,7 @@ function createFundRepositoryStub(findById: FundRepository['findById']): FundRep
     findById,
     createFund: () => ok(undefined),
     updateFund: () => ok(undefined),
+    updateAssetClass: () => ok(undefined),
   };
 }
 

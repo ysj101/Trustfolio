@@ -1,10 +1,12 @@
 import { fail, propagateFailure } from '../domain/result';
-import type { Fund, Result } from '../domain/types';
+import { validateAssetClass, validateNonEmptyString } from '../domain/validators';
+import type { AssetClass, Fund, Result } from '../domain/types';
 import type { FundRepository } from '../repository/FundRepository';
 import { WEALTH_ADVISOR_CODE_PATTERN } from '../service/WealthAdvisorService';
 import { getFundIdSuffix } from '../Config';
 import { generateUlid } from '../utils/ulid';
 import { clock } from '../utils/dateTime';
+import { assertEntityFound } from './entityGuard';
 
 /**
  * 銘柄更新の入力値。
@@ -30,8 +32,17 @@ export type FundUseCase = {
     settlementBusinessDays: number | null;
     navSource: 'wealthadvisor' | null;
     navSourceCode: string | null;
+    /** 必須の資産クラス。nullおよび省略は許可しない。 */
+    assetClass: AssetClass;
   }) => Result<Fund>;
   updateFund: (input: UpdateFundInput) => Result<Fund>;
+  /**
+   * 既存銘柄の資産クラスだけを更新する。
+   * 資産クラスの変更は本アクションのみが担い、updateFundは資産クラスを変更しない。
+   * 他項目は取得した値をそのまま書き戻すため、他項目の再検証、同名重複検査、
+   * ファンドID末尾の重複検査は行わない。
+   */
+  setFundAssetClass: (input: { id: string; assetClass: AssetClass }) => Result<Fund>;
 };
 
 /**
@@ -48,14 +59,15 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
       settlementBusinessDays: number | null;
       navSource: 'wealthadvisor' | null;
       navSourceCode: string | null;
+      /** 必須の資産クラス。nullおよび省略は許可しない。 */
+      assetClass: AssetClass;
     }): Result<Fund> => {
-      const { name, rakutenFundId, settlementBusinessDays, navSource, navSourceCode } = input;
+      const { name, rakutenFundId, settlementBusinessDays, navSource, navSourceCode, assetClass } =
+        input;
 
-      if (typeof name !== 'string' || name.trim() === '') {
-        return {
-          success: false,
-          error: { type: 'validation', message: '銘柄名を入力してください。', field: 'name' },
-        };
+      const nameValidation = validateNonEmptyString(name, '銘柄名を入力してください。', 'name');
+      if (!nameValidation.success) {
+        return nameValidation;
       }
 
       // 楽天ファンドIDのバリデーション（設定されている場合のみ）
@@ -74,6 +86,10 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
       const navSourceValidation = validateNavSource(rakutenFundId, navSource, navSourceCode);
       if (!navSourceValidation.success) {
         return navSourceValidation;
+      }
+      const assetClassValidation = validateAssetClass(assetClass);
+      if (!assetClassValidation.success) {
+        return assetClassValidation;
       }
 
       const trimmedName = name.trim();
@@ -96,6 +112,7 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
         settlementBusinessDays,
         navSource,
         navSourceCode: navSourceValidation.value,
+        assetClass: assetClassValidation.value,
         createdAt: clock.nowIso(),
       };
 
@@ -114,18 +131,17 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
     updateFund: (input: UpdateFundInput): Result<Fund> => {
       const { id, name, rakutenFundId, settlementBusinessDays, navSource, navSourceCode } = input;
 
-      if (typeof id !== 'string' || id.trim() === '') {
-        return {
-          success: false,
-          error: { type: 'validation', message: '銘柄IDが不正です。', field: 'id' },
-        };
+      // 入力検証（id → name → 楽天ファンドID → 約定営業日数 → NAV取得元ペア）を先に済ませ、
+      // リポジトリ検索は検証後に行う。存在しないIDと不正な入力が同時に渡された場合に
+      // validation エラーを not_found より優先する従来のエラー優先順位を維持する。
+      const idValidation = validateNonEmptyString(id, '銘柄IDが不正です。', 'id');
+      if (!idValidation.success) {
+        return idValidation;
       }
 
-      if (typeof name !== 'string' || name.trim() === '') {
-        return {
-          success: false,
-          error: { type: 'validation', message: '銘柄名を入力してください。', field: 'name' },
-        };
+      const nameValidation = validateNonEmptyString(name, '銘柄名を入力してください。', 'name');
+      if (!nameValidation.success) {
+        return nameValidation;
       }
 
       // 楽天ファンドIDのバリデーション（設定されている場合のみ）
@@ -149,16 +165,24 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
         );
       }
 
-      const existingResult = fundRepository.findById(id);
+      // NAV取得元ペアが明示指定されている場合は、既存値を必要としないため検索前に値そのものを検証する。
+      // 両方省略（旧形式）の場合だけ、既存値の取得後に既存値の組み合わせで検証する。
+      if (navSource !== undefined && navSourceCode !== undefined) {
+        const explicitNavSourceValidation = validateNavSource(
+          rakutenFundId,
+          navSource,
+          navSourceCode
+        );
+        if (!explicitNavSourceValidation.success) {
+          return explicitNavSourceValidation;
+        }
+      }
+
+      const existingResult = findExistingFund(fundRepository, idValidation.value);
       if (!existingResult.success) {
         return existingResult;
       }
-      if (!existingResult.value) {
-        return {
-          success: false,
-          error: { type: 'not_found', message: '対象の銘柄が存在しません。', field: 'id' },
-        };
-      }
+
       let resolvedNavSource: 'wealthadvisor' | null;
       let resolvedNavSourceCode: string | null;
       if (navSource === undefined && navSourceCode === undefined) {
@@ -174,6 +198,8 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
           'NAV取得元と取得元コードは両方を指定するか、両方を省略してください。'
         );
       }
+      // 明示指定時は上で検証済みだが、既存値との組み合わせ（省略時）を含めて最終形を一度検証し、
+      // trim済みの取得元コードを得る。
       const navSourceValidation = validateNavSource(
         rakutenFundId,
         resolvedNavSource,
@@ -182,7 +208,6 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
       if (!navSourceValidation.success) {
         return navSourceValidation;
       }
-
       const trimmedName = name.trim();
       // 同名の他の銘柄が存在するか確認
       const duplicateResult = fundRepository.findByName(trimmedName);
@@ -204,6 +229,7 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
         settlementBusinessDays,
         navSource: resolvedNavSource,
         navSourceCode: navSourceValidation.value,
+        assetClass: existingResult.value.assetClass,
         createdAt: existingResult.value.createdAt,
       };
 
@@ -219,7 +245,47 @@ export function createFundUseCase(fundRepository: FundRepository): FundUseCase {
 
       return { success: true, value: updatedFund };
     },
+    setFundAssetClass: (input: { id: string; assetClass: AssetClass }): Result<Fund> => {
+      const { id, assetClass } = input;
+      // 入力検証（id → assetClass）を先に済ませ、リポジトリ検索は検証後に行う（updateFund と同じ優先順位）。
+      const idValidation = validateNonEmptyString(id, '銘柄IDが不正です。', 'id');
+      if (!idValidation.success) {
+        return idValidation;
+      }
+      const assetClassValidation = validateAssetClass(assetClass);
+      if (!assetClassValidation.success) {
+        return assetClassValidation;
+      }
+      const existingResult = findExistingFund(fundRepository, idValidation.value);
+      if (!existingResult.success) {
+        return existingResult;
+      }
+      const updateResult = fundRepository.updateAssetClass(
+        idValidation.value,
+        assetClassValidation.value
+      );
+      if (!updateResult.success) {
+        return propagateFailure(updateResult);
+      }
+      return {
+        success: true,
+        value: { ...existingResult.value, assetClass: assetClassValidation.value },
+      };
+    },
   };
+}
+
+/**
+ * 検証済みの銘柄IDで既存銘柄を取得する。
+ * updateFundとsetFundAssetClassで共通する検索・存在確認を一本化する。
+ * IDの非空検証は呼び出し側が他の入力検証と同じ段階で先に行う（検証を検索より優先するため）。
+ *
+ * @param fundRepository - 銘柄リポジトリ。
+ * @param id - 非空検証済みの銘柄ID。
+ * @returns 対象銘柄、または検索失敗・不在（not_found）を表す{@link Result}。
+ */
+function findExistingFund(fundRepository: FundRepository, id: string): Result<Fund> {
+  return assertEntityFound(fundRepository.findById(id), '対象の銘柄が存在しません。');
 }
 
 /**
@@ -278,7 +344,12 @@ function validateNavSource(
  * 楽天ファンドIDのバリデーション。
  * 12桁の英数字であることを確認する。
  */
-function validateRakutenFundId(code: string): Result<void> {
+function validateRakutenFundId(code: unknown): Result<void> {
+  // doPostのJSON境界ではアクション固有フィールドがunknownからキャストされるため、
+  // 文字列以外（数値・配列・オブジェクト・undefined）はtrimを呼ぶ前にvalidationとして拒否する。
+  if (typeof code !== 'string') {
+    return fail('validation', '楽天ファンドIDは12桁の英数字で入力してください。', 'rakutenFundId');
+  }
   const trimmed = code.trim();
   if (trimmed === '') {
     return { success: true, value: undefined };

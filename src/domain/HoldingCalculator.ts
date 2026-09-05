@@ -85,6 +85,7 @@ export function calculateHolding(
     return {
       fundId: fund.id,
       fundName: fund.name,
+      assetClass: fund.assetClass,
       totalUnits,
       averageCost,
       totalInvestment,
@@ -109,6 +110,7 @@ export function calculateHolding(
   return {
     fundId: fund.id,
     fundName: fund.name,
+    assetClass: fund.assetClass,
     totalUnits,
     averageCost,
     totalInvestment,

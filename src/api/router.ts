@@ -1,5 +1,5 @@
 import { fail } from '../domain/result';
-import type { Result } from '../domain/types';
+import type { AssetClass, Result } from '../domain/types';
 import { createAppContainer } from '../usecase/appContainer';
 
 type InitializeSheetsRequest = {
@@ -17,6 +17,8 @@ type CreateFundRequest = {
   settlementBusinessDays: number | null;
   navSource?: 'wealthadvisor' | null;
   navSourceCode?: string | null;
+  /** 必須の資産クラス。nullおよび省略は許可しない。 */
+  assetClass: AssetClass;
 };
 
 type UpdateFundRequest = {
@@ -29,6 +31,17 @@ type UpdateFundRequest = {
   navSource?: 'wealthadvisor' | null;
   /** プロパティ不在は既存値維持、明示的なnullは取得元設定のクリアを表す。 */
   navSourceCode?: string | null;
+};
+
+/**
+ * 銘柄の資産クラスだけを変更するAPIリクエスト。
+ * 他の銘柄属性を再送しないため、既存値の上書きや他項目の検証エラーを発生させない。
+ */
+type SetFundAssetClassRequest = {
+  action: 'setFundAssetClass';
+  id: string;
+  /** 設定する資産クラス。nullおよび省略は許可しない。 */
+  assetClass: AssetClass;
 };
 
 type GetNavHistoryRequest = {
@@ -160,6 +173,7 @@ export type ApiRequest =
   | ListFundsRequest
   | CreateFundRequest
   | UpdateFundRequest
+  | SetFundAssetClassRequest
   | GetNavHistoryRequest
   | GetTransactionHistoryRequest
   | ListAllTransactionsRequest
@@ -206,6 +220,7 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
         settlementBusinessDays: request.settlementBusinessDays,
         navSource: request.navSource ?? null,
         navSourceCode: request.navSourceCode ?? null,
+        assetClass: request.assetClass,
       });
     case 'updateFund':
       return container.fundUseCase.updateFund({
@@ -215,6 +230,11 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
         settlementBusinessDays: request.settlementBusinessDays,
         navSource: request.navSource,
         navSourceCode: request.navSourceCode,
+      });
+    case 'setFundAssetClass':
+      return container.fundUseCase.setFundAssetClass({
+        id: request.id,
+        assetClass: request.assetClass,
       });
     case 'getNavHistory':
       return container.navUseCase.getNavHistory(request.fundId);
