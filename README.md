@@ -2,6 +2,10 @@
 
 投資信託ポートフォリオ管理アプリケーション（Google Apps Script + Google Sheets）
 
+## リポジトリ
+
+ソースコードは [GitHub の Trustfolio リポジトリ](https://github.com/ysj101/Trustfolio) で管理しています。
+
 ## 概要
 
 Trustfolioは、投資信託の銘柄・基準価額・取引・積立・保有情報・ポートフォリオを
