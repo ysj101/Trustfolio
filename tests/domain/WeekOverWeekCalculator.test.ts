@@ -67,6 +67,7 @@ describe('WeekOverWeekCalculator', () => {
     const baseHolding: Holding = {
       fundId: 'fund-001',
       fundName: '日本株インデックス',
+      assetClass: null,
       totalUnits: 10000,
       averageCost: 10000,
       totalInvestment: 100000,
@@ -176,6 +177,7 @@ describe('WeekOverWeekCalculator', () => {
         {
           fundId: 'fund-001',
           fundName: '日本株インデックス',
+          assetClass: null,
           totalUnits: 10000,
           averageCost: 10000,
           totalInvestment: 100000,
@@ -190,6 +192,7 @@ describe('WeekOverWeekCalculator', () => {
         {
           fundId: 'fund-002',
           fundName: '米国株インデックス',
+          assetClass: null,
           totalUnits: 10000,
           averageCost: 10000,
           totalInvestment: 100000,

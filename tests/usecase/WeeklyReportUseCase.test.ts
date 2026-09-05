@@ -153,6 +153,7 @@ describe('WeeklyReportUseCase', () => {
             {
               fundId: 'fund-001',
               fundName: '日本株インデックス',
+              assetClass: null,
               totalUnits: 10000,
               averageCost: 10000,
               totalInvestment: 10000,

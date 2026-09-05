@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createFundUseCase } from '../../src/usecase/FundUseCase';
 import type { FundRepository } from '../../src/repository/FundRepository';
 import type { Fund } from '../../src/domain/types';
@@ -20,6 +20,18 @@ function createFundRepository(seed: Fund[] = []): FundRepository {
         return fail('not_found', `対象の銘柄が見つかりません: id=${fund.id}`);
       }
       funds[index] = fund;
+      return ok(undefined);
+    },
+    updateAssetClass: (id, assetClass) => {
+      const index = funds.findIndex((item) => item.id === id);
+      if (index === -1) {
+        return fail('not_found', `対象の銘柄が見つかりません: id=${id}`);
+      }
+      const existingFund = funds[index];
+      if (existingFund === undefined) {
+        return fail('unexpected', `更新対象の銘柄を取得できません: id=${id}`);
+      }
+      funds[index] = { ...existingFund, assetClass };
       return ok(undefined);
     },
   };
@@ -57,6 +69,7 @@ describe('FundUseCase', () => {
         settlementBusinessDays: null,
         navSource: null,
         navSourceCode: null,
+        assetClass: 'equity',
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ]);
@@ -67,6 +80,7 @@ describe('FundUseCase', () => {
       settlementBusinessDays: 3,
       navSource: null,
       navSourceCode: null,
+      assetClass: 'equity',
     });
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -86,6 +100,7 @@ describe('FundUseCase', () => {
       settlementBusinessDays: 2,
       navSource: null,
       navSourceCode: null,
+      assetClass: 'equity',
     });
     expect(result.success).toBe(true);
     if (result.success) {
@@ -95,6 +110,35 @@ describe('FundUseCase', () => {
       expect(result.value.createdAt).toContain('T');
     }
   });
+
+  it.each(['', undefined, null, 'bond', 1])(
+    '作成時の不正な資産クラス %s を拒否する',
+    (assetClass) => {
+      // 前提: 銘柄名、楽天ファンドID、約定営業日数、NAV取得元は妥当である。
+      // 事前条件: assetClassは登録フォームの未選択値（空文字列）、未指定相当、null、定義外文字列、または数値である。
+      // 検証: assetClassフィールドの同一validationエラーで拒否され、リポジトリのcreateFundは一度も呼ばれない。
+      const repository = createFundRepository();
+      const createFundSpy = vi.spyOn(repository, 'createFund');
+      const result = createFundUseCase(repository).createFund({
+        name: 'ＳＢＩ・iシェアーズ・ゴールドファンド',
+        rakutenFundId: null,
+        settlementBusinessDays: 2,
+        navSource: null,
+        navSourceCode: null,
+        assetClass: assetClass as never,
+      });
+
+      expect(result).toEqual({
+        success: false,
+        error: {
+          type: 'validation',
+          message: '資産クラスを選択してください。',
+          field: 'assetClass',
+        },
+      });
+      expect(createFundSpy).not.toHaveBeenCalled();
+    }
+  );
 
   it('更新対象が存在しない場合はnot_foundになる', () => {
     // 前提: 更新対象のIDが存在しない
@@ -128,6 +172,7 @@ describe('FundUseCase', () => {
         settlementBusinessDays: null,
         navSource: null,
         navSourceCode: null,
+        assetClass: 'equity',
         createdAt: '2024-01-01T00:00:00.000Z',
       },
       {
@@ -137,6 +182,7 @@ describe('FundUseCase', () => {
         settlementBusinessDays: null,
         navSource: null,
         navSourceCode: null,
+        assetClass: 'equity',
         createdAt: '2024-01-02T00:00:00.000Z',
       },
     ]);
@@ -167,6 +213,7 @@ describe('FundUseCase', () => {
         settlementBusinessDays: 1,
         navSource: null,
         navSourceCode: null,
+        assetClass: 'equity',
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ]);
@@ -198,6 +245,7 @@ describe('FundUseCase', () => {
         settlementBusinessDays: null,
         navSource: null,
         navSourceCode: null,
+        assetClass: 'equity',
         createdAt: '2024-01-01T00:00:00.000Z',
       },
       {
@@ -207,6 +255,7 @@ describe('FundUseCase', () => {
         settlementBusinessDays: null,
         navSource: null,
         navSourceCode: null,
+        assetClass: 'equity',
         createdAt: '2024-01-02T00:00:00.000Z',
       },
     ]);
@@ -236,11 +285,13 @@ describe('FundUseCase', () => {
       settlementBusinessDays: 2,
       navSource: 'wealthadvisor',
       navSourceCode: ' sbi_am/sa_202306080A ',
+      assetClass: 'gold',
     });
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.value.navSource).toBe('wealthadvisor');
       expect(result.value.navSourceCode).toBe('sbi_am/sa_202306080A');
+      expect(result.value.assetClass).toBe('gold');
     }
   });
 
@@ -254,6 +305,7 @@ describe('FundUseCase', () => {
       settlementBusinessDays: 2,
       navSource: 'wealthadvisor',
       navSourceCode: null,
+      assetClass: 'gold',
     });
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -272,6 +324,7 @@ describe('FundUseCase', () => {
       settlementBusinessDays: 2,
       navSource: 'wealthadvisor',
       navSourceCode: 'sbi_am',
+      assetClass: 'gold',
     });
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -290,6 +343,7 @@ describe('FundUseCase', () => {
       settlementBusinessDays: 2,
       navSource: null,
       navSourceCode: 'sbi_am/sa_202306080A',
+      assetClass: 'gold',
     });
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -327,6 +381,7 @@ describe('FundUseCase', () => {
         settlementBusinessDays: 2,
         navSource: 'wealthadvisor',
         navSourceCode: 'sbi_am/sa_202306080A',
+        assetClass: 'gold',
         createdAt: '2026-09-02T00:00:00.000Z',
       },
     ]);
@@ -356,6 +411,7 @@ describe('FundUseCase', () => {
         settlementBusinessDays: 2,
         navSource: 'wealthadvisor',
         navSourceCode: 'sbi_am/sa_202306080A',
+        assetClass: 'gold',
         createdAt: '2026-09-02T00:00:00.000Z',
       },
     ]);
@@ -369,7 +425,96 @@ describe('FundUseCase', () => {
     if (result.success) {
       expect(result.value.navSource).toBe('wealthadvisor');
       expect(result.value.navSourceCode).toBe('sbi_am/sa_202306080A');
+      expect(result.value.assetClass).toBe('gold');
     }
+  });
+
+  it('資産クラスだけを設定し、既存銘柄の他項目を変更しない', () => {
+    // 前提: 12桁形式ではない既存楽天ファンドIDを持つ、資産クラス未設定の銘柄が存在する。
+    // 事前条件: 専用処理へgoldを指定し、汎用更新で要求される他項目は入力しない。
+    // 検証: 他項目の再検証で拒否されず、assetClassだけがgoldへ変更される。
+    const existingFund: Fund = {
+      id: 'fund-sbi-gold',
+      name: 'ＳＢＩ・iシェアーズ・ゴールドファンド',
+      rakutenFundId: '旧形式ID',
+      settlementBusinessDays: 2,
+      navSource: null,
+      navSourceCode: null,
+      assetClass: null,
+      createdAt: '2026-09-02T00:00:00.000Z',
+    };
+    const repository = createFundRepository([existingFund]);
+    repository.updateFund = () =>
+      fail('unexpected', '資産クラス専用設定から汎用更新が呼び出されました。');
+
+    const result = createFundUseCase(repository).setFundAssetClass({
+      id: existingFund.id,
+      assetClass: 'gold',
+    });
+
+    expect(result).toEqual({
+      success: true,
+      value: { ...existingFund, assetClass: 'gold' },
+    });
+    expect(repository.findById(existingFund.id)).toEqual({
+      success: true,
+      value: { ...existingFund, assetClass: 'gold' },
+    });
+  });
+
+  it.each(['', undefined, null, 'bond', 1])(
+    '資産クラス専用設定で不正値 %s を拒否する',
+    (assetClass) => {
+      // 前提: 資産クラス未設定の既存銘柄が登録されている。
+      // 事前条件: assetClassは一覧selectの未選択値（空文字列）、未指定相当、null、定義外文字列、または数値である。
+      // 検証: assetClassフィールドのvalidationエラーを返し、リポジトリのupdateAssetClassは一度も呼ばれない（書き込み前に fail fast）。
+      const repository = createFundRepository([
+        {
+          id: 'fund-sbi-gold',
+          name: 'ＳＢＩ・iシェアーズ・ゴールドファンド',
+          rakutenFundId: null,
+          settlementBusinessDays: 2,
+          navSource: null,
+          navSourceCode: null,
+          assetClass: null,
+          createdAt: '2026-09-02T00:00:00.000Z',
+        },
+      ]);
+      const updateAssetClassSpy = vi.spyOn(repository, 'updateAssetClass');
+      const result = createFundUseCase(repository).setFundAssetClass({
+        id: 'fund-sbi-gold',
+        assetClass: assetClass as never,
+      });
+
+      expect(result).toEqual({
+        success: false,
+        error: {
+          type: 'validation',
+          message: '資産クラスを選択してください。',
+          field: 'assetClass',
+        },
+      });
+      expect(updateAssetClassSpy).not.toHaveBeenCalled();
+    }
+  );
+
+  it('資産クラス設定対象が存在しない場合はnot_foundを返す', () => {
+    // 前提: リポジトリに対象銘柄が存在しない。
+    // 事前条件: idとassetClassは妥当である。
+    // 検証: idフィールドを持つnot_foundエラーを返す。
+    const result = createFundUseCase(createFundRepository()).setFundAssetClass({
+      id: 'fund-not-found',
+      assetClass: 'gold',
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'not_found',
+        message: '対象の銘柄が存在しません。',
+        field: 'id',
+      },
+    });
   });
 
   it('更新時に取得元2項目へ明示的なnullを指定すると既存設定をクリアする', () => {
@@ -384,6 +529,7 @@ describe('FundUseCase', () => {
         settlementBusinessDays: 2,
         navSource: 'wealthadvisor',
         navSourceCode: 'sbi_am/sa_202306080A',
+        assetClass: 'gold',
         createdAt: '2026-09-02T00:00:00.000Z',
       },
     ]);
@@ -414,6 +560,7 @@ describe('FundUseCase', () => {
         settlementBusinessDays: 2,
         navSource: 'wealthadvisor',
         navSourceCode: 'sbi_am/sa_202306080A',
+        assetClass: 'gold',
         createdAt: '2026-09-02T00:00:00.000Z',
       },
     ]);
@@ -431,4 +578,81 @@ describe('FundUseCase', () => {
       expect(result.error.field).toBe('navSource');
     }
   });
+
+  it('存在しないIDと不正な入力を同時に渡した更新では入力のvalidationエラーを優先する', () => {
+    // 前提: リポジトリは空で、更新対象のIDは存在しない。
+    // 事前条件: 銘柄名が空文字列（不正）で、かつ ID も存在しない。
+    // 検証: 存在確認（not_found）より先に入力検証が走り、name フィールドの validation エラーが返る。
+    const result = createFundUseCase(createFundRepository()).updateFund({
+      id: 'missing-id',
+      name: ' ',
+      rakutenFundId: null,
+      settlementBusinessDays: null,
+      navSource: null,
+      navSourceCode: null,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.type).toBe('validation');
+      expect(result.error.field).toBe('name');
+    }
+  });
+
+  it('存在しないIDと不正な資産クラスを同時に渡した専用設定では資産クラスのvalidationエラーを優先する', () => {
+    // 前提: リポジトリは空で、対象のIDは存在しない。
+    // 事前条件: assetClass が定義外の文字列（bond）で、かつ ID も存在しない。
+    // 検証: 存在確認（not_found）より先に入力検証が走り、assetClass フィールドの validation エラーが返る。
+    const result = createFundUseCase(createFundRepository()).setFundAssetClass({
+      id: 'missing-id',
+      assetClass: 'bond' as never,
+    });
+    expect(result).toEqual({
+      success: false,
+      error: { type: 'validation', message: '資産クラスを選択してください。', field: 'assetClass' },
+    });
+  });
+
+  it('存在しないIDと不正なNAV取得元コードを同時に渡した更新ではnavSourceCodeのvalidationエラーを優先する', () => {
+    // 前提: リポジトリは空で、更新対象のIDは存在しない。
+    // 事前条件: NAV取得元ペアを明示指定し、取得元コードが <company>/<pageId> 形式でない。
+    // 検証: 明示指定された取得元ペアは検索前に検証され、not_found より先に navSourceCode の validation エラーが返る。
+    const result = createFundUseCase(createFundRepository()).updateFund({
+      id: 'missing-id',
+      name: 'ＳＢＩ・iシェアーズ・ゴールドファンド',
+      rakutenFundId: null,
+      settlementBusinessDays: null,
+      navSource: 'wealthadvisor',
+      navSourceCode: '形式不正コード',
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.type).toBe('validation');
+      expect(result.error.field).toBe('navSourceCode');
+    }
+  });
+
+  it.each([undefined, 12345, ['JP90C000H1T1'], { code: 'JP90C000H1T1' }])(
+    '文字列以外の楽天ファンドID %s は例外ではなくvalidationエラーで拒否する',
+    (rakutenFundId) => {
+      // 前提: doPost の JSON 境界では rakutenFundId に文字列以外や省略（undefined）が渡り得る。
+      // 事前条件: 銘柄名・約定営業日数・資産クラスは妥当である。
+      // 検証: TypeError を発生させず、rakutenFundId フィールドの validation エラーを返す。
+      const result = createFundUseCase(createFundRepository()).createFund({
+        name: '世界株インデックス',
+        rakutenFundId: rakutenFundId as never,
+        settlementBusinessDays: 2,
+        navSource: null,
+        navSourceCode: null,
+        assetClass: 'equity',
+      });
+      expect(result).toEqual({
+        success: false,
+        error: {
+          type: 'validation',
+          message: '楽天ファンドIDは12桁の英数字で入力してください。',
+          field: 'rakutenFundId',
+        },
+      });
+    }
+  );
 });

@@ -27,6 +27,7 @@ describe('NavFetchUseCase', () => {
         settlementBusinessDays: null,
         navSource: null,
         navSourceCode: null,
+        assetClass: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
       {
@@ -36,6 +37,7 @@ describe('NavFetchUseCase', () => {
         settlementBusinessDays: null,
         navSource: null,
         navSourceCode: null,
+        assetClass: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
       {
@@ -45,6 +47,7 @@ describe('NavFetchUseCase', () => {
         settlementBusinessDays: null,
         navSource: null,
         navSourceCode: null,
+        assetClass: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
       {
@@ -54,6 +57,7 @@ describe('NavFetchUseCase', () => {
         settlementBusinessDays: null,
         navSource: null,
         navSourceCode: null,
+        assetClass: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ];
@@ -64,6 +68,7 @@ describe('NavFetchUseCase', () => {
       findById: () => ok(null),
       createFund: () => ok(undefined),
       updateFund: () => ok(undefined),
+      updateAssetClass: () => ok(undefined),
     };
 
     const navRepository: NavRepository = {
@@ -145,6 +150,7 @@ describe('NavFetchUseCase', () => {
         settlementBusinessDays: null,
         navSource: null,
         navSourceCode: null,
+        assetClass: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ];
@@ -154,6 +160,7 @@ describe('NavFetchUseCase', () => {
       findById: () => ok(null),
       createFund: () => ok(undefined),
       updateFund: () => ok(undefined),
+      updateAssetClass: () => ok(undefined),
     };
 
     const navRepository: NavRepository = {
@@ -222,6 +229,7 @@ describe('NavFetchUseCase', () => {
         settlementBusinessDays: null,
         navSource: null,
         navSourceCode: null,
+        assetClass: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
       {
@@ -233,6 +241,7 @@ describe('NavFetchUseCase', () => {
         settlementBusinessDays: null,
         navSource: null,
         navSourceCode: null,
+        assetClass: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ];
@@ -273,6 +282,7 @@ describe('NavFetchUseCase', () => {
       findById: () => ok(null),
       createFund: () => ok(undefined),
       updateFund: () => ok(undefined),
+      updateAssetClass: () => ok(undefined),
     };
 
     const navRepository: NavRepository = {
@@ -349,6 +359,7 @@ describe('NavFetchUseCase', () => {
         settlementBusinessDays: null,
         navSource: null,
         navSourceCode: null,
+        assetClass: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ];
@@ -359,6 +370,7 @@ describe('NavFetchUseCase', () => {
       findById: () => ok(null),
       createFund: () => ok(undefined),
       updateFund: () => ok(undefined),
+      updateAssetClass: () => ok(undefined),
     };
 
     const navRepository: NavRepository = {
@@ -457,6 +469,7 @@ describe('NavFetchUseCase', () => {
         settlementBusinessDays: null,
         navSource: null,
         navSourceCode: null,
+        assetClass: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ];
@@ -467,6 +480,7 @@ describe('NavFetchUseCase', () => {
       findById: () => ok(null),
       createFund: () => ok(undefined),
       updateFund: () => ok(undefined),
+      updateAssetClass: () => ok(undefined),
     };
 
     const navRepository: NavRepository = {
@@ -561,6 +575,7 @@ describe('NavFetchUseCase', () => {
         settlementBusinessDays: 2,
         navSource: 'wealthadvisor',
         navSourceCode: 'sbi_am/sa_202306080A',
+        assetClass: null,
         createdAt: '2026-09-02T00:00:00.000Z',
       },
       {
@@ -570,6 +585,7 @@ describe('NavFetchUseCase', () => {
         settlementBusinessDays: 2,
         navSource: 'wealthadvisor',
         navSourceCode: null,
+        assetClass: null,
         createdAt: '2026-09-02T00:00:00.000Z',
       },
       {
@@ -579,6 +595,7 @@ describe('NavFetchUseCase', () => {
         settlementBusinessDays: 2,
         navSource: 'wealthadvisor',
         navSourceCode: 'sbi_am/sa_202306080A',
+        assetClass: null,
         createdAt: '2026-09-02T00:00:00.000Z',
       },
       {
@@ -588,6 +605,7 @@ describe('NavFetchUseCase', () => {
         settlementBusinessDays: null,
         navSource: null,
         navSourceCode: null,
+        assetClass: null,
         createdAt: '2026-09-02T00:00:00.000Z',
       },
     ];
@@ -597,6 +615,7 @@ describe('NavFetchUseCase', () => {
       findById: () => ok(null),
       createFund: () => ok(undefined),
       updateFund: () => ok(undefined),
+      updateAssetClass: () => ok(undefined),
     };
     const navRepository: NavRepository = {
       listByFundId: () => ok([]),
@@ -661,6 +680,7 @@ describe('NavFetchUseCase', () => {
       settlementBusinessDays: 2,
       navSource: null,
       navSourceCode: 'sbi_am/sa_202306080A',
+      assetClass: null,
       createdAt: '2026-09-02T00:00:00.000Z',
     };
     const fundRepository: FundRepository = {
@@ -669,6 +689,7 @@ describe('NavFetchUseCase', () => {
       findById: () => ok(null),
       createFund: () => ok(undefined),
       updateFund: () => ok(undefined),
+      updateAssetClass: () => ok(undefined),
     };
     const navRepository: NavRepository = {
       listByFundId: () => ok([]),

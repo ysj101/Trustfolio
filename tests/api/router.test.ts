@@ -27,6 +27,7 @@ vi.mock('../../src/repository/FundRepository', () => ({
           settlementBusinessDays: null,
           navSource: null,
           navSourceCode: null,
+          assetClass: 'equity',
           createdAt: '2024-01-01T00:00:00.000Z',
         },
       ]),
@@ -39,10 +40,12 @@ vi.mock('../../src/repository/FundRepository', () => ({
         settlementBusinessDays: null,
         navSource: null,
         navSourceCode: null,
+        assetClass: 'equity',
         createdAt: '2024-01-01T00:00:00.000Z',
       }),
     createFund: () => ok(undefined),
     updateFund: () => ok(undefined),
+    updateAssetClass: () => ok(undefined),
   }),
 }));
 
@@ -211,6 +214,50 @@ describe('router', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(Array.isArray(result.value)).toBe(true);
+    }
+  });
+
+  it('createFundリクエストのassetClassをユースケースへ渡す', async () => {
+    // 前提: シート接続と銘柄作成に必要なリポジトリ処理が成功する。
+    // 事前条件: createFundリクエストへgoldを明示する。
+    // 検証: 作成結果のFundにgoldが保持され、API境界で値が欠落しない。
+    const { openSheetRepository } = vi.mocked(await import('../../src/repository/SheetRepository'));
+    openSheetRepository.mockReturnValue(ok(createStubSheetRepository()));
+
+    const result = handleApiRequest({
+      action: 'createFund',
+      name: 'ＳＢＩ・iシェアーズ・ゴールドファンド',
+      rakutenFundId: null,
+      settlementBusinessDays: 2,
+      navSource: null,
+      navSourceCode: null,
+      assetClass: 'gold',
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.value).toEqual(expect.objectContaining({ assetClass: 'gold' }));
+    }
+  });
+
+  it('setFundAssetClassリクエストを資産クラス専用ユースケースへ配線する', async () => {
+    // 前提: equityが設定された既存の国内株式ファンドが存在する。
+    // 事前条件: setFundAssetClassリクエストへgoldを指定する。
+    // 検証: 専用アクションがassetClassだけをgoldへ変更したFundを返す。
+    const { openSheetRepository } = vi.mocked(await import('../../src/repository/SheetRepository'));
+    openSheetRepository.mockReturnValue(ok(createStubSheetRepository()));
+
+    const result = handleApiRequest({
+      action: 'setFundAssetClass',
+      id: 'fund-001',
+      assetClass: 'gold',
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.value).toEqual(
+        expect.objectContaining({ id: 'fund-001', name: '国内株式', assetClass: 'gold' })
+      );
     }
   });
 

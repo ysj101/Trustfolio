@@ -19,6 +19,7 @@ describe('PortfolioUseCase', () => {
         settlementBusinessDays: null,
         navSource: null,
         navSourceCode: null,
+        assetClass: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ];
@@ -44,6 +45,7 @@ describe('PortfolioUseCase', () => {
       findById: () => ok(null),
       createFund: () => ok(undefined),
       updateFund: () => ok(undefined),
+      updateAssetClass: () => ok(undefined),
     };
     const transactionRepository: TransactionRepository = {
       listByFundId: () => ok([]),
@@ -71,6 +73,7 @@ describe('PortfolioUseCase', () => {
           {
             fundId: 'fund-001',
             fundName: '日本株インデックス',
+            assetClass: null,
             totalUnits: 10000,
             averageCost: 10000,
             totalInvestment: 10000,
@@ -104,6 +107,7 @@ describe('PortfolioUseCase', () => {
       findById: () => ok(null),
       createFund: () => ok(undefined),
       updateFund: () => ok(undefined),
+      updateAssetClass: () => ok(undefined),
     };
     const transactionRepository: TransactionRepository = {
       listByFundId: () => ok([]),
@@ -142,6 +146,7 @@ describe('PortfolioUseCase', () => {
             settlementBusinessDays: null,
             navSource: null,
             navSourceCode: null,
+            assetClass: null,
             createdAt: '2024-01-01T00:00:00.000Z',
           },
         ]),
@@ -149,6 +154,7 @@ describe('PortfolioUseCase', () => {
       findById: () => ok(null),
       createFund: () => ok(undefined),
       updateFund: () => ok(undefined),
+      updateAssetClass: () => ok(undefined),
     };
     const transactionRepository: TransactionRepository = {
       listByFundId: () => ok([]),

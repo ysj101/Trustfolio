@@ -18,6 +18,7 @@ const createFundRepository = (funds: Fund[]) => ({
   }),
   createFund: (fund: Fund) => ({ success: true as const, value: fund }),
   updateFund: (fund: Fund) => ({ success: true as const, value: fund }),
+  updateAssetClass: () => ({ success: true as const, value: undefined }),
   deleteFund: (id: string) => ({ success: true as const, value: undefined }),
 });
 
@@ -58,6 +59,7 @@ const fund: Fund = {
   settlementBusinessDays: 2,
   navSource: null,
   navSourceCode: null,
+  assetClass: null,
   createdAt: '2024-01-01T00:00:00.000Z',
 };
 

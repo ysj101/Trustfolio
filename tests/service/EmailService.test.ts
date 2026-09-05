@@ -65,6 +65,7 @@ describe('EmailService', () => {
           {
             fundId: 'fund-001',
             fundName: '国内株式',
+            assetClass: null,
             totalUnits: 10000,
             averageCost: 10000,
             totalInvestment: 10000,

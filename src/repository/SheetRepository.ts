@@ -5,6 +5,8 @@ import type { Result } from '../domain/types';
 export type SheetRepository = {
   ensureSheet: (definition: SheetDefinition) => Result<GoogleAppsScript.Spreadsheet.Sheet>;
   getRequiredSheet: (sheetName: string) => Result<GoogleAppsScript.Spreadsheet.Sheet>;
+  /** 指定シートのヘッダーとデータ行を、シートを変更せず1回の範囲取得で返す。 */
+  readSheetWithHeader: (sheetName: string) => Result<{ headers: string[]; rows: unknown[][] }>;
   readAllRows: (sheetName: string) => Result<unknown[][]>;
   appendRows: (sheetName: string, rows: unknown[][]) => Result<void>;
   /**
@@ -12,6 +14,19 @@ export type SheetRepository = {
    * 実際のシート上では行番号はヘッダー行（1行目）を除いた2行目以降となる。
    */
   updateRow: (sheetName: string, rowIndex: number, row: unknown[]) => Result<void>;
+  /**
+   * 指定された行と列のセルだけを更新する。
+   * 行全体の再保存を行わないため、対象セル以外の値と型は変更しない。
+   *
+   * rowIndexは0始まりのデータ行基準、columnIndexは0始まりの列基準とする。
+   * 指定されたデータ行が存在しない場合はnot_foundを返す。
+   */
+  updateCell: (
+    sheetName: string,
+    rowIndex: number,
+    columnIndex: number,
+    value: unknown
+  ) => Result<void>;
   /**
    * 指定された行インデックス（0始まり、データ行基準）の行を削除する。
    * 実際のシート上では行番号はヘッダー行（1行目）を除いた2行目以降となる。
@@ -49,6 +64,26 @@ function createSheetRepository(
         return fail('unexpected', `シートが存在しません: ${sheetName}`);
       }
       return { success: true, value: sheet };
+    },
+    readSheetWithHeader: (sheetName: string): Result<{ headers: string[]; rows: unknown[][] }> => {
+      const sheetResult = repository.getRequiredSheet(sheetName);
+      if (!sheetResult.success) {
+        return sheetResult;
+      }
+      const sheet = sheetResult.value;
+      const lastRow = sheet.getLastRow();
+      const lastColumn = sheet.getLastColumn();
+      if (lastRow < 1 || lastColumn === 0) {
+        return { success: true, value: { headers: [], rows: [] } };
+      }
+      const values = sheet.getRange(1, 1, lastRow, lastColumn).getValues();
+      return {
+        success: true,
+        value: {
+          headers: (values[0] ?? []) as string[],
+          rows: values.slice(1),
+        },
+      };
     },
     readAllRows: (sheetName: string): Result<unknown[][]> => {
       const sheetResult = repository.getRequiredSheet(sheetName);
@@ -112,6 +147,41 @@ function createSheetRepository(
       sheet.getRange(sheetRowNumber, 1, 1, row.length).setValues([row]);
       return { success: true, value: undefined };
     },
+    updateCell: (
+      sheetName: string,
+      rowIndex: number,
+      columnIndex: number,
+      value: unknown
+    ): Result<void> => {
+      if (
+        !Number.isInteger(rowIndex) ||
+        rowIndex < 0 ||
+        !Number.isInteger(columnIndex) ||
+        columnIndex < 0
+      ) {
+        return fail(
+          'validation',
+          `更新するセルの位置が不正です: row=${String(rowIndex)} column=${String(columnIndex)}`
+        );
+      }
+      const sheetResult = repository.getRequiredSheet(sheetName);
+      if (!sheetResult.success) {
+        return sheetResult;
+      }
+
+      const sheet = sheetResult.value;
+      // rowIndexは0始まりのデータ行インデックスであるため、ヘッダー行を加味して2を加算する。
+      const sheetRowNumber = rowIndex + 2;
+      if (sheetRowNumber > sheet.getLastRow()) {
+        return fail(
+          'not_found',
+          `指定された行が存在しません: ${sheetName} row=${String(rowIndex)}`
+        );
+      }
+
+      sheet.getRange(sheetRowNumber, columnIndex + 1).setValue(value);
+      return { success: true, value: undefined };
+    },
     deleteRow: (sheetName: string, rowIndex: number): Result<void> => {
       const sheetResult = repository.getRequiredSheet(sheetName);
       if (!sheetResult.success) {
@@ -149,7 +219,7 @@ function createSheetRepository(
  * @param columnCount 読み取る列数（1以上）。
  * @returns ヘッダー行の文字列配列。
  */
-function readHeaderRow(sheet: GoogleAppsScript.Spreadsheet.Sheet, columnCount: number): string[] {
+function readHeaderCells(sheet: GoogleAppsScript.Spreadsheet.Sheet, columnCount: number): string[] {
   return sheet.getRange(1, 1, 1, columnCount).getValues()[0] as string[];
 }
 
@@ -188,7 +258,7 @@ function alignColumnsToHeaders(
 ): void {
   for (let expectedIndex = 0; expectedIndex < headers.length; expectedIndex += 1) {
     const expectedHeader = headers[expectedIndex] ?? '';
-    const currentHeaders = readHeaderRow(sheet, sheet.getLastColumn());
+    const currentHeaders = readHeaderCells(sheet, sheet.getLastColumn());
     const currentHeader = currentHeaders[expectedIndex] ?? '';
 
     if (currentHeader === expectedHeader) {
@@ -220,7 +290,7 @@ function removeUnexpectedColumns(
   sheet: GoogleAppsScript.Spreadsheet.Sheet,
   headers: readonly string[]
 ): void {
-  const cleanupHeaders = readHeaderRow(sheet, sheet.getLastColumn());
+  const cleanupHeaders = readHeaderCells(sheet, sheet.getLastColumn());
   const seenHeaders = new Set<string>();
   const deleteColumns: number[] = [];
   for (let index = 0; index < cleanupHeaders.length; index += 1) {
@@ -280,7 +350,7 @@ function verifyHeader(
   headers: readonly string[],
   sheetName: string
 ): Result<void> {
-  const updatedHeaders = readHeaderRow(sheet, sheet.getLastColumn());
+  const updatedHeaders = readHeaderCells(sheet, sheet.getLastColumn());
 
   // 最終検証：期待するヘッダーと一致するか確認
   const finalMismatches = headers
