@@ -33,6 +33,7 @@ function createTestFund(id: string, name: string): Fund {
     settlementBusinessDays: null,
     navSource: null,
     navSourceCode: null,
+    assetClass: null,
     createdAt: '2024-01-01T00:00:00.000Z',
   };
 }
@@ -45,6 +46,7 @@ function createFundRepositoryStub(listFunds: FundRepository['listFunds']): FundR
     findById: () => ok(null),
     createFund: () => ok(undefined),
     updateFund: () => ok(undefined),
+    updateAssetClass: () => ok(undefined),
   };
 }
 

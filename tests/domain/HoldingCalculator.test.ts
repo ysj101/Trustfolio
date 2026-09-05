@@ -9,6 +9,7 @@ const fund: Fund = {
   settlementBusinessDays: 2,
   navSource: null,
   navSourceCode: null,
+  assetClass: 'equity',
   createdAt: '2024-01-01T00:00:00.000Z',
 };
 
@@ -62,7 +63,7 @@ describe('HoldingCalculator', () => {
   it('最新基準価額がない場合は現在値をnullで返す', () => {
     // 前提: 購入のみで保有が存在する
     // 事前条件: 最新基準価額をnullとする
-    // 検証: currentValueなどがnullになる
+    // 検証: currentValueなどがnullになり、資産クラスは銘柄から転記される
     const transactions: Transaction[] = [
       {
         id: 'tx-1',
@@ -84,12 +85,13 @@ describe('HoldingCalculator', () => {
     expect(result?.currentValue).toBeNull();
     expect(result?.currentNavValue).toBeNull();
     expect(result?.unrealizedGain).toBeNull();
+    expect(result?.assetClass).toBe('equity');
   });
 
   it('評価額と損益を最新基準価額から計算する', () => {
     // 前提: 購入と売却が混在する
     // 事前条件: 最新基準価額を設定する
-    // 検証: 評価額と損益が残存投資額基準で計算される
+    // 検証: 評価額と損益が残存投資額基準で計算され、資産クラスは銘柄から転記される
     const transactions: Transaction[] = [
       {
         id: 'tx-1',
@@ -149,6 +151,7 @@ describe('HoldingCalculator', () => {
     // NAV 15,000 = 平均取得単価 15,000 なので未実現損益は0
     expect(result?.unrealizedGain).toBe(0);
     expect(result?.unrealizedGainRate).toBe(0);
+    expect(result?.assetClass).toBe('equity');
   });
 
   it('売却後の再購入で移動平均原価が正しく更新される', () => {
@@ -563,6 +566,7 @@ describe('PortfolioCalculator', () => {
       {
         fundId: 'fund-001',
         fundName: '日本株インデックス',
+        assetClass: null,
         totalUnits: 10000,
         averageCost: 10000,
         totalInvestment: 10000,
@@ -590,6 +594,7 @@ describe('PortfolioCalculator', () => {
       {
         fundId: 'fund-001',
         fundName: '日本株インデックス',
+        assetClass: null,
         totalUnits: 15000,
         averageCost: 15000,
         totalInvestment: 30000,
@@ -680,6 +685,7 @@ describe('PortfolioCalculator', () => {
       {
         fundId: 'fund-001',
         fundName: 'ファンドA',
+        assetClass: null,
         totalUnits: 5000,
         averageCost: 10000,
         totalInvestment: 10000,
@@ -694,6 +700,7 @@ describe('PortfolioCalculator', () => {
       {
         fundId: 'fund-002',
         fundName: 'ファンドB',
+        assetClass: null,
         totalUnits: 10000,
         averageCost: 20000,
         totalInvestment: 20000,

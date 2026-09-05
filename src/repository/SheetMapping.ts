@@ -91,6 +91,99 @@ export function findRowByPredicate<T>(
 }
 
 /**
+ * ヘッダー名から列インデックスを構築する。
+ *
+ * 内容:
+ * - 空ヘッダーは利用者追加列として読み飛ばす。
+ * - 同名の非空ヘッダーは対応先を一意に決められないため拒否する。
+ * - 必須列が存在しない場合は、欠落した列名を含むunexpectedエラーを返す。
+ *
+ * 注意:
+ * - 定義外の非空ヘッダーも対応表へ保持するが、呼び出し側が要求しなければ読み飛ばされる。
+ * - 重複列を先勝ち・後勝ちで暗黙に解決しない。
+ *
+ * @param headers - シートのヘッダー行。
+ * @param sheetLabel - エラーメッセージに用いるシートのラベル。
+ * @param requiredColumns - 読み取りに必須の列名。
+ * @returns ヘッダー名と0始まり列インデックスの対応表を持つ{@link Result}。
+ */
+export function createColumnIndex(
+  headers: readonly string[],
+  sheetLabel: string,
+  requiredColumns: readonly string[]
+): Result<Map<string, number>> {
+  const columnIndex = new Map<string, number>();
+  for (const [index, header] of headers.entries()) {
+    if (header === '') {
+      continue;
+    }
+    if (columnIndex.has(header)) {
+      return fail('unexpected', `${sheetLabel}シートのヘッダーに${header}列が重複しています。`);
+    }
+    columnIndex.set(header, index);
+  }
+  for (const columnName of requiredColumns) {
+    if (!columnIndex.has(columnName)) {
+      return fail('unexpected', `${sheetLabel}シートのヘッダーに${columnName}列がありません。`);
+    }
+  }
+  return { success: true, value: columnIndex };
+}
+
+/**
+ * ヘッダー対応表を使って行を列名キーのオブジェクトへ変換する。
+ *
+ * 内容:
+ * - 必須列と任意列を1回のループで処理する。
+ * - 任意列がヘッダーに存在しない場合は、未設定を表すnullを格納する。
+ * - ヘッダーに存在する列のセルが行に存在しない場合は、列名と行番号を含むエラーを返す。
+ * - ヘッダーに対応しない超過セルは読み飛ばす。
+ *
+ * 注意:
+ * - 必須列の存在は事前に{@link createColumnIndex}で検証する。
+ * - 必須列が対応表にない誤用は、暗黙補完せず unexpected エラーで即座に失敗させる
+ *   （リポジトリ規約により throw は使用しない）。
+ *
+ * @typeParam C - 変換対象の列名。
+ * @param row - シートのデータ行。
+ * @param columnIndex - ヘッダー名と列インデックスの対応表。
+ * @param requiredColumns - 必須列名。
+ * @param optionalColumns - 未存在時にnullとする任意列名。
+ * @param sheetLabel - エラーメッセージに用いるシートのラベル。
+ * @param index - 0始まりの行インデックス。
+ * @returns 対象列名をキーとするセル値オブジェクトを持つ{@link Result}。
+ */
+export function mapRowByHeaders<C extends string>(
+  row: unknown[],
+  columnIndex: Map<string, number>,
+  requiredColumns: readonly C[],
+  optionalColumns: readonly C[],
+  sheetLabel: string,
+  index: number
+): Result<Record<C, unknown>> {
+  const cells = {} as Record<C, unknown>;
+  const optionalColumnSet = new Set<C>(optionalColumns);
+  for (const columnName of [...requiredColumns, ...optionalColumns]) {
+    const cellIndex = columnIndex.get(columnName);
+    if (cellIndex === undefined) {
+      if (!optionalColumnSet.has(columnName)) {
+        return fail('unexpected', `必須列の対応がありません: ${columnName}`);
+      }
+      cells[columnName] = null;
+      continue;
+    }
+    if (cellIndex >= row.length) {
+      return fail(
+        'unexpected',
+        `${sheetLabel}の${String(index + 2)}行目の${columnName}列のセルが存在しません。`
+      );
+    }
+    cells[columnName] = row[cellIndex];
+  }
+  return { success: true, value: cells };
+}
+
+/**
  * シートのセル値が「空でない文字列」であることを検証して返す共通パーサ。
  *
  * 目的:
@@ -226,6 +319,54 @@ export function parseOptionalStringCell(
   }
   const trimmed = value.trim();
   return { success: true, value: trimmed === '' ? null : trimmed };
+}
+
+/**
+ * 任意の列挙値セルを「許可された文字列またはnull」として読み込む。
+ *
+ * 目的:
+ * - 空セルと文字列セルの正規化規則を{@link parseOptionalStringCell}へ統一し、
+ *   Repositoryごとに重複する任意列挙値の解析を一本化する。
+ *
+ * 内容:
+ * - 空文字・空白のみ・nullのセルは未設定を表すnullへ変換する。
+ * - 文字列はtrim後にallowedへ含まれる場合だけ受理する。
+ * - undefined・数値・許可集合外の文字列は行番号付きunexpectedエラーとしてfail fastに検出する。
+ *
+ * 注意:
+ * - GASのgetValuesは空セルを空文字で返すため、undefinedは行長不一致や対応付け不備を意味する。
+ * - 許可集合外の値を既定値やnullへ暗黙変換しない。
+ * - 失敗時は「`<シートラベル>の<N>行目の<フィールド名>が不正です。`」形式を維持する。
+ *
+ * @typeParam T - 許可する文字列リテラル型。
+ * @param value - 検証対象のセル値。
+ * @param allowed - 受理する文字列の許可集合。
+ * @param sheetLabel - エラーメッセージに用いるシートのラベル。
+ * @param fieldName - エラーメッセージに用いるフィールド名。
+ * @param index - 0始まりの行インデックス。
+ * @returns 空セルならnull、許可値なら対応する文字列リテラルを持つ{@link Result}。
+ */
+export function parseOptionalEnumCell<T extends string>(
+  value: unknown,
+  allowed: readonly T[],
+  sheetLabel: string,
+  fieldName: string,
+  index: number
+): Result<T | null> {
+  if (value === undefined) {
+    return fail('unexpected', `${sheetLabel}の${String(index + 2)}行目の${fieldName}が不正です。`);
+  }
+  const parsed = parseOptionalStringCell(value, sheetLabel, fieldName, index);
+  if (!parsed.success) {
+    return parsed;
+  }
+  if (parsed.value === null) {
+    return { success: true, value: null };
+  }
+  if (allowed.some((candidate) => candidate === parsed.value)) {
+    return { success: true, value: parsed.value as T };
+  }
+  return fail('unexpected', `${sheetLabel}の${String(index + 2)}行目の${fieldName}が不正です。`);
 }
 
 /**

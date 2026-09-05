@@ -153,6 +153,64 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+describe('TrustfolioUiの資産クラスUIファクトリ', () => {
+  it.each([
+    { assetClass: 'equity', label: '株式', colorClass: 'text-indigo-300' },
+    { assetClass: 'gold', label: '金', colorClass: 'text-yellow-300' },
+    { assetClass: null, label: '未設定', colorClass: 'text-amber-300' },
+  ])('$assetClassを対応するラベルと色で表示する', ({ assetClass, label, colorClass }) => {
+    // 前提: common-scripts.htmlを実際のノードモック環境で評価する。
+    // 事前条件: assetClassは株式、金、または導入前データの未設定である。
+    // 検証: 共通バッジファクトリが対応する日本語ラベルと配色を設定する。
+    const ui = loadTrustfolioUi(createDocumentMock(), {});
+
+    const result = ui.createAssetClassBadge(assetClass) as
+      | { success: true; value: NodeMock }
+      | { success: false; error: { type: string; message: string } };
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.value.textContent).toBe(label);
+      expect(result.value.className).toContain(colorClass);
+    }
+  });
+
+  it('定義外の資産クラスを拒否する', () => {
+    // 前提: common-scripts.htmlを実際のノードモック環境で評価する。
+    // 事前条件: サーバー契約に存在しないbondを指定する。
+    // 検証: bondを未設定へ読み替えず、データ不整合を示す失敗結果を返す。
+    const ui = loadTrustfolioUi(createDocumentMock(), {});
+
+    expect(ui.createAssetClassBadge('bond')).toEqual({
+      success: false,
+      error: {
+        type: 'unexpected',
+        message: '未対応の資産クラスです: bond',
+      },
+    });
+  });
+
+  it('selectをプレースホルダーと共通の資産クラス選択肢で組み立て直す', () => {
+    // 前提: selectには初期化前の古い選択肢が存在する。
+    // 事前条件: populateAssetClassSelectへ既存selectを渡す。
+    // 検証: 古い要素を消去し、プレースホルダー、株式、金だけを順番どおり追加する。
+    const ui = loadTrustfolioUi(createDocumentMock(), {});
+    const select = createNodeMock('select');
+    const oldOption = createNodeMock('option');
+    oldOption.value = '旧選択肢';
+    select.appendChild(oldOption);
+
+    ui.populateAssetClassSelect(select);
+
+    expect(select.children.map((option) => option.value)).toEqual(['', 'equity', 'gold']);
+    expect(select.children.map((option) => option.textContent)).toEqual([
+      '選択してください',
+      '株式',
+      '金',
+    ]);
+  });
+});
+
 describe('TrustfolioUi.formatCurrency', () => {
   it('整数の金額を3桁区切りで「円」付きにする', () => {
     const ui = loadTrustfolioUi({}, {});

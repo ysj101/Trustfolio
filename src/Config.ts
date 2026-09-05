@@ -23,6 +23,7 @@ export const SHEET_HEADERS = {
     'settlementBusinessDays',
     'navSource',
     'navSourceCode',
+    'assetClass',
     'createdAt',
   ],
   [SHEET_NAMES.NAV_RECORDS]: ['fundId', 'date', 'value', 'createdAt'],

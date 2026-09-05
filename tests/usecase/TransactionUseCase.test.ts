@@ -12,6 +12,7 @@ function createFundRepository(funds: Fund[]): FundRepository {
     findById: (id) => ok(funds.find((fund) => fund.id === id) ?? null),
     createFund: () => ok(undefined),
     updateFund: () => ok(undefined),
+    updateAssetClass: () => ok(undefined),
   };
 }
 
@@ -59,6 +60,7 @@ describe('TransactionUseCase', () => {
         settlementBusinessDays: null,
         navSource: null,
         navSourceCode: null,
+        assetClass: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ]);
@@ -88,6 +90,7 @@ describe('TransactionUseCase', () => {
         settlementBusinessDays: null,
         navSource: null,
         navSourceCode: null,
+        assetClass: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ]);
@@ -132,6 +135,7 @@ describe('TransactionUseCase', () => {
         settlementBusinessDays: null,
         navSource: null,
         navSourceCode: null,
+        assetClass: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ]);
@@ -201,6 +205,7 @@ describe('TransactionUseCase', () => {
         settlementBusinessDays: null,
         navSource: null,
         navSourceCode: null,
+        assetClass: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ]);
@@ -251,6 +256,7 @@ describe('TransactionUseCase', () => {
         settlementBusinessDays: null,
         navSource: null,
         navSourceCode: null,
+        assetClass: null,
         createdAt: '2026-01-01T00:00:00.000Z',
       },
     ]);
@@ -331,6 +337,7 @@ describe('TransactionUseCase', () => {
         settlementBusinessDays: null,
         navSource: null,
         navSourceCode: null,
+        assetClass: null,
         createdAt: '2026-01-01T00:00:00.000Z',
       },
     ]);
@@ -397,6 +404,7 @@ describe('TransactionUseCase', () => {
         settlementBusinessDays: null,
         navSource: null,
         navSourceCode: null,
+        assetClass: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ]);
@@ -442,6 +450,7 @@ describe('TransactionUseCase', () => {
         settlementBusinessDays: null,
         navSource: null,
         navSourceCode: null,
+        assetClass: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ]);
@@ -481,6 +490,7 @@ describe('TransactionUseCase', () => {
         settlementBusinessDays: null,
         navSource: null,
         navSourceCode: null,
+        assetClass: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ]);
@@ -511,6 +521,7 @@ describe('TransactionUseCase', () => {
         settlementBusinessDays: null,
         navSource: null,
         navSourceCode: null,
+        assetClass: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ]);
@@ -556,6 +567,7 @@ describe('TransactionUseCase', () => {
         settlementBusinessDays: null,
         navSource: null,
         navSourceCode: null,
+        assetClass: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ]);
@@ -589,6 +601,7 @@ describe('TransactionUseCase', () => {
         settlementBusinessDays: null,
         navSource: null,
         navSourceCode: null,
+        assetClass: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ]);
@@ -637,6 +650,7 @@ describe('TransactionUseCase', () => {
         settlementBusinessDays: null,
         navSource: null,
         navSourceCode: null,
+        assetClass: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ]);
@@ -688,6 +702,7 @@ describe('TransactionUseCase', () => {
       findById: () => ok(null),
       createFund: () => ok(undefined),
       updateFund: () => ok(undefined),
+      updateAssetClass: () => ok(undefined),
     };
     const transactionRepository = createTransactionRepository([]);
     const useCase = createTransactionUseCase(fundRepository, transactionRepository);

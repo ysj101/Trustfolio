@@ -37,7 +37,7 @@ export function headerRow(sheetName: keyof typeof SHEET_HEADERS): string[] {
  *
  * 既定の挙動:
  * - ensureSheet / getRequiredSheet は空のシート相当を ok で返す。
- * - readAllRows は空配列、appendRows / updateRow / deleteRow は undefined を ok で返す。
+ * - readAllRows は空配列、appendRows / updateRow / updateCell / deleteRow は undefined を ok で返す。
  *
  * @param overrides - 差し替えたいメソッドのみを指定する。
  * @returns SheetRepository のスタブ。
@@ -48,9 +48,11 @@ export function createStubSheetRepository(
   return {
     ensureSheet: () => ok({} as GoogleAppsScript.Spreadsheet.Sheet),
     getRequiredSheet: () => ok({} as GoogleAppsScript.Spreadsheet.Sheet),
+    readSheetWithHeader: () => ok({ headers: [], rows: [] }),
     readAllRows: () => ok([]),
     appendRows: () => ok(undefined),
     updateRow: () => ok(undefined),
+    updateCell: () => ok(undefined),
     deleteRow: () => ok(undefined),
     ...overrides,
   };
@@ -237,7 +239,7 @@ export function createInMemorySheetRepository(
 
       // 実物の SheetRepository.ensureHeader のうち「不足列の定義順位置への挿入（既存行は空セル）」と
       // 「末尾の余剰列の削除」を簡略に再現する（既存列の移動・最終ヘッダー一致検証は再現しない）。
-      // 列追加を伴うスキーマ変更のテストで、「旧列構成のシートが読取前に
+      // 列追加を伴うスキーマ変更のテストで、「旧列構成のシートが書き込み前に
       // 新列構成へ整形される」挙動を検証できるようにする。
       const header = rows[0] ?? [];
       definition.headers.forEach((expected, index) => {
@@ -264,6 +266,17 @@ export function createInMemorySheetRepository(
         return fail('unexpected', `シートが存在しません: ${sheetName}`);
       }
       return ok({ name: sheetName, rows } as unknown as GoogleAppsScript.Spreadsheet.Sheet);
+    },
+    readSheetWithHeader: (sheetName: string) => {
+      const rows = store.get(sheetName);
+      if (!rows) {
+        return fail('unexpected', `シートが存在しません: ${sheetName}`);
+      }
+      const header = rows[0] ?? [];
+      return ok({
+        headers: header.map((cell) => cell as string),
+        rows: rows.slice(1).map((row) => [...row]),
+      });
     },
     readAllRows: (sheetName: string) => {
       const rows = store.get(sheetName);
@@ -296,6 +309,39 @@ export function createInMemorySheetRepository(
         );
       }
       target[dataIndex] = [...row];
+      return ok(undefined);
+    },
+    updateCell: (sheetName: string, rowIndex: number, columnIndex: number, value: unknown) => {
+      if (
+        !Number.isInteger(rowIndex) ||
+        rowIndex < 0 ||
+        !Number.isInteger(columnIndex) ||
+        columnIndex < 0
+      ) {
+        return fail(
+          'validation',
+          `更新するセルの位置が不正です: row=${String(rowIndex)} column=${String(columnIndex)}`
+        );
+      }
+      const target = store.get(sheetName);
+      if (!target) {
+        return fail('unexpected', `シートが存在しません: ${sheetName}`);
+      }
+      const dataIndex = rowIndex + 1;
+      const targetRow = target[dataIndex];
+      if (targetRow === undefined) {
+        return fail(
+          'not_found',
+          `指定された行が存在しません: ${sheetName} row=${String(rowIndex)}`
+        );
+      }
+      if (columnIndex >= targetRow.length) {
+        return fail(
+          'unexpected',
+          `指定された列が存在しません: ${sheetName} column=${String(columnIndex)}`
+        );
+      }
+      targetRow[columnIndex] = value;
       return ok(undefined);
     },
     deleteRow: (sheetName: string, rowIndex: number) => {

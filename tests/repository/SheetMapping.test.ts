@@ -1,17 +1,135 @@
 import { describe, expect, it } from 'vitest';
 import type { Result } from '../../src/domain/types';
 import {
+  createColumnIndex,
   findRowByPredicate,
   isEmptyRow,
+  mapRowByHeaders,
   normalizeBoolean,
   normalizeOptionalString,
   parseAllRows,
   parseNumberCell,
+  parseOptionalEnumCell,
   parseOptionalNonNegativeNumberCell,
   parseOptionalStringCell,
   parseRequiredStringCell,
   parseSheetDate,
 } from '../../src/repository/SheetMapping';
+
+describe('createColumnIndex / mapRowByHeaders', () => {
+  it('定義外列を残した対応表から必須列と任意列を抽出する', () => {
+    // 前提: ヘッダーには順序の異なる必須列、空ヘッダー、利用者追加列が存在する。
+    // 事前条件: assetClassはヘッダーに存在しない任意列である。
+    // 検証: ヘッダー名でセルを対応付け、存在しない任意列だけをnullにする。
+    const indexResult = createColumnIndex(['name', '', 'createdAt', 'メモ', 'id'], 'funds', [
+      'id',
+      'name',
+      'createdAt',
+    ]);
+    expect(indexResult.success).toBe(true);
+    if (indexResult.success) {
+      expect(
+        mapRowByHeaders(
+          ['国内株式ファンド', '補足', '2026-09-06T00:00:00.000Z', '確認済み', 'fund-1'],
+          indexResult.value,
+          ['id', 'name', 'createdAt'],
+          ['assetClass'],
+          'funds',
+          0
+        )
+      ).toEqual({
+        success: true,
+        value: {
+          id: 'fund-1',
+          name: '国内株式ファンド',
+          createdAt: '2026-09-06T00:00:00.000Z',
+          assetClass: null,
+        },
+      });
+    }
+  });
+
+  it('必須列の欠落を列名付きunexpectedエラーにする', () => {
+    // 前提: fundsシートのヘッダーにcreatedAt列が存在しない。
+    // 事前条件: createdAtを必須列として指定する。
+    // 検証: 欠落列を暗黙補完せず、既存形式のunexpectedエラーを返す。
+    expect(createColumnIndex(['id', 'name'], 'funds', ['id', 'name', 'createdAt'])).toEqual({
+      success: false,
+      error: {
+        type: 'unexpected',
+        message: 'fundsシートのヘッダーにcreatedAt列がありません。',
+      },
+    });
+  });
+
+  it('同名ヘッダーを列名付きunexpectedエラーにする', () => {
+    // 前提: fundsシートのヘッダーにname列が重複している。
+    // 事前条件: 重複列の採用順序は定義しない。
+    // 検証: 先勝ちや後勝ちへフォールバックせず、重複エラーを返す。
+    expect(createColumnIndex(['id', 'name', 'name', 'createdAt'], 'funds', ['id'])).toEqual({
+      success: false,
+      error: {
+        type: 'unexpected',
+        message: 'fundsシートのヘッダーにname列が重複しています。',
+      },
+    });
+  });
+
+  it('ヘッダーに存在する必須列のセルが行にない場合は拒否する', () => {
+    // 前提: fundsシートのcreatedAtヘッダーは3列目に存在する。
+    // 事前条件: 4行目のデータ行は2列目までしか存在しない。
+    // 検証: 必須列の欠落セルを暗黙にundefinedとして扱わず、列名と行番号を返す。
+    const columnIndex = new Map([
+      ['id', 0],
+      ['name', 1],
+      ['createdAt', 2],
+    ]);
+
+    expect(
+      mapRowByHeaders(
+        ['fund-short-required', '国内株式ファンド'],
+        columnIndex,
+        ['id', 'name', 'createdAt'],
+        [],
+        'funds',
+        2
+      )
+    ).toEqual({
+      success: false,
+      error: {
+        type: 'unexpected',
+        message: 'fundsの4行目のcreatedAt列のセルが存在しません。',
+      },
+    });
+  });
+
+  it('ヘッダーに存在する任意列のセルが行にない場合は拒否する', () => {
+    // 前提: fundsシートのassetClassヘッダーは3列目に存在する。
+    // 事前条件: 3行目のデータ行は2列目までしか存在しない。
+    // 検証: 任意列でもヘッダーが存在する場合は欠落セルをnullへ暗黙補完しない。
+    const columnIndex = new Map([
+      ['id', 0],
+      ['assetClass', 2],
+    ]);
+
+    expect(
+      mapRowByHeaders(
+        ['fund-short-optional', '確認済み'],
+        columnIndex,
+        ['id'],
+        ['assetClass'],
+        'funds',
+        1
+      )
+    ).toEqual({
+      success: false,
+      error: {
+        type: 'unexpected',
+        message: 'fundsの3行目のassetClass列のセルが存在しません。',
+      },
+    });
+  });
+});
 
 /**
  * テスト用の単純なドメインオブジェクト。
@@ -316,6 +434,52 @@ describe('parseOptionalStringCell', () => {
       expect(result.error.type).toBe('unexpected');
       expect(result.error.message).toBe('fundsの3行目のnavSourceCodeが不正です。');
     }
+  });
+});
+
+describe('parseOptionalEnumCell', () => {
+  const assetClasses = ['equity', 'gold'] as const;
+
+  it.each([
+    { value: '', expected: null },
+    { value: '   ', expected: null },
+    { value: null, expected: null },
+    { value: ' equity ', expected: 'equity' },
+    { value: 'gold', expected: 'gold' },
+  ])('任意列挙値セル $value を解析する', ({ value, expected }) => {
+    // 前提: assetClass列は未設定、株式、または金を保存できる。
+    // 事前条件: 空相当の値または前後空白を含む許可値を入力する。
+    // 検証: 空相当はnull、許可値はtrim済みの文字列として返す。
+    expect(parseOptionalEnumCell(value, assetClasses, 'funds', 'assetClass', 0)).toEqual({
+      success: true,
+      value: expected,
+    });
+  });
+
+  it('undefinedを行番号付きunexpectedエラーとして拒否する', () => {
+    // 前提: GASのgetValuesは空セルを空文字で返す。
+    // 事前条件: fundsシートの3行目に相当する列挙値へundefinedを入力する。
+    // 検証: undefinedを未設定のnullへ暗黙変換せず、対応付け不備として拒否する。
+    expect(parseOptionalEnumCell(undefined, assetClasses, 'funds', 'assetClass', 1)).toEqual({
+      success: false,
+      error: {
+        type: 'unexpected',
+        message: 'fundsの3行目のassetClassが不正です。',
+      },
+    });
+  });
+
+  it.each(['bond', 1])('許可集合外の任意列挙値 %s を拒否する', (value) => {
+    // 前提: assetClass列の許可集合はequityとgoldだけである。
+    // 事前条件: 定義外文字列または数値を3行目のセル値として入力する。
+    // 検証: 値を暗黙変換せず、行番号と列名を含むunexpectedエラーを返す。
+    expect(parseOptionalEnumCell(value, assetClasses, 'funds', 'assetClass', 1)).toEqual({
+      success: false,
+      error: {
+        type: 'unexpected',
+        message: 'fundsの3行目のassetClassが不正です。',
+      },
+    });
   });
 });
 

@@ -12,6 +12,7 @@ function createFundRepository(funds: Fund[]): FundRepository {
     findById: (id) => ok(funds.find((fund) => fund.id === id) ?? null),
     createFund: () => ok(undefined),
     updateFund: () => ok(undefined),
+    updateAssetClass: () => ok(undefined),
   };
 }
 
@@ -61,6 +62,7 @@ describe('NavUseCase', () => {
         settlementBusinessDays: 2,
         navSource: null,
         navSourceCode: null,
+        assetClass: null,
         createdAt: '2024-01-01T00:00:00.000Z',
       },
     ];

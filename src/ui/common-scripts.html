@@ -18,6 +18,79 @@
    *   （window.TrustfolioUi）へ公開して両 IIFE から参照できるようにしている。
    */
   window.TrustfolioUi = (function () {
+    const assetClassBadgeBaseClass =
+      'inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em]';
+    /** 資産クラス選択肢と表示情報の唯一の定義源。 */
+    const ASSET_CLASS_OPTIONS = [
+      {
+        value: 'equity',
+        label: '株式',
+        badgeClass: `${assetClassBadgeBaseClass} border border-indigo-500/40 bg-indigo-500/15 text-indigo-300`,
+      },
+      {
+        value: 'gold',
+        label: '金',
+        badgeClass: `${assetClassBadgeBaseClass} border border-yellow-500/40 bg-yellow-500/15 text-yellow-300`,
+      },
+    ];
+    /** 資産クラス未設定時の表示情報。 */
+    const UNSET_ASSET_CLASS_OPTION = {
+      label: '未設定',
+      badgeClass: `${assetClassBadgeBaseClass} border border-amber-500/40 bg-amber-500/15 text-amber-300`,
+    };
+
+    /**
+     * 資産クラス選択欄を共通定義から組み立て直す。
+     * 既存の選択肢を消去し、未選択用プレースホルダー、株式、金の順で追加する。
+     *
+     * @param {HTMLSelectElement} select - 選択肢を追加するselect要素
+     * @returns {void}
+     */
+    function populateAssetClassSelect(select) {
+      select.innerHTML = '';
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = '選択してください';
+      select.appendChild(placeholder);
+      ASSET_CLASS_OPTIONS.forEach((assetClass) => {
+        const option = document.createElement('option');
+        option.value = assetClass.value;
+        option.textContent = assetClass.label;
+        select.appendChild(option);
+      });
+    }
+
+    /**
+     * 資産クラスを示すバッジを生成する。
+     * nullは導入前の銘柄に残る未設定状態として警告色で表示する。
+     * 定義外の値は未設定へ読み替えず、unexpectedエラーを持つ失敗結果として返す。
+     *
+     * @param {'equity'|'gold'|null} assetClass - 表示する資産クラス
+     * @returns {{ success: true, value: HTMLSpanElement } | { success: false, error: { type: 'unexpected', message: string } }}
+     *   成功時は資産クラスのラベルを持つバッジ、失敗時は未対応値を示すエラー
+     */
+    function createAssetClassBadge(assetClass) {
+      const badge = document.createElement('span');
+      if (assetClass === null) {
+        badge.textContent = UNSET_ASSET_CLASS_OPTION.label;
+        badge.className = UNSET_ASSET_CLASS_OPTION.badgeClass;
+        return { success: true, value: badge };
+      }
+      const option = ASSET_CLASS_OPTIONS.find((candidate) => candidate.value === assetClass);
+      if (!option) {
+        return {
+          success: false,
+          error: {
+            type: 'unexpected',
+            message: `未対応の資産クラスです: ${String(assetClass)}`,
+          },
+        };
+      }
+      badge.textContent = option.label;
+      badge.className = option.badgeClass;
+      return { success: true, value: badge };
+    }
+
     /**
      * GAS の handleApiRequest を Promise でラップして呼び出す。
      *
@@ -365,10 +438,10 @@
      * 呼び出し側に残す。
      *
      * @param {{
-     *   textInputs?: ReadonlyArray<HTMLInputElement>;
+     *   textInputs?: ReadonlyArray<HTMLInputElement|HTMLSelectElement>;
      *   checkedInputs?: ReadonlyArray<HTMLInputElement>;
      * }} options
-     *   - textInputs: value を空文字へ戻す入力欄
+     *   - textInputs: value を空文字へ戻すinputまたはselect要素
      *   - checkedInputs: checked を true（初期値）へ戻すチェックボックス
      */
     function resetFormFields(options) {
@@ -484,6 +557,8 @@
       createActionButton,
       createListItem,
       createTransactionItem,
+      createAssetClassBadge,
+      populateAssetClassSelect,
       resetFormFields,
       registerTabDataLoader,
       getTabDataLoader,

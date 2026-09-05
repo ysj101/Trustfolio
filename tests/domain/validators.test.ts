@@ -1,11 +1,55 @@
 import { describe, expect, it } from 'vitest';
 import {
+  isAssetClass,
   isValidIsoDate,
   isValidRecurringDay,
+  validateAssetClass,
   validateNonEmptyString,
   validatePositiveNumber,
   validateRecurringDay,
 } from '../../src/domain/validators';
+
+describe('isAssetClass', () => {
+  it.each(['equity', 'gold'])('許可された資産クラス%sを受理する', (assetClass) => {
+    // 前提: AssetClassの許可集合に含まれる値を指定する。
+    // 事前条件: 許可集合はtypes.tsのASSET_CLASSESを唯一の定義源とする。
+    // 検証: 型ガードがtrueを返す。
+    expect(isAssetClass(assetClass)).toBe(true);
+  });
+
+  it.each([null, undefined, 'bond', 1])('資産クラスではない値%sを拒否する', (value) => {
+    // 前提: null、未指定相当、定義外文字列、または数値を指定する。
+    // 事前条件: 暗黙の既定値は使用しない。
+    // 検証: 型ガードがfalseを返す。
+    expect(isAssetClass(value)).toBe(false);
+  });
+});
+
+describe('validateAssetClass', () => {
+  it.each(['equity', 'gold'])('許可された資産クラス%sを返す', (assetClass) => {
+    // 前提: 資産クラスの許可集合には株式と金が定義されている。
+    // 事前条件: 検証対象へ許可値を指定する。
+    // 検証: 指定した資産クラスを成功値として返す。
+    expect(validateAssetClass(assetClass)).toEqual({
+      success: true,
+      value: assetClass,
+    });
+  });
+
+  it.each(['', null, undefined, 'bond', 1])('不正な資産クラス%sを拒否する', (value) => {
+    // 前提: 資産クラスの許可集合はequityとgoldだけである。
+    // 事前条件: 登録フォームの未選択値（空文字列）、null、未指定相当、定義外文字列、または数値を指定する。
+    // 検証: 指定したメッセージとfieldを持つvalidationエラーを返す。
+    expect(validateAssetClass(value)).toEqual({
+      success: false,
+      error: {
+        type: 'validation',
+        message: '資産クラスを選択してください。',
+        field: 'assetClass',
+      },
+    });
+  });
+});
 
 describe('isValidIsoDate', () => {
   it('妥当なYYYY-MM-DD文字列はtrueを返す', () => {

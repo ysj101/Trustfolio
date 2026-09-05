@@ -21,6 +21,18 @@ export type AppError = {
 };
 
 /**
+ * 銘柄に設定できる資産クラスの許可集合。
+ * 実行時検証と型定義が乖離しないよう、この配列を唯一の定義源とする。
+ */
+export const ASSET_CLASSES = ['equity', 'gold'] as const;
+
+/**
+ * 銘柄が属する資産の種類。
+ * `equity`は株式、`gold`は金を表す。
+ */
+export type AssetClass = (typeof ASSET_CLASSES)[number];
+
+/**
  * 投資信託マスタ。
  */
 export type Fund = {
@@ -44,6 +56,11 @@ export type Fund = {
    * Wealth Advisorの場合は`<company>/<pageId>`形式で保持し、取得元未設定の場合はnullとする。
    */
   navSourceCode: string | null;
+  /**
+   * 銘柄が属する資産クラス。
+   * nullは資産クラス導入前に登録され、現在も未設定であることを表す。
+   */
+  assetClass: AssetClass | null;
   /**
    * 約定までの営業日数。
    * 積立の約定日計算に使用する。
@@ -127,6 +144,8 @@ export type RecurringPurchase = {
 export type Holding = {
   fundId: string;
   fundName: string;
+  /** 銘柄の資産クラス。nullは未設定を表す。 */
+  assetClass: AssetClass | null;
   totalUnits: number;
   averageCost: number;
   totalInvestment: number;
