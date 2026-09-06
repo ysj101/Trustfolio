@@ -159,9 +159,13 @@ export type Holding = {
 };
 
 /**
- * ポートフォリオサマリー。
+ * ポートフォリオの集計値。
+ *
+ * 全体ポートフォリオ（{@link Portfolio}）と資産クラス別サマリー（{@link AssetClassSummary}）で
+ * 同じ定義・同じ丸め・同じ null 不変条件を共有するため、集計フィールドを本型に一元化する。
+ * `calculatePortfolio`（src/domain/HoldingCalculator.ts）の戻り値型でもある。
  */
-export type Portfolio = {
+export type PortfolioTotals = {
   /** 累計投入額（購入のみの合計） */
   totalInvestment: number;
   /** 売却総額（売却金額の合計） */
@@ -197,7 +201,28 @@ export type Portfolio = {
   totalGain: number | null;
   /** 総損益率 */
   totalGainRate: number | null;
+};
+
+/** 全体ポートフォリオの集計値と保有銘柄を含むサマリー。 */
+export type Portfolio = PortfolioTotals & {
+  /** 資産クラス別のポートフォリオサマリー。定義順は株式、金、未設定。 */
+  assetClassSummaries: AssetClassSummary[];
   holdings: Holding[];
+};
+
+/**
+ * 資産クラス別のポートフォリオサマリー。
+ *
+ * 全体ポートフォリオと同じ計算項目を資産クラス単位で保持し、画面と週次レポートで
+ * 同じ値を表示する。`assetClass` が null の場合は、銘柄マスタの未設定を表す。
+ */
+export type AssetClassSummary = PortfolioTotals & {
+  /** 資産クラス。nullは未設定を表す。 */
+  assetClass: AssetClass | null;
+  /** 区分に属する保有銘柄数。全口数売却済み銘柄は含めない。 */
+  holdingCount: number;
+  /** 全体評価額に対する評価額構成比。当該区分または全体の評価額がnullならnull、全体評価額が0なら0、小数4桁丸め（0.1234 = 12.34%）。 */
+  allocationRate: number | null;
 };
 
 /**

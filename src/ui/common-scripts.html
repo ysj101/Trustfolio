@@ -20,7 +20,7 @@
   window.TrustfolioUi = (function () {
     const assetClassBadgeBaseClass =
       'inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em]';
-    /** 資産クラス選択肢と表示情報の唯一の定義源。 */
+    /** UI側の資産クラス定義。サーバー側のASSET_CLASS_LABELSと一致することをテストで保証する。 */
     const ASSET_CLASS_OPTIONS = [
       {
         value: 'equity',
@@ -38,6 +38,24 @@
       label: '未設定',
       badgeClass: `${assetClassBadgeBaseClass} border border-amber-500/40 bg-amber-500/15 text-amber-300`,
     };
+
+    /** 資産クラスの表示情報と順位を解決する。nullは未設定として最後に配置する。 */
+    function resolveAssetClassOption(assetClass) {
+      if (assetClass === null) {
+        return {
+          success: true,
+          value: { option: UNSET_ASSET_CLASS_OPTION, order: ASSET_CLASS_OPTIONS.length },
+        };
+      }
+      const index = ASSET_CLASS_OPTIONS.findIndex((candidate) => candidate.value === assetClass);
+      if (index < 0) {
+        return {
+          success: false,
+          error: { type: 'unexpected', message: `未対応の資産クラスです: ${String(assetClass)}` },
+        };
+      }
+      return { success: true, value: { option: ASSET_CLASS_OPTIONS[index], order: index } };
+    }
 
     /**
      * 資産クラス選択欄を共通定義から組み立て直す。
@@ -71,23 +89,10 @@
      */
     function createAssetClassBadge(assetClass) {
       const badge = document.createElement('span');
-      if (assetClass === null) {
-        badge.textContent = UNSET_ASSET_CLASS_OPTION.label;
-        badge.className = UNSET_ASSET_CLASS_OPTION.badgeClass;
-        return { success: true, value: badge };
-      }
-      const option = ASSET_CLASS_OPTIONS.find((candidate) => candidate.value === assetClass);
-      if (!option) {
-        return {
-          success: false,
-          error: {
-            type: 'unexpected',
-            message: `未対応の資産クラスです: ${String(assetClass)}`,
-          },
-        };
-      }
-      badge.textContent = option.label;
-      badge.className = option.badgeClass;
+      const result = resolveAssetClassOption(assetClass);
+      if (!result.success) return result;
+      badge.textContent = result.value.option.label;
+      badge.className = result.value.option.badgeClass;
       return { success: true, value: badge };
     }
 
@@ -128,6 +133,17 @@
      */
     function formatPercent(value) {
       return `${(value * 100).toFixed(2)}%`;
+    }
+
+    /**
+     * 資産クラス選択肢の定義順をソート順位へ変換する。
+     * 未設定は選択肢数の順位で最後にし、未知の値はunexpected失敗として返す。
+     * 戻り値はResult形式のため、呼び出し元はvalueを直接減算せずsuccessを確認する。
+     */
+    function getAssetClassOrder(assetClass) {
+      const result = resolveAssetClassOption(assetClass);
+      if (!result.success) return result;
+      return { success: true, value: result.value.order };
     }
 
     /**
@@ -550,6 +566,7 @@
       callApi,
       formatCurrency,
       formatPercent,
+      getAssetClassOrder,
       setLoading,
       createSetMessage,
       renderFundSelect,

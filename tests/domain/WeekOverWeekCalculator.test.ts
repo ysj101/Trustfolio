@@ -173,6 +173,7 @@ describe('WeekOverWeekCalculator', () => {
       totalUnrealizedGainRate: 0.1,
       totalGain: 20000,
       totalGainRate: 0.1,
+      assetClassSummaries: [],
       holdings: [
         {
           fundId: 'fund-001',

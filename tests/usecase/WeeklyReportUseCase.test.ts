@@ -83,6 +83,7 @@ describe('WeeklyReportUseCase', () => {
           totalUnrealizedGainRate: 0,
           totalGain: 0,
           totalGainRate: 0,
+          assetClassSummaries: [],
           holdings: [],
         }),
     };
@@ -133,7 +134,7 @@ describe('WeeklyReportUseCase', () => {
   it('前週データが存在する場合、前週比付きのレポートを生成する', () => {
     // 前提: ポートフォリオ取得が成功し、前週データも存在する
     // 事前条件: 前週の残存投資額が9000円、評価額が9500円
-    // 検証: 前週比が正しく計算される
+    // 検証: 前週比が正しく計算され、資産クラス別サマリーも保持される
     const portfolioUseCase: PortfolioUseCase = {
       getPortfolioSummary: () =>
         ok({
@@ -149,6 +150,7 @@ describe('WeeklyReportUseCase', () => {
           totalUnrealizedGainRate: 0.1,
           totalGain: 1000,
           totalGainRate: 0.1,
+          assetClassSummaries: [],
           holdings: [
             {
               fundId: 'fund-001',
@@ -262,6 +264,7 @@ describe('WeeklyReportUseCase', () => {
           totalUnrealizedGainRate: 0.1,
           totalGain: 1000,
           totalGainRate: 0.1,
+          assetClassSummaries: [],
           holdings: [],
         }),
     };
@@ -332,6 +335,7 @@ describe('WeeklyReportUseCase', () => {
           totalUnrealizedGainRate: 0.1,
           totalGain: 1000,
           totalGainRate: 0.1,
+          assetClassSummaries: [],
           holdings: [],
         }),
     };
@@ -409,6 +413,25 @@ describe('WeeklyReportUseCase', () => {
             totalUnrealizedGainRate: 0,
             totalGain: 0,
             totalGainRate: 0,
+            assetClassSummaries: [
+              {
+                assetClass: 'equity',
+                totalInvestment: 10000,
+                totalSaleAmount: 0,
+                realizedGain: 0,
+                totalTax: 0,
+                realizedGainAfterTax: 0,
+                taxUnrecordedSaleCount: 0,
+                remainingInvestment: 10000,
+                totalCurrentValue: 10000,
+                totalUnrealizedGain: 0,
+                totalUnrealizedGainRate: 0,
+                totalGain: 0,
+                totalGainRate: 0,
+                holdingCount: 1,
+                allocationRate: 1,
+              },
+            ],
             holdings: [],
           }),
       };
@@ -448,7 +471,15 @@ describe('WeeklyReportUseCase', () => {
       }
       expect(sendWeeklyReport).toHaveBeenCalledTimes(1);
       expect(sendWeeklyReport).toHaveBeenCalledWith(
-        expect.objectContaining({ generatedAt: '2024-04-08 09:00:00' }),
+        expect.objectContaining({
+          generatedAt: '2024-04-08 09:00:00',
+          // サマリーがenrich処理のスプレッドで失われず、値そのものが週次レポートへ渡ることを検証する。
+          portfolio: expect.objectContaining({
+            assetClassSummaries: [
+              expect.objectContaining({ assetClass: 'equity', allocationRate: 1 }),
+            ],
+          }),
+        }),
         'notify@example.com'
       );
     });
