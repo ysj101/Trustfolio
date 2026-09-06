@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ASSET_CLASSES, type AssetClass } from '../../src/domain/types';
+import { getAssetClassLabel } from '../../src/domain/assetClassLabel';
 
 /**
  * このテストは src/ui/common-scripts.html が公開する window.TrustfolioUi の
@@ -154,6 +156,20 @@ afterEach(() => {
 });
 
 describe('TrustfolioUiの資産クラスUIファクトリ', () => {
+  it('サーバー側ラベル・順序とUI側のバッジ・順位定義が一致する', () => {
+    // 前提: サーバー側のASSET_CLASSESと表示ラベルを読み込み、common-scripts.htmlを評価する。
+    // 検証: equity、gold、nullのラベルと順位が一致し、未知値はResultの失敗になる。
+    const ui = loadTrustfolioUi(createDocumentMock(), {});
+    for (const assetClass of [...ASSET_CLASSES, null] as Array<AssetClass | null>) {
+      const badge = ui.createAssetClassBadge(assetClass) as { success: true; value: NodeMock };
+      expect(badge.value.textContent).toBe(getAssetClassLabel(assetClass));
+      const order = ui.getAssetClassOrder(assetClass) as { success: true; value: number };
+      expect(order.value).toBe(
+        assetClass === null ? ASSET_CLASSES.length : ASSET_CLASSES.indexOf(assetClass)
+      );
+    }
+    expect(ui.getAssetClassOrder('bond')).toMatchObject({ success: false });
+  });
   it.each([
     { assetClass: 'equity', label: '株式', colorClass: 'text-indigo-300' },
     { assetClass: 'gold', label: '金', colorClass: 'text-yellow-300' },

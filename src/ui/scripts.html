@@ -47,6 +47,8 @@
     const recurringSubmitButton = document.getElementById('recurringSubmitButton');
     const recurringCancelEditButton = document.getElementById('recurringCancelEdit');
     const holdingList = document.getElementById('holdingList');
+    const portfolioAssetClassSection = document.getElementById('portfolioAssetClassSection');
+    const portfolioAssetClassCards = document.getElementById('portfolioAssetClassCards');
     const portfolioTotalInvestment = document.getElementById('portfolioTotalInvestment');
     const portfolioTotalSaleAmount = document.getElementById('portfolioTotalSaleAmount');
     const portfolioRealizedGain = document.getElementById('portfolioRealizedGain');
@@ -77,6 +79,9 @@
     const summaryValueMutedClass = `${summaryValueBaseClass} text-slate-500`;
     const summaryValuePositiveClass = `${summaryValueBaseClass} text-emerald-300`;
     const summaryValueNegativeClass = `${summaryValueBaseClass} text-rose-300`;
+    const summaryLabelClass = 'text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400';
+    const summaryCardClass =
+      'rounded-xl border border-slate-800 bg-slate-950/40 p-4 transition hover:border-slate-700';
     const calculatedValueBaseClass =
       'rounded-md border border-slate-800 bg-slate-950/50 px-3 py-2 font-mono text-sm font-medium';
     const calculatedValueMutedClass = `${calculatedValueBaseClass} text-slate-400`;
@@ -93,6 +98,7 @@
     const formatCurrency = window.TrustfolioUi.formatCurrency;
     // 旧 formatRate と同一実装（比率→パーセント表記）。
     const formatRate = window.TrustfolioUi.formatPercent;
+    const getAssetClassOrder = window.TrustfolioUi.getAssetClassOrder;
     const setMessage = window.TrustfolioUi.createSetMessage(message);
 
     // この画面では button / input / select を無効化対象とする。
@@ -523,6 +529,10 @@
       });
     }
 
+    /**
+     * 保有一覧を資産クラス順に描画する。
+     * 資産クラスやタイトルの不整合時は部分描画せず一覧を空にしてErrorを送出し、データ不整合を隠さない。
+     */
     function renderHoldings(holdings) {
       holdingList.innerHTML = '';
       if (holdings.length === 0) {
@@ -533,40 +543,174 @@
         return;
       }
 
-      holdings.forEach((holding) => {
-        const titleResult = createFundTitle(holding.fundName, holding.assetClass);
-        if (!titleResult.success) {
-          setMessage(titleResult.error.message, 'error');
-          return;
+      // 資産クラスの表示順（株式 → 金 → 未設定）で安定ソートし、同じ区分内では元の配列順を維持する。
+      // 順位を解決できない保有は部分描画せず、一覧を空にして失敗させる。
+      const orderedHoldings = holdings.map((holding) => {
+        const orderResult = getAssetClassOrder(holding.assetClass);
+        if (!orderResult.success) {
+          holdingList.replaceChildren();
+          throw new Error(orderResult.error.message);
         }
-        const titleElements = titleResult.value;
-        const detail = document.createElement('span');
-        detail.className = 'text-right text-sm text-slate-300 min-w-[200px]';
-
-        if (holding.currentValue === null) {
-          detail.textContent = `${holding.totalUnits.toLocaleString()}口 / NAV未登録`;
-        } else {
-          const valueText = formatCurrency(holding.currentValue);
-          const gainText =
-            holding.unrealizedGain !== null ? formatCurrency(holding.unrealizedGain) : '-';
-          const rateText =
-            holding.unrealizedGainRate !== null ? formatRate(holding.unrealizedGainRate) : '-';
-          const gainClass =
-            holding.unrealizedGain !== null && holding.unrealizedGain >= 0
-              ? 'text-emerald-300'
-              : 'text-rose-300';
-          detail.innerHTML = `${holding.totalUnits.toLocaleString()}口 / ${valueText}<br><span class="${gainClass}">${gainText} (${rateText})</span>`;
-        }
-
-        const item = window.TrustfolioUi.createListItem({
-          itemClass: listItemClass,
-          contentClass: 'flex items-center gap-2',
-          contentChildren: titleElements,
-          actionsClass: listActionsClass,
-          actions: [detail],
-        });
-        holdingList.appendChild(item);
+        return { holding, order: orderResult.value };
       });
+      orderedHoldings
+        .sort((a, b) => a.order - b.order)
+        .forEach(({ holding }) => {
+          const titleResult = createFundTitle(holding.fundName, holding.assetClass);
+          if (!titleResult.success) {
+            holdingList.replaceChildren();
+            throw new Error(titleResult.error.message);
+          }
+          const titleElements = titleResult.value;
+          const detail = document.createElement('span');
+          detail.className = 'text-right text-sm text-slate-300 min-w-[200px]';
+
+          if (holding.currentValue === null) {
+            detail.textContent = `${holding.totalUnits.toLocaleString()}口 / NAV未登録`;
+          } else {
+            const valueText = formatCurrency(holding.currentValue);
+            const gainText =
+              holding.unrealizedGain !== null ? formatCurrency(holding.unrealizedGain) : '-';
+            const rateText =
+              holding.unrealizedGainRate !== null ? formatRate(holding.unrealizedGainRate) : '-';
+            const gainClass =
+              holding.unrealizedGain !== null && holding.unrealizedGain >= 0
+                ? 'text-emerald-300'
+                : 'text-rose-300';
+            detail.innerHTML = `${holding.totalUnits.toLocaleString()}口 / ${valueText}<br><span class="${gainClass}">${gainText} (${rateText})</span>`;
+          }
+
+          const item = window.TrustfolioUi.createListItem({
+            itemClass: listItemClass,
+            contentClass: 'flex items-center gap-2',
+            contentChildren: titleElements,
+            actionsClass: listActionsClass,
+            actions: [detail],
+          });
+          holdingList.appendChild(item);
+        });
+    }
+
+    /**
+     * 資産クラス別カードを全件検証後に描画する。
+     * バッジ生成に失敗した場合はセクションを隠し、Errorを呼び出し元へ伝播させる。
+     * 一部だけ表示するとデータ不整合を成功表示で覆い隠すため、カードは全件成功時だけ追加する。
+     */
+    function renderAssetClassSummaries(summaries) {
+      const cards = summaries.map((summary) => {
+        const badgeResult = createAssetClassBadge(summary.assetClass);
+        if (!badgeResult.success) {
+          portfolioAssetClassSection.classList.add('hidden');
+          throw new Error(badgeResult.error.message);
+        }
+        const card = document.createElement('div');
+        card.className = summaryCardClass;
+        const heading = document.createElement('div');
+        heading.appendChild(badgeResult.value);
+        card.appendChild(heading);
+        const alwaysVisible = document.createElement('div');
+        alwaysVisible.className = 'mt-4 grid gap-3';
+        appendSummaryField(
+          alwaysVisible,
+          '残存投資額',
+          formatCurrency(summary.remainingInvestment),
+          summaryValueDefaultClass
+        );
+        appendSummaryField(
+          alwaysVisible,
+          '評価額',
+          summary.totalCurrentValue === null
+            ? 'NAV未登録'
+            : formatCurrency(summary.totalCurrentValue),
+          summary.totalCurrentValue === null ? summaryValueMutedClass : summaryValueDefaultClass
+        );
+        appendSummaryField(
+          alwaysVisible,
+          '損益（損益率）',
+          summary.totalUnrealizedGain === null
+            ? '-'
+            : `${formatCurrency(summary.totalUnrealizedGain)} (${formatRate(summary.totalUnrealizedGainRate)})`,
+          getGainClass(summary.totalUnrealizedGain)
+        );
+        appendSummaryField(
+          alwaysVisible,
+          '評価額構成比',
+          summary.allocationRate === null ? '-' : formatRate(summary.allocationRate),
+          summaryValueDefaultClass
+        );
+        appendSummaryField(
+          alwaysVisible,
+          '銘柄数',
+          `${summary.holdingCount}銘柄`,
+          summaryValueDefaultClass
+        );
+        card.appendChild(alwaysVisible);
+        const details = document.createElement('div');
+        details.className = 'portfolio-asset-class-detail mt-3 grid gap-2';
+        // 再描画時も全体詳細の開閉状態を引き継ぎ、区分詳細とトグル表示を同期させる。
+        details.classList.toggle('hidden', portfolioDetails.classList.contains('hidden'));
+        appendSummaryField(
+          details,
+          '累計投入額',
+          formatCurrency(summary.totalInvestment),
+          summaryValueDefaultClass
+        );
+        appendSummaryField(
+          details,
+          '総損益',
+          summary.totalGain === null ? '-' : formatCurrency(summary.totalGain),
+          getGainClass(summary.totalGain)
+        );
+        appendSummaryField(
+          details,
+          '総損益率',
+          summary.totalGainRate === null ? '-' : formatRate(summary.totalGainRate),
+          getGainClass(summary.totalGainRate)
+        );
+        appendSummaryField(
+          details,
+          '売却総額',
+          formatCurrency(summary.totalSaleAmount),
+          summaryValueDefaultClass
+        );
+        appendSummaryField(
+          details,
+          '実現損益',
+          formatCurrency(summary.realizedGain),
+          getGainClass(summary.realizedGain)
+        );
+        card.appendChild(details);
+        if (summary.assetClass === null) {
+          const note = document.createElement('p');
+          note.className = 'mt-3 text-xs text-amber-300';
+          note.textContent =
+            '資産クラスが未設定の銘柄があります。ポートフォリオタブの投資信託セクションで設定してください。';
+          card.appendChild(note);
+        }
+        return card;
+      });
+      portfolioAssetClassCards.replaceChildren(...cards);
+      // 成功したカードを描画した後にだけ、空配列かどうかでセクション表示を決定する。
+      portfolioAssetClassSection.classList.toggle('hidden', summaries.length === 0);
+    }
+
+    /** サマリー項目のラベルと値をカードへ追加する。値の表示形式は呼び出し元が決定する。 */
+    function appendSummaryField(container, label, value, valueClass) {
+      const field = document.createElement('div');
+      const labelElement = document.createElement('p');
+      labelElement.className = summaryLabelClass;
+      labelElement.textContent = label;
+      const valueElement = document.createElement('p');
+      valueElement.className = valueClass;
+      valueElement.textContent = value;
+      field.append(labelElement, valueElement);
+      container.appendChild(field);
+    }
+
+    /** 損益値に対応する表示クラスを返す。nullは未登録値用のクラスにする。 */
+    function getGainClass(value) {
+      if (value === null) return summaryValueMutedClass;
+      return value >= 0 ? summaryValuePositiveClass : summaryValueNegativeClass;
     }
 
     function renderPortfolioSummary(portfolio) {
@@ -584,8 +728,7 @@
 
       // 実現損益
       portfolioRealizedGain.textContent = formatCurrency(portfolio.realizedGain);
-      portfolioRealizedGain.className =
-        portfolio.realizedGain >= 0 ? summaryValuePositiveClass : summaryValueNegativeClass;
+      portfolioRealizedGain.className = getGainClass(portfolio.realizedGain);
 
       if (portfolio.totalCurrentValue === null) {
         portfolioValue.textContent = 'NAV未登録';
@@ -607,18 +750,15 @@
       const unrealizedGainText = formatCurrency(portfolio.totalUnrealizedGain);
       const unrealizedGainRateText = formatRate(portfolio.totalUnrealizedGainRate);
       portfolioUnrealizedGain.textContent = `${unrealizedGainText} (${unrealizedGainRateText})`;
-      portfolioUnrealizedGain.className =
-        portfolio.totalUnrealizedGain >= 0 ? summaryValuePositiveClass : summaryValueNegativeClass;
+      portfolioUnrealizedGain.className = getGainClass(portfolio.totalUnrealizedGain);
 
       // 総損益
       portfolioTotalGain.textContent = formatCurrency(portfolio.totalGain);
-      portfolioTotalGain.className =
-        portfolio.totalGain >= 0 ? summaryValuePositiveClass : summaryValueNegativeClass;
+      portfolioTotalGain.className = getGainClass(portfolio.totalGain);
 
       // 総損益率
       portfolioTotalGainRate.textContent = formatRate(portfolio.totalGainRate);
-      portfolioTotalGainRate.className =
-        portfolio.totalGainRate >= 0 ? summaryValuePositiveClass : summaryValueNegativeClass;
+      portfolioTotalGainRate.className = getGainClass(portfolio.totalGainRate);
     }
 
     async function loadFunds() {
@@ -682,6 +822,7 @@
         throw new Error(response.error.message);
       }
       renderPortfolioSummary(response.value);
+      renderAssetClassSummaries(response.value.assetClassSummaries);
     }
 
     async function loadRecurringTransactionHistory() {
@@ -1117,6 +1258,9 @@
         portfolioToggleIcon.classList.remove('rotate-180');
         portfolioToggleLabel.textContent = '詳細を表示';
       }
+      document
+        .querySelectorAll('.portfolio-asset-class-detail')
+        .forEach((element) => element.classList.toggle('hidden', !isHidden));
     });
 
     // タブ切り替え

@@ -4,7 +4,7 @@ import type { FundRepository } from '../repository/FundRepository';
 import type { TransactionRepository } from '../repository/TransactionRepository';
 import type { HoldingUseCase } from './HoldingUseCase';
 import type { PerformanceRepository } from '../repository/PerformanceRepository';
-import { calculatePortfolio } from '../domain/HoldingCalculator';
+import { calculateAssetClassSummaries, calculatePortfolio } from '../domain/HoldingCalculator';
 
 export type PortfolioUseCase = {
   getPortfolioSummary: () => Result<Portfolio>;
@@ -46,12 +46,20 @@ export function createPortfolioUseCase(
 
       // 全トランザクションでPortfolio計算
       const allTransactions = Array.from(transactionsMapResult.value.values()).flat();
-
+      const assetClassSummariesResult = calculateAssetClassSummaries(
+        holdings,
+        allTransactions,
+        new Map(fundResult.value.map((fund) => [fund.id, fund.assetClass] as const))
+      );
+      if (!assetClassSummariesResult.success) {
+        return propagateFailure(assetClassSummariesResult);
+      }
       const summary = calculatePortfolio(holdings, allTransactions);
       return {
         success: true,
         value: {
           ...summary,
+          assetClassSummaries: assetClassSummariesResult.value,
           holdings,
         },
       };

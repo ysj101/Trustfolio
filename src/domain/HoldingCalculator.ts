@@ -1,4 +1,15 @@
-import type { Fund, Holding, Nav, Transaction } from './types';
+import {
+  ASSET_CLASSES,
+  type AssetClass,
+  type AssetClassSummary,
+  type Fund,
+  type Holding,
+  type Nav,
+  type PortfolioTotals,
+  type Result,
+  type Transaction,
+} from './types';
+import { fail } from './result';
 
 const UNITS_BASE = 10000;
 
@@ -139,20 +150,7 @@ export function calculateHolding(
 export function calculatePortfolio(
   holdings: Holding[],
   allTransactions: readonly Transaction[]
-): {
-  totalInvestment: number;
-  totalSaleAmount: number;
-  realizedGain: number;
-  totalTax: number;
-  realizedGainAfterTax: number;
-  taxUnrecordedSaleCount: number;
-  remainingInvestment: number;
-  totalCurrentValue: number | null;
-  totalUnrealizedGain: number | null;
-  totalUnrealizedGainRate: number | null;
-  totalGain: number | null;
-  totalGainRate: number | null;
-} {
+): PortfolioTotals {
   let totalInvestment = 0;
   const hasMissingValue = holdings.some((holding) => holding.currentValue === null);
 
@@ -234,6 +232,63 @@ export function calculatePortfolio(
     totalGain,
     totalGainRate,
   };
+}
+
+/**
+ * 資産クラス別ポートフォリオサマリーを計算する。
+ *
+ * 各区分の計算は全体と同じ `calculatePortfolio` に区分別データを渡して行う。
+ * 区分順は `ASSET_CLASSES` に未設定を追加した株式、金、未設定の固定順とし、取引が存在する区分だけを含める。
+ * 対応表は必須である。全口数売却済み銘柄はHoldingを持たないため、取引履歴から資産クラスを確定する必要がある。
+ * 集計対象の基準は取引履歴であり、対応表に登録されていても取引が1件もない銘柄（および保有だけで取引のない銘柄）はどの区分にも寄与しない。
+ * `totalInvestment` / `totalSaleAmount` / `remainingInvestment` / `taxUnrecordedSaleCount`、および全区分が非nullのときの `totalCurrentValue` / `totalUnrealizedGain` は丸め処理を伴わない値の合算であるため、全区分の合計は `calculatePortfolio` を全体に適用した値と厳密に一致する。`realizedGain` / `totalTax` / `realizedGainAfterTax` / `totalGain` は区分ごとに丸めるため、合計は全体値と区分数を上限とする1円単位の丸め差が生じ得る。
+ * 注意: 対応表にないfundIdの失敗はPortfolioUseCase.getPortfolioSummaryを経由してポートフォリオ画面とWeeklyReportUseCaseの週次レポートメールに伝播し、両方を停止する。`_funds`シートの行削除や`_tx_*`シートのfundIdセルの手動編集でシート間に不整合が生じると到達する。
+ *
+ * @param holdings 保有情報
+ * @param allTransactions 全取引履歴
+ * @param fundAssetClassMap ファンドIDから資産クラスへの対応表
+ * @returns 成功時は資産クラス別サマリー、対応表欠落時はunexpectedエラー
+ */
+export function calculateAssetClassSummaries(
+  holdings: Holding[],
+  allTransactions: readonly Transaction[],
+  fundAssetClassMap: Map<string, AssetClass | null>
+): Result<AssetClassSummary[]> {
+  const classes: Array<AssetClass | null> = [...ASSET_CLASSES, null];
+  for (const { fundId } of [...allTransactions, ...holdings]) {
+    if (!fundAssetClassMap.has(fundId)) {
+      return fail('unexpected', `資産クラス対応表に存在しない銘柄IDがあります: ${fundId}`);
+    }
+  }
+
+  // データ規模が小さいため、規則の唯一の定義源であるcalculatePortfolioを再利用する。
+  const totalCurrentValue = calculatePortfolio(holdings, allTransactions).totalCurrentValue;
+  const summaries = classes.flatMap((assetClass) => {
+    const classTransactions = allTransactions.filter(
+      (transaction) => fundAssetClassMap.get(transaction.fundId) === assetClass
+    );
+    if (classTransactions.length === 0) return [];
+    const classHoldings = holdings.filter(
+      (holding) => fundAssetClassMap.get(holding.fundId) === assetClass
+    );
+    const totals = calculatePortfolio(classHoldings, classTransactions);
+    const allocationRate = calculateAllocationRate(totals.totalCurrentValue, totalCurrentValue);
+    return [{ ...totals, assetClass, holdingCount: classHoldings.length, allocationRate }];
+  });
+  return { success: true, value: summaries };
+}
+
+/**
+ * 区分評価額の構成比を計算する。
+ * 区分または全体がnullならnull、全体が0なら0、それ以外は小数4桁に丸める。
+ */
+function calculateAllocationRate(
+  classValue: number | null,
+  totalValue: number | null
+): number | null {
+  if (classValue === null || totalValue === null) return null;
+  if (totalValue === 0) return 0;
+  return Math.round((classValue / totalValue) * 10000) / 10000;
 }
 
 /**

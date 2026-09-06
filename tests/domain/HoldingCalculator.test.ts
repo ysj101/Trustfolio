@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { calculateHolding, calculatePortfolio } from '../../src/domain/HoldingCalculator';
-import type { Fund, Nav, Transaction } from '../../src/domain/types';
+import {
+  calculateAssetClassSummaries,
+  calculateHolding,
+  calculatePortfolio,
+} from '../../src/domain/HoldingCalculator';
+import type { Fund, Holding, Nav, Transaction } from '../../src/domain/types';
 
 const fund: Fund = {
   id: 'fund-001',
@@ -545,6 +549,252 @@ describe('HoldingCalculator', () => {
     expect(summary.realizedGainAfterTax).toBe(1500);
   });
 });
+
+describe('calculateAssetClassSummaries', () => {
+  const createTransaction = (
+    id: string,
+    fundId: string,
+    type: Transaction['type'],
+    amount: number,
+    units: number,
+    incomeTax: number | null = null,
+    residentTax: number | null = null
+  ): Transaction => ({
+    id,
+    fundId,
+    type,
+    date: '2024-01-01',
+    amount,
+    navValue: 10000,
+    units,
+    incomeTax,
+    residentTax,
+    recurringPurchaseId: null,
+    idempotencyKey: null,
+    // 取引の種類ごとに時刻を固定し、購入が売却より先に処理される前提を明示する。
+    createdAt: `2024-01-01T00:00:0${type === 'SPOT_PURCHASE' ? '1' : '2'}.000Z`,
+  });
+
+  it('株式、金、未設定を固定順で集計し、全体との不変条件を満たす', () => {
+    // 前提: 株式2銘柄、金1銘柄、未設定1銘柄があり、未設定銘柄は全口数売却済みでHoldingがない。
+    // 株式1銘柄（fund-001）は10万円・10万口を購入後、2万口を3万円で売却する（基準価額は1万口あたり1万円）。
+    // 移動平均法では売却原価が2万円、実現損益が1万円、残存口数8万口・残存簿価8万円となり、
+    // 基準価額1万5千円のとき評価額は8万口 ÷ 1万口 × 1万5千円 = 12万円である。
+    // 税額は所得税306円・住民税100円を記録し、未設定銘柄の売却税額はnullとする。
+    // 検証: 固定順、AssetClassSummaryの全フィールド、全体との合計一致を確認する。
+    const holdings: Holding[] = [
+      {
+        ...createHolding('fund-001', 'eMAXIS Slim 全世界株式', 'equity', 80000, 120000),
+        totalUnits: 80000,
+        averageCost: 10000,
+        totalInvestment: 100000,
+        totalSaleAmount: 30000,
+        remainingInvestment: 80000,
+        currentNavValue: 15000,
+        currentNavDate: '2024-03-29',
+        unrealizedGain: 40000,
+        unrealizedGainRate: 0.5,
+      },
+      createHolding('fund-002', 'ニッセイ外国株式インデックス', 'equity', 200000, 180000),
+      createHolding('fund-003', 'SBI・iシェアーズ・ゴールドファンド', 'gold', 300000, 330000),
+    ];
+    const transactions = [
+      createTransaction('fund-001-purchase', 'fund-001', 'SPOT_PURCHASE', 100000, 100000),
+      createTransaction('fund-001-sale', 'fund-001', 'REDEMPTION', 30000, 20000, 306, 100),
+      createTransaction('fund-002-purchase', 'fund-002', 'SPOT_PURCHASE', 200000, 20000),
+      createTransaction('fund-003-purchase', 'fund-003', 'SPOT_PURCHASE', 300000, 30000),
+      createTransaction('fund-004-purchase', 'fund-004', 'SPOT_PURCHASE', 50000, 5000),
+      createTransaction('fund-004-sale', 'fund-004', 'REDEMPTION', 55000, 5000),
+    ];
+    const map = new Map<string, 'equity' | 'gold' | null>([
+      ['fund-001', 'equity'],
+      ['fund-002', 'equity'],
+      ['fund-003', 'gold'],
+      ['fund-004', null],
+    ]);
+
+    const result = calculateAssetClassSummaries(holdings, transactions, map);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.value.map((summary) => summary.assetClass)).toEqual(['equity', 'gold', null]);
+    // 区分評価額は300,000/630,000=0.4762、330,000/630,000=0.5238、0/630,000=0。
+    // 区分の総損益は税引後実現損益+未実現損益、率は総損益/累計投資額を小数4桁に丸める。
+    expect(result.value).toEqual([
+      {
+        assetClass: 'equity',
+        totalInvestment: 300000,
+        totalSaleAmount: 30000,
+        realizedGain: 10000,
+        totalTax: 406,
+        realizedGainAfterTax: 9594,
+        taxUnrecordedSaleCount: 0,
+        remainingInvestment: 280000,
+        totalCurrentValue: 300000,
+        totalUnrealizedGain: 20000,
+        totalUnrealizedGainRate: 0.0714,
+        totalGain: 29594,
+        totalGainRate: 0.0986,
+        holdingCount: 2,
+        allocationRate: 0.4762,
+      },
+      {
+        assetClass: 'gold',
+        totalInvestment: 300000,
+        totalSaleAmount: 0,
+        realizedGain: 0,
+        totalTax: 0,
+        realizedGainAfterTax: 0,
+        taxUnrecordedSaleCount: 0,
+        remainingInvestment: 300000,
+        totalCurrentValue: 330000,
+        totalUnrealizedGain: 30000,
+        totalUnrealizedGainRate: 0.1,
+        totalGain: 30000,
+        totalGainRate: 0.1,
+        holdingCount: 1,
+        allocationRate: 0.5238,
+      },
+      {
+        assetClass: null,
+        totalInvestment: 0,
+        totalSaleAmount: 55000,
+        realizedGain: 5000,
+        totalTax: 0,
+        realizedGainAfterTax: 5000,
+        taxUnrecordedSaleCount: 1,
+        remainingInvestment: 0,
+        totalCurrentValue: 0,
+        totalUnrealizedGain: 0,
+        totalUnrealizedGainRate: 0,
+        totalGain: 5000,
+        totalGainRate: 0,
+        holdingCount: 0,
+        allocationRate: 0,
+      },
+    ]);
+
+    const overall = calculatePortfolio(holdings, transactions);
+    expect(result.value.reduce((sum, summary) => sum + summary.totalInvestment, 0)).toBe(
+      overall.totalInvestment
+    );
+    expect(result.value.reduce((sum, summary) => sum + summary.totalSaleAmount, 0)).toBe(
+      overall.totalSaleAmount
+    );
+    // このデータでは実現損益と税額が整数で割り切れるため、区分合計と全体値が一致する。
+    expect(result.value.reduce((sum, summary) => sum + summary.realizedGain, 0)).toBe(
+      overall.realizedGain
+    );
+    expect(result.value.reduce((sum, summary) => sum + summary.totalTax, 0)).toBe(overall.totalTax);
+    expect(result.value.reduce((sum, summary) => sum + summary.taxUnrecordedSaleCount, 0)).toBe(
+      overall.taxUnrecordedSaleCount
+    );
+    expect(result.value.reduce((sum, summary) => sum + summary.remainingInvestment, 0)).toBe(
+      overall.remainingInvestment
+    );
+    expect(
+      result.value
+        .filter((summary) => summary.totalCurrentValue !== null)
+        .reduce((sum, summary) => sum + (summary.totalCurrentValue ?? 0), 0)
+    ).toBe(overall.totalCurrentValue);
+  });
+
+  it('区分ごとの丸め差が区分数を上限とする1円単位に収まる', () => {
+    // 前提: 2ファンドがそれぞれ10,000円/30,000口を購入し、4,000円/10,000口を売却する。
+    // 前提: 各ファンドの未丸め実現損益は 4,000 - 10,000 × (10,000 / 30,000) = 666.666…円である。
+    // 検証: 区分別は667円 + 667円 = 1,334円、全体は1,333円になることを確認する。
+    const transactions = [
+      createTransaction('fund-001-purchase', 'fund-001', 'SPOT_PURCHASE', 10000, 30000),
+      createTransaction('fund-001-sale', 'fund-001', 'REDEMPTION', 4000, 10000),
+      createTransaction('fund-002-purchase', 'fund-002', 'SPOT_PURCHASE', 10000, 30000),
+      createTransaction('fund-002-sale', 'fund-002', 'REDEMPTION', 4000, 10000),
+    ];
+    const result = calculateAssetClassSummaries(
+      [],
+      transactions,
+      new Map([
+        ['fund-001', 'equity'],
+        ['fund-002', 'gold'],
+      ])
+    );
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    const total = calculatePortfolio([], transactions);
+    expect(result.value.map((summary) => summary.realizedGain)).toEqual([667, 667]);
+    expect(result.value.reduce((value, summary) => value + summary.realizedGain, 0)).toBe(1334);
+    expect(total.realizedGain).toBe(1333);
+  });
+
+  it('対応表の欠落、NAV未登録の独立性、空入力、取引なし区分を検証する', () => {
+    // 前提: 対応表には一部の銘柄だけを登録し、金の評価額を未登録にする。
+    //       未設定区分の銘柄「たわらノーロード先進国株式」は対応表にだけ登録し、保有も取引も持たせない。
+    // 検証: unexpected失敗、他区分への影響なし、空配列、取引のない区分（未設定）の除外を確認する。
+    const holding = createHolding('fund-001', 'eMAXIS Slim 全世界株式', 'equity', 100000, 120000);
+    const transaction = createTransaction(
+      'fund-001-purchase',
+      'fund-001',
+      'SPOT_PURCHASE',
+      100000,
+      10000
+    );
+    const missing = calculateAssetClassSummaries([holding], [transaction], new Map());
+    expect(missing).toMatchObject({ success: false, error: { type: 'unexpected' } });
+
+    const goldHolding = createHolding(
+      'fund-002',
+      'SBI・iシェアーズ・ゴールドファンド',
+      'gold',
+      100000,
+      null
+    );
+    const result = calculateAssetClassSummaries(
+      [holding, goldHolding],
+      [
+        transaction,
+        createTransaction('fund-002-purchase', 'fund-002', 'SPOT_PURCHASE', 100000, 10000),
+      ],
+      new Map<string, 'equity' | 'gold' | null>([
+        ['fund-001', 'equity'],
+        ['fund-002', 'gold'],
+        // 対応表にのみ存在する未設定区分の銘柄（取引が1件もないため区分は結果に含まれない）
+        ['fund-003', null],
+      ])
+    );
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    // 金の評価額がnullでも株式区分の評価額には影響しない
+    expect(result.value[0].totalCurrentValue).toBe(120000);
+    expect(result.value[1].totalCurrentValue).toBeNull();
+    // 取引が1件もない未設定区分は結果に含まれず、株式・金の2区分だけになる
+    expect(result.value).toHaveLength(2);
+    expect(result.value.map((summary) => summary.assetClass)).toEqual(['equity', 'gold']);
+    expect(calculateAssetClassSummaries([], [], new Map())).toEqual({ success: true, value: [] });
+  });
+});
+
+function createHolding(
+  fundId: string,
+  fundName: string,
+  assetClass: 'equity' | 'gold' | null,
+  remainingInvestment: number,
+  currentValue: number | null
+): Holding {
+  return {
+    fundId,
+    fundName,
+    assetClass,
+    totalUnits: 10000,
+    averageCost: remainingInvestment,
+    totalInvestment: remainingInvestment,
+    totalSaleAmount: 0,
+    remainingInvestment,
+    currentNavValue: currentValue,
+    currentNavDate: currentValue === null ? null : '2024-01-01',
+    currentValue,
+    unrealizedGain: currentValue === null ? null : currentValue - remainingInvestment,
+    unrealizedGainRate:
+      currentValue === null ? null : (currentValue - remainingInvestment) / remainingInvestment,
+  };
+}
 
 describe('PortfolioCalculator', () => {
   it('保有情報と取引が空の場合は実現損益0・売却金額0を返す', () => {
