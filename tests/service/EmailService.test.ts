@@ -2,6 +2,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { createEmailService } from '../../src/service/EmailService';
 import type { WeeklyReport } from '../../src/usecase/WeeklyReportUseCase';
 
+/** 指定見出しから次の見出しまでのHTMLを切り出し、表の値を局所的に検証する。 */
+function extractSection(html: string, heading: string): string {
+  const start = html.indexOf(`<h2 style="color: #333; margin-top: 30px;">${heading}</h2>`);
+  if (start < 0) return '';
+  const end = html.indexOf('<h2 ', start + 1);
+  return html.slice(start, end < 0 ? html.length : end);
+}
+
 describe('EmailService', () => {
   it('送信先が空の場合はバリデーションエラーになる', () => {
     // 前提: 送信先メールアドレスが空である
@@ -26,6 +34,7 @@ describe('EmailService', () => {
         totalUnrealizedGainChange: null,
         totalUnrealizedGainRateChange: null,
         hasPreviousWeekData: false,
+        assetClassSummaries: [],
         holdings: [],
       },
       generatedAt: '2024-04-01 09:00:00',
@@ -41,7 +50,7 @@ describe('EmailService', () => {
   it('週次レポートメールの件名に損益が含まれる', () => {
     // 前提: 送信先メールアドレスが有効である
     // 事前条件: ポートフォリオに損益が存在し、前週比データもある
-    // 検証: MailApp.sendEmailが損益付き件名で呼ばれ、前週比情報が本文に含まれる
+    // 検証: MailApp.sendEmailが損益付き件名で呼ばれ、資産クラス別見出し・区分行・資産クラス列・前週比情報が本文に含まれる
     const report: WeeklyReport = {
       portfolio: {
         totalInvestment: 10000,
@@ -61,11 +70,30 @@ describe('EmailService', () => {
         totalUnrealizedGainChange: 500,
         totalUnrealizedGainRateChange: 5.56,
         hasPreviousWeekData: true,
+        assetClassSummaries: [
+          {
+            assetClass: 'equity',
+            totalInvestment: 10000,
+            totalSaleAmount: 0,
+            realizedGain: 0,
+            totalTax: 0,
+            realizedGainAfterTax: 0,
+            taxUnrecordedSaleCount: 0,
+            remainingInvestment: 10000,
+            totalCurrentValue: 12000,
+            totalUnrealizedGain: 2000,
+            totalUnrealizedGainRate: 0.2,
+            totalGain: 2000,
+            totalGainRate: 0.2,
+            holdingCount: 1,
+            allocationRate: 1,
+          },
+        ],
         holdings: [
           {
             fundId: 'fund-001',
             fundName: '国内株式',
-            assetClass: null,
+            assetClass: 'equity',
             totalUnits: 10000,
             averageCost: 10000,
             totalInvestment: 10000,
@@ -99,6 +127,40 @@ describe('EmailService', () => {
     if (call) {
       expect(call.subject).toContain('+2,000円');
       expect(call.htmlBody).toContain('国内株式');
+      // 資産クラス別表の見出しが出力されることを検証する。
+      const assetClassSection = extractSection(call.htmlBody, '資産クラス別');
+      expect(assetClassSection).toContain('資産クラス別');
+      // 資産クラス別表の株式ラベル行を検証する。
+      expect(assetClassSection).toContain(
+        '<td style="padding: 8px; border: 1px solid #ddd;">株式</td>'
+      );
+      // 資産クラス別表の残存投資額セルを検証する。
+      expect(assetClassSection).toContain(
+        '<td style="padding: 8px; border: 1px solid #ddd; text-align: right;">10,000円</td>'
+      );
+      // 株式行の残存投資額、評価額、未実現損益、未実現損益率、評価額構成比を検証する。
+      expect(assetClassSection).toContain(
+        '<td style="padding: 8px; border: 1px solid #ddd; text-align: right;">12,000円</td>'
+      );
+      expect(assetClassSection).toContain(
+        '<td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #1565c0; font-weight: bold;">2,000円</td>'
+      );
+      expect(assetClassSection).toContain(
+        '<td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #1565c0; font-weight: bold;">+20.0%</td>'
+      );
+      expect(assetClassSection).toContain(
+        '<td style="padding: 8px; border: 1px solid #ddd; text-align: right;">100.0%</td>'
+      );
+      // 保有銘柄一覧の資産クラス列見出しを検証する。
+      expect(call.htmlBody).toContain(
+        '<th style="padding: 12px; border: 1px solid #ddd; text-align: left;">資産クラス</th>'
+      );
+      // 保有銘柄一覧では銘柄名セルの直後に資産クラスセルが出力されることを検証する。
+      // 銘柄名セルの直後に資産クラスセルが続くことを、保有一覧部分で検証する。
+      const holdingsSection = extractSection(call.htmlBody, '保有銘柄一覧');
+      expect(holdingsSection).toMatch(
+        /<td style="[^"]*">国内株式<\/td>\s*<td style="[^"]*">株式<\/td>/
+      );
       // 前週比情報が含まれることを確認
       expect(call.htmlBody).toContain('前週比');
       expect(call.htmlBody).toContain('+1,000円');
@@ -134,6 +196,7 @@ describe('EmailService', () => {
         totalUnrealizedGainChange: null,
         totalUnrealizedGainRateChange: null,
         hasPreviousWeekData: false,
+        assetClassSummaries: [],
         holdings: [],
       },
       generatedAt: '2024-04-01 09:00:00',
@@ -162,6 +225,8 @@ describe('EmailService', () => {
       expect(call.htmlBody).toContain('+15.0%');
       // 税未記録の売却が0件のため、参考値の注記は表示されない
       expect(call.htmlBody).not.toContain('参考値');
+      // 資産クラス別サマリーが空配列の場合、資産クラス別表の見出しを表示しないことを検証する。
+      expect(call.htmlBody).not.toContain('資産クラス別');
     }
   });
 
@@ -188,7 +253,47 @@ describe('EmailService', () => {
         totalUnrealizedGainChange: null,
         totalUnrealizedGainRateChange: null,
         hasPreviousWeekData: false,
-        holdings: [],
+        assetClassSummaries: [
+          {
+            assetClass: null,
+            totalInvestment: 110000,
+            totalSaleAmount: 0,
+            realizedGain: 0,
+            totalTax: 0,
+            realizedGainAfterTax: 0,
+            taxUnrecordedSaleCount: 0,
+            remainingInvestment: 110000,
+            totalCurrentValue: 120000,
+            totalUnrealizedGain: 10000,
+            totalUnrealizedGainRate: 0.0909,
+            totalGain: 10000,
+            totalGainRate: 0.0909,
+            holdingCount: 1,
+            allocationRate: 1,
+          },
+        ],
+        holdings: [
+          {
+            fundId: 'fund-002',
+            fundName: 'たわらノーロード先進国株式',
+            assetClass: null,
+            totalUnits: 100000,
+            averageCost: 110000,
+            totalInvestment: 110000,
+            totalSaleAmount: 0,
+            remainingInvestment: 110000,
+            currentNavValue: 12000,
+            currentNavDate: '2024-03-29',
+            currentValue: 120000,
+            unrealizedGain: 10000,
+            unrealizedGainRate: 0.0909,
+            remainingInvestmentChange: null,
+            currentValueChange: null,
+            unrealizedGainChange: null,
+            unrealizedGainRateChange: null,
+            hasPreviousWeekData: false,
+          },
+        ],
       },
       generatedAt: '2024-04-01 09:00:00',
     };
@@ -202,6 +307,12 @@ describe('EmailService', () => {
     const call = sendEmailMock.mock.calls[0]?.[0];
     expect(call).toBeDefined();
     if (call) {
+      // 資産クラス別表の未設定ラベルと、保有一覧とは異なる残存投資額を検証する。
+      const assetClassSection = extractSection(call.htmlBody, '資産クラス別');
+      expect(assetClassSection).toContain(
+        '<td style="padding: 8px; border: 1px solid #ddd;">未設定</td>'
+      );
+      expect(assetClassSection).toContain('110,000円');
       expect(call.htmlBody).toContain('※税未記録の売却が2件あるため参考値');
     }
   });
@@ -259,6 +370,7 @@ describe('EmailService', () => {
           totalUnrealizedGainChange: null,
           totalUnrealizedGainRateChange: null,
           hasPreviousWeekData: false,
+          assetClassSummaries: [],
           holdings: [],
         },
         generatedAt: '2024-04-01 09:00:00',

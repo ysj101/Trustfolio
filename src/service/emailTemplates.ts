@@ -1,4 +1,9 @@
-import type { HoldingWithWeekOverWeek, WeekOverWeekChange } from '../domain/types';
+import { getAssetClassLabel } from '../domain/assetClassLabel';
+import type {
+  AssetClassSummary,
+  HoldingWithWeekOverWeek,
+  WeekOverWeekChange,
+} from '../domain/types';
 import type { MarketIndexAlertResult, MarketIndexChange } from '../usecase/MarketIndexAlertUseCase';
 import type { WeeklyReport } from '../usecase/WeeklyReportUseCase';
 
@@ -179,12 +184,7 @@ function buildHoldingsRows(holdings: HoldingWithWeekOverWeek[]): string {
       holding.unrealizedGainRate !== null ? formatRate(holding.unrealizedGainRate) : '---';
 
     // 損益の色を決定（個別銘柄）
-    const gainColor =
-      holding.unrealizedGain !== null
-        ? holding.unrealizedGain >= 0
-          ? '#1565c0'
-          : '#c62828'
-        : '#333';
+    const gainColor = getGainColor(holding.unrealizedGain);
 
     // 前週比（損益）のフォーマット（個別銘柄）
     const holdingGainChangeStr =
@@ -203,6 +203,7 @@ function buildHoldingsRows(holdings: HoldingWithWeekOverWeek[]): string {
     holdingsHtml += `
       <tr>
         <td style="${STYLE.td}">${holding.fundName}</td>
+        <td style="${STYLE.td}">${getAssetClassLabel(holding.assetClass)}</td>
         <td style="${STYLE.tdRight}">${investmentStr}円</td>
         <td style="${STYLE.tdRight}">${valueStr}円</td>
         <td style="${STYLE.tdRight} color: ${gainColor}; font-weight: bold;">${gainStr}円</td>
@@ -213,6 +214,60 @@ function buildHoldingsRows(holdings: HoldingWithWeekOverWeek[]): string {
     `;
   }
   return holdingsHtml;
+}
+
+/**
+ * 資産クラス別サマリーの各行をHTMLへ変換する。
+ * nullの評価額・損益・構成比は未登録値として「---」にし、構成比には損益用の符号を付けない。
+ * 呼び出し元は空配列の場合に表自体を生成しない。
+ */
+function buildAssetClassRows(summaries: AssetClassSummary[]): string {
+  let rows = '';
+  for (const summary of summaries) {
+    // 評価額・損益・損益率・構成比は、未登録値を「---」として表示する。
+    const value =
+      summary.totalCurrentValue === null ? '---' : formatNumber(summary.totalCurrentValue);
+    const gain =
+      summary.totalUnrealizedGain === null ? '---' : formatNumber(summary.totalUnrealizedGain);
+    const rate =
+      summary.totalUnrealizedGainRate === null
+        ? '---'
+        : formatRate(summary.totalUnrealizedGainRate);
+    const allocation =
+      summary.allocationRate === null ? '---' : formatAllocationRate(summary.allocationRate);
+    const gainColor = getGainColor(summary.totalUnrealizedGain);
+
+    rows += `
+      <tr>
+        <td style="${STYLE.td}">${getAssetClassLabel(summary.assetClass)}</td>
+        <td style="${STYLE.tdRight}">${formatNumber(summary.remainingInvestment)}円</td>
+        <td style="${STYLE.tdRight}">${value}円</td>
+        <td style="${STYLE.tdRight} color: ${gainColor}; font-weight: bold;">${gain}円</td>
+        <td style="${STYLE.tdRight} color: ${gainColor}; font-weight: bold;">${rate}</td>
+        <td style="${STYLE.tdRight}">${allocation}</td>
+      </tr>
+    `;
+  }
+  return rows;
+}
+
+/**
+ * 評価額構成比をメール表示用のパーセントへ変換する。
+ *
+ * 構成比は増減値ではないため符号を付けず、小数第1位まで表示する。
+ * 呼び出し元は、評価額が未登録で構成比がnullの場合に本関数を呼び出さず、`---`を表示する。
+ *
+ * @param rate 全体評価額に対する構成比（0.5は50.0%を表す）
+ * @returns 符号なしの小数1桁パーセント表記
+ */
+function formatAllocationRate(rate: number): string {
+  return `${(rate * 100).toFixed(1)}%`;
+}
+
+/** 未実現損益の値を週次レポート用の青・赤・中立色へ変換する。nullは中立色とする。 */
+function getGainColor(value: number | null): string {
+  if (value === null) return '#333';
+  return value >= 0 ? '#1565c0' : '#c62828';
 }
 
 /**
@@ -238,11 +293,10 @@ export function generateWeeklyReportEmailBody(report: WeeklyReport): string {
   const overallGainStr = portfolio.totalGain !== null ? formatNumber(portfolio.totalGain) : '---';
   const overallGainRateStr =
     portfolio.totalGainRate !== null ? formatRate(portfolio.totalGainRate) : '---';
-  const overallGainColor =
-    portfolio.totalGain !== null ? (portfolio.totalGain >= 0 ? '#1565c0' : '#c62828') : '#333';
+  const overallGainColor = getGainColor(portfolio.totalGain);
   const totalTaxStr = formatNumber(portfolio.totalTax);
   const realizedGainAfterTaxStr = formatNumber(portfolio.realizedGainAfterTax);
-  const realizedGainAfterTaxColor = portfolio.realizedGainAfterTax >= 0 ? '#1565c0' : '#c62828';
+  const realizedGainAfterTaxColor = getGainColor(portfolio.realizedGainAfterTax);
   // 税額未記録の売却がある場合、税引後実現損益は完全な税引後の値ではないため注記を付ける。
   const taxUnrecordedNote =
     portfolio.taxUnrecordedSaleCount > 0
@@ -250,12 +304,7 @@ export function generateWeeklyReportEmailBody(report: WeeklyReport): string {
       : '';
 
   // 損益の色を決定（全体）
-  const totalGainColor =
-    portfolio.totalUnrealizedGain !== null
-      ? portfolio.totalUnrealizedGain >= 0
-        ? '#1565c0'
-        : '#c62828'
-      : '#333';
+  const totalGainColor = getGainColor(portfolio.totalUnrealizedGain);
 
   // 前週比のフォーマット（全体）
   const totalInvestmentChangeStr = formatWeekOverWeekChange(portfolio.remainingInvestmentChange);
@@ -281,6 +330,22 @@ export function generateWeeklyReportEmailBody(report: WeeklyReport): string {
 
   // 保有銘柄一覧のHTML生成
   const holdingsHtml = buildHoldingsRows(portfolio.holdings);
+  const assetClassHtml =
+    portfolio.assetClassSummaries.length === 0
+      ? ''
+      : `
+        <h2 style="color: #333; margin-top: 30px;">資産クラス別</h2>
+        <table style="border-collapse: collapse; width: 100%; max-width: 800px; margin-bottom: 30px;">
+          <tr style="background-color: #f5f5f5;">
+            <th style="${STYLE.cellLeft}">資産クラス</th>
+            <th style="${STYLE.cellRight}">残存投資額</th>
+            <th style="${STYLE.cellRight}">評価額</th>
+            <th style="${STYLE.cellRight}">未実現損益</th>
+            <th style="${STYLE.cellRight}">未実現損益率</th>
+            <th style="${STYLE.cellRight}">評価額構成比</th>
+          </tr>
+          ${buildAssetClassRows(portfolio.assetClassSummaries)}
+        </table>`;
 
   const inner = `
         <h1 style="color: #333;">Trustfolio 週次レポート</h1>
@@ -333,12 +398,12 @@ export function generateWeeklyReportEmailBody(report: WeeklyReport): string {
             <td style="${STYLE.tdRight} color: ${realizedGainAfterTaxColor}; font-weight: bold;">${realizedGainAfterTaxStr}円${taxUnrecordedNote}</td>
             <td style="${STYLE.tdRight}">---</td>
           </tr>
-        </table>
-
+        </table>${assetClassHtml}
         <h2 style="color: #333; margin-top: 30px;">保有銘柄一覧</h2>
         <table style="border-collapse: collapse; width: 100%; margin-bottom: 30px;">
           <tr style="background-color: #f5f5f5;">
             <th style="${STYLE.cellLeft}">銘柄名</th>
+            <th style="${STYLE.cellLeft}">資産クラス</th>
             <th style="${STYLE.cellRight}">残存投資額</th>
             <th style="${STYLE.cellRight}">評価額</th>
             <th style="${STYLE.cellRight}">損益</th>

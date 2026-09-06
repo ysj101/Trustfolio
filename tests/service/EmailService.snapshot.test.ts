@@ -53,11 +53,47 @@ describe('EmailService HTML出力スナップショット', () => {
         totalUnrealizedGainChange: 30_000,
         totalUnrealizedGainRateChange: 2.5,
         hasPreviousWeekData: true,
+        assetClassSummaries: [
+          {
+            assetClass: 'equity',
+            totalInvestment: 600000,
+            totalSaleAmount: 0,
+            realizedGain: 0,
+            totalTax: 0,
+            realizedGainAfterTax: 0,
+            taxUnrecordedSaleCount: 0,
+            remainingInvestment: 600000,
+            totalCurrentValue: 680000,
+            totalUnrealizedGain: 80000,
+            totalUnrealizedGainRate: 0.1333,
+            totalGain: 80000,
+            totalGainRate: 0.1333,
+            holdingCount: 1,
+            allocationRate: 0.68,
+          },
+          {
+            assetClass: 'gold',
+            totalInvestment: 400000,
+            totalSaleAmount: 0,
+            realizedGain: 0,
+            totalTax: 0,
+            realizedGainAfterTax: 0,
+            taxUnrecordedSaleCount: 0,
+            remainingInvestment: 400000,
+            totalCurrentValue: 320000,
+            totalUnrealizedGain: -80000,
+            totalUnrealizedGainRate: -0.2,
+            totalGain: -80000,
+            totalGainRate: -0.2,
+            holdingCount: 1,
+            allocationRate: 0.32,
+          },
+        ],
         holdings: [
           {
             fundId: 'fund-001',
             fundName: 'eMAXIS Slim 米国株式',
-            assetClass: null,
+            assetClass: 'equity',
             totalUnits: 500_000,
             averageCost: 12_000,
             totalInvestment: 600_000,
@@ -72,6 +108,26 @@ describe('EmailService HTML出力スナップショット', () => {
             currentValueChange: { difference: 50_000, changeRate: 7.93 },
             unrealizedGainChange: 20_000,
             unrealizedGainRateChange: 1.8,
+            hasPreviousWeekData: true,
+          },
+          {
+            fundId: 'fund-002',
+            fundName: 'SBI・iシェアーズ・ゴールドファンド',
+            assetClass: 'gold',
+            totalUnits: 100_000,
+            averageCost: 4_000,
+            totalInvestment: 400_000,
+            totalSaleAmount: 0,
+            remainingInvestment: 400_000,
+            currentNavValue: 3_200,
+            currentNavDate: '2026-06-05',
+            currentValue: 320_000,
+            unrealizedGain: -80_000,
+            unrealizedGainRate: -0.2,
+            remainingInvestmentChange: { difference: 20_000, changeRate: 5.26 },
+            currentValueChange: { difference: -30_000, changeRate: -8.57 },
+            unrealizedGainChange: -10_000,
+            unrealizedGainRateChange: -2.5,
             hasPreviousWeekData: true,
           },
         ],
@@ -137,11 +193,41 @@ describe('EmailService HTML出力スナップショット', () => {
                   <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">---</td>
                 </tr>
               </table>
-
+              <h2 style="color: #333; margin-top: 30px;">資産クラス別</h2>
+              <table style="border-collapse: collapse; width: 100%; max-width: 800px; margin-bottom: 30px;">
+                <tr style="background-color: #f5f5f5;">
+                  <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">資産クラス</th>
+                  <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">残存投資額</th>
+                  <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">評価額</th>
+                  <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">未実現損益</th>
+                  <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">未実現損益率</th>
+                  <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">評価額構成比</th>
+                </tr>
+                
+            <tr>
+              <td style="padding: 8px; border: 1px solid #ddd;">株式</td>
+              <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">600,000円</td>
+              <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">680,000円</td>
+              <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #1565c0; font-weight: bold;">80,000円</td>
+              <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #1565c0; font-weight: bold;">+13.3%</td>
+              <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">68.0%</td>
+            </tr>
+          
+            <tr>
+              <td style="padding: 8px; border: 1px solid #ddd;">金</td>
+              <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">400,000円</td>
+              <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">320,000円</td>
+              <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #c62828; font-weight: bold;">-80,000円</td>
+              <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #c62828; font-weight: bold;">-20.0%</td>
+              <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">32.0%</td>
+            </tr>
+          
+              </table>
               <h2 style="color: #333; margin-top: 30px;">保有銘柄一覧</h2>
               <table style="border-collapse: collapse; width: 100%; margin-bottom: 30px;">
                 <tr style="background-color: #f5f5f5;">
                   <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">銘柄名</th>
+                  <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">資産クラス</th>
                   <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">残存投資額</th>
                   <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">評価額</th>
                   <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">損益</th>
@@ -152,12 +238,24 @@ describe('EmailService HTML出力スナップショット', () => {
                 
             <tr>
               <td style="padding: 8px; border: 1px solid #ddd;">eMAXIS Slim 米国株式</td>
+              <td style="padding: 8px; border: 1px solid #ddd;">株式</td>
               <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">600,000円</td>
               <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">680,000円</td>
               <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #1565c0; font-weight: bold;">80,000円</td>
               <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #1565c0; font-weight: bold;">+13.3%</td>
               <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #1565c0; font-weight: bold;">+20,000円</td>
               <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #1565c0; font-weight: bold;">+1.8%pt</td>
+            </tr>
+          
+            <tr>
+              <td style="padding: 8px; border: 1px solid #ddd;">SBI・iシェアーズ・ゴールドファンド</td>
+              <td style="padding: 8px; border: 1px solid #ddd;">金</td>
+              <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">400,000円</td>
+              <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">320,000円</td>
+              <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #c62828; font-weight: bold;">-80,000円</td>
+              <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #c62828; font-weight: bold;">-20.0%</td>
+              <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #c62828; font-weight: bold;">-10,000円</td>
+              <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #c62828; font-weight: bold;">-2.5%pt</td>
             </tr>
           
               </table>
@@ -175,13 +273,13 @@ describe('EmailService HTML出力スナップショット', () => {
     // 前提: 評価額・損益・前週比がいずれも未確定（null）で「---」表示になる
     const report: WeeklyReport = {
       portfolio: {
-        totalInvestment: 300_000,
+        totalInvestment: 110_000,
         totalSaleAmount: 0,
         realizedGain: 0,
         totalTax: 0,
         realizedGainAfterTax: 0,
         taxUnrecordedSaleCount: 0,
-        remainingInvestment: 300_000,
+        remainingInvestment: 110_000,
         totalCurrentValue: null,
         totalUnrealizedGain: null,
         totalUnrealizedGainRate: null,
@@ -192,11 +290,30 @@ describe('EmailService HTML出力スナップショット', () => {
         totalUnrealizedGainChange: null,
         totalUnrealizedGainRateChange: null,
         hasPreviousWeekData: false,
+        assetClassSummaries: [
+          {
+            assetClass: 'gold',
+            totalInvestment: 110_000,
+            totalSaleAmount: 0,
+            realizedGain: 0,
+            totalTax: 0,
+            realizedGainAfterTax: 0,
+            taxUnrecordedSaleCount: 0,
+            remainingInvestment: 110_000,
+            totalCurrentValue: null,
+            totalUnrealizedGain: null,
+            totalUnrealizedGainRate: null,
+            totalGain: null,
+            totalGainRate: null,
+            holdingCount: 1,
+            allocationRate: null,
+          },
+        ],
         holdings: [
           {
             fundId: 'fund-002',
             fundName: 'ニッセイ外国株式インデックス',
-            assetClass: null,
+            assetClass: 'gold',
             totalUnits: 100_000,
             averageCost: 11_000,
             totalInvestment: 110_000,
@@ -237,7 +354,7 @@ describe('EmailService HTML出力スナップショット', () => {
                 </tr>
                 <tr>
                   <td style="padding: 8px; border: 1px solid #ddd;">残存投資額</td>
-                  <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">300,000円</td>
+                  <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">110,000円</td>
                   <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #666; font-weight: bold; font-size: 12px;">---</td>
                 </tr>
                 <tr>
@@ -276,11 +393,32 @@ describe('EmailService HTML出力スナップショット', () => {
                   <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">---</td>
                 </tr>
               </table>
-
+              <h2 style="color: #333; margin-top: 30px;">資産クラス別</h2>
+              <table style="border-collapse: collapse; width: 100%; max-width: 800px; margin-bottom: 30px;">
+                <tr style="background-color: #f5f5f5;">
+                  <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">資産クラス</th>
+                  <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">残存投資額</th>
+                  <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">評価額</th>
+                  <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">未実現損益</th>
+                  <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">未実現損益率</th>
+                  <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">評価額構成比</th>
+                </tr>
+                
+            <tr>
+              <td style="padding: 8px; border: 1px solid #ddd;">金</td>
+              <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">110,000円</td>
+              <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">---円</td>
+              <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #333; font-weight: bold;">---円</td>
+              <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #333; font-weight: bold;">---</td>
+              <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">---</td>
+            </tr>
+          
+              </table>
               <h2 style="color: #333; margin-top: 30px;">保有銘柄一覧</h2>
               <table style="border-collapse: collapse; width: 100%; margin-bottom: 30px;">
                 <tr style="background-color: #f5f5f5;">
                   <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">銘柄名</th>
+                  <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">資産クラス</th>
                   <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">残存投資額</th>
                   <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">評価額</th>
                   <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">損益</th>
@@ -291,6 +429,7 @@ describe('EmailService HTML出力スナップショット', () => {
                 
             <tr>
               <td style="padding: 8px; border: 1px solid #ddd;">ニッセイ外国株式インデックス</td>
+              <td style="padding: 8px; border: 1px solid #ddd;">金</td>
               <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">110,000円</td>
               <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">---円</td>
               <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: #333; font-weight: bold;">---円</td>
