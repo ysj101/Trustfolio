@@ -471,7 +471,7 @@ describe('TransactionUseCase', () => {
       expect(result.error.message).toContain('保有口数がマイナス');
     }
     const unchangedTransaction = transactionRepository.findById(
-      '売却-保有口数検証用',
+      saleUpdateCommonInput.id,
       '国内株式ファンド'
     );
     expect(unchangedTransaction.success).toBe(true);
@@ -495,7 +495,7 @@ describe('TransactionUseCase', () => {
       expect(result.value.units).toBe(50);
     }
     const updatedTransaction = transactionRepository.findById(
-      '売却-保有口数検証用',
+      saleUpdateCommonInput.id,
       '国内株式ファンド'
     );
     expect(updatedTransaction.success).toBe(true);
@@ -519,7 +519,7 @@ describe('TransactionUseCase', () => {
       expect(result.value.units).toBe(100);
     }
     const updatedTransaction = transactionRepository.findById(
-      '売却-保有口数検証用',
+      saleUpdateCommonInput.id,
       '国内株式ファンド'
     );
     expect(updatedTransaction.success).toBe(true);
@@ -544,7 +544,7 @@ describe('TransactionUseCase', () => {
       expect(result.error.message).toContain('保有口数がマイナス');
     }
     const unchangedTransaction = transactionRepository.findById(
-      '売却-保有口数検証用',
+      saleUpdateCommonInput.id,
       '国内株式ファンド'
     );
     expect(unchangedTransaction.success).toBe(true);
