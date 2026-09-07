@@ -47,6 +47,69 @@ function createTransactionRepository(seed: Transaction[]): TransactionRepository
   };
 }
 
+/**
+ * 保有口数検証テストで使用する、購入100口と売却10口が登録済みの
+ * 「国内株式ファンド」に対するユースケースとリポジトリを用意する。
+ */
+function createUseCaseForSaleUpdate() {
+  const fundRepository = createFundRepository([
+    {
+      id: '国内株式ファンド',
+      name: '国内株式インデックス',
+      rakutenFundId: null,
+      settlementBusinessDays: null,
+      navSource: null,
+      navSourceCode: null,
+      assetClass: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+    },
+  ]);
+  const transactionRepository = createTransactionRepository([
+    {
+      id: '購入-保有口数検証用',
+      fundId: '国内株式ファンド',
+      type: 'SPOT_PURCHASE',
+      date: '2026-01-01',
+      amount: 100000,
+      navValue: 10000,
+      units: 100,
+      incomeTax: null,
+      residentTax: null,
+      recurringPurchaseId: null,
+      idempotencyKey: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+    },
+    {
+      id: '売却-保有口数検証用',
+      fundId: '国内株式ファンド',
+      type: 'REDEMPTION',
+      date: '2026-01-02',
+      amount: 10000,
+      navValue: 10000,
+      units: 10,
+      incomeTax: 0,
+      residentTax: 0,
+      recurringPurchaseId: null,
+      idempotencyKey: null,
+      createdAt: '2026-01-02T00:00:00.000Z',
+    },
+  ]);
+  return {
+    useCase: createTransactionUseCase(fundRepository, transactionRepository),
+    transactionRepository,
+  };
+}
+
+/** 保有口数検証テストで共通に用いる、売却取引更新の入力です。 */
+const saleUpdateCommonInput = {
+  id: '売却-保有口数検証用',
+  fundId: '国内株式ファンド',
+  date: '2026-01-02',
+  navValue: 10000,
+  incomeTax: 0,
+  residentTax: 0,
+};
+
 describe('TransactionUseCase', () => {
   it('スポット購入で日付形式が不正な場合はバリデーションエラーになる', () => {
     // 前提: 日付がYYYY-MM-DD形式ではない
@@ -389,6 +452,55 @@ describe('TransactionUseCase', () => {
     if (result.success) {
       expect(result.value.incomeTax).toBe(1532);
       expect(result.value.residentTax).toBe(500);
+    }
+  });
+
+  it('保有口数を超える売却口数への更新は拒否される', () => {
+    // 前提: 購入100口（2026-01-01）と売却10口（2026-01-02）が登録済み
+    // 事前条件: 売却取引を保有口数を超える1,000口へ更新する
+    // 検証: validationエラーになり、リポジトリ上の売却口数は10口のまま変更されない
+    const { useCase, transactionRepository } = createUseCaseForSaleUpdate();
+    const result = useCase.updateSaleTransaction({
+      ...saleUpdateCommonInput,
+      units: 1000,
+      amount: 1000000,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.type).toBe('validation');
+      expect(result.error.message).toContain('保有口数がマイナス');
+    }
+    const unchangedTransaction = transactionRepository.findById(
+      '売却-保有口数検証用',
+      '国内株式ファンド'
+    );
+    expect(unchangedTransaction.success).toBe(true);
+    if (unchangedTransaction.success) {
+      expect(unchangedTransaction.value?.units).toBe(10);
+    }
+  });
+
+  it('保有口数の範囲内への売却更新は成功する', () => {
+    // 前提: 購入100口（2026-01-01）と売却10口（2026-01-02）が登録済み
+    // 事前条件: 売却取引を保有口数の範囲内である50口へ更新する
+    // 検証: 更新が成功し、戻り値とリポジトリ上の売却口数が50口になる
+    const { useCase, transactionRepository } = createUseCaseForSaleUpdate();
+    const result = useCase.updateSaleTransaction({
+      ...saleUpdateCommonInput,
+      units: 50,
+      amount: 50000,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.value.units).toBe(50);
+    }
+    const updatedTransaction = transactionRepository.findById(
+      '売却-保有口数検証用',
+      '国内株式ファンド'
+    );
+    expect(updatedTransaction.success).toBe(true);
+    if (updatedTransaction.success) {
+      expect(updatedTransaction.value?.units).toBe(50);
     }
   });
 
