@@ -504,6 +504,55 @@ describe('TransactionUseCase', () => {
     }
   });
 
+  it('保有口数ちょうどの売却口数への更新は成功する', () => {
+    // 前提: 購入100口（2026-01-01）と売却10口（2026-01-02）が登録済み
+    // 事前条件: 売却取引を保有口数ちょうどである100口へ更新する
+    // 検証: 累積保有口数が0ちょうどのため許容され、戻り値とリポジトリ上の売却口数が100口になる
+    const { useCase, transactionRepository } = createUseCaseForSaleUpdate();
+    const result = useCase.updateSaleTransaction({
+      ...saleUpdateCommonInput,
+      units: 100,
+      amount: 1000000,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.value.units).toBe(100);
+    }
+    const updatedTransaction = transactionRepository.findById(
+      '売却-保有口数検証用',
+      '国内株式ファンド'
+    );
+    expect(updatedTransaction.success).toBe(true);
+    if (updatedTransaction.success) {
+      expect(updatedTransaction.value?.units).toBe(100);
+    }
+  });
+
+  it('保有口数を1口だけ超える売却口数への更新は拒否される', () => {
+    // 前提: 購入100口（2026-01-01）と売却10口（2026-01-02）が登録済み
+    // 事前条件: 売却取引を保有口数を1口だけ超える101口へ更新する
+    // 検証: 累積保有口数が-1になるため拒否され、リポジトリ上の売却口数は10口のまま変更されない
+    const { useCase, transactionRepository } = createUseCaseForSaleUpdate();
+    const result = useCase.updateSaleTransaction({
+      ...saleUpdateCommonInput,
+      units: 101,
+      amount: 1010000,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.type).toBe('validation');
+      expect(result.error.message).toContain('保有口数がマイナス');
+    }
+    const unchangedTransaction = transactionRepository.findById(
+      '売却-保有口数検証用',
+      '国内株式ファンド'
+    );
+    expect(unchangedTransaction.success).toBe(true);
+    if (unchangedTransaction.success) {
+      expect(unchangedTransaction.value?.units).toBe(10);
+    }
+  });
+
   it('積立購入の取引はスポット購入更新で編集できない', () => {
     // 前提: 対象取引が積立購入である
     // 事前条件: 積立購入の取引を登録済み
