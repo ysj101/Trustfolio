@@ -472,7 +472,7 @@ describe('TransactionUseCase', () => {
     }
     const unchangedTransaction = transactionRepository.findById(
       saleUpdateCommonInput.id,
-      '国内株式ファンド'
+      saleUpdateCommonInput.fundId
     );
     expect(unchangedTransaction.success).toBe(true);
     if (unchangedTransaction.success) {
@@ -496,7 +496,7 @@ describe('TransactionUseCase', () => {
     }
     const updatedTransaction = transactionRepository.findById(
       saleUpdateCommonInput.id,
-      '国内株式ファンド'
+      saleUpdateCommonInput.fundId
     );
     expect(updatedTransaction.success).toBe(true);
     if (updatedTransaction.success) {
@@ -520,7 +520,7 @@ describe('TransactionUseCase', () => {
     }
     const updatedTransaction = transactionRepository.findById(
       saleUpdateCommonInput.id,
-      '国内株式ファンド'
+      saleUpdateCommonInput.fundId
     );
     expect(updatedTransaction.success).toBe(true);
     if (updatedTransaction.success) {
@@ -545,7 +545,7 @@ describe('TransactionUseCase', () => {
     }
     const unchangedTransaction = transactionRepository.findById(
       saleUpdateCommonInput.id,
-      '国内株式ファンド'
+      saleUpdateCommonInput.fundId
     );
     expect(unchangedTransaction.success).toBe(true);
     if (unchangedTransaction.success) {
