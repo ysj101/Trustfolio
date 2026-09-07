@@ -189,8 +189,8 @@ export function createTransactionUseCase(
 
       // 新しい売却取引を含めて、全期間で保有口数がマイナスにならないことを検証
       const validationResult = validateHoldingsAcrossAllDates(
-        [...transactionsResult.value, transaction],
-        null // 更新対象なし（新規登録）
+        transactionsResult.value,
+        transaction
       );
 
       if (!validationResult.success) {
@@ -327,7 +327,6 @@ export function createTransactionUseCase(
         createdAt: existingResult.value.createdAt,
       });
 
-      // 全期間で保有口数がマイナスにならないことを検証（更新対象の売却取引を除く）
       const transactionsResult = transactionRepository.listByFundId(fundId);
       if (!transactionsResult.success) {
         return propagateFailure(transactionsResult);
@@ -335,8 +334,8 @@ export function createTransactionUseCase(
 
       // 更新後の売却取引を含めて、全期間で保有口数がマイナスにならないことを検証
       const validationResult = validateHoldingsAcrossAllDates(
-        [...transactionsResult.value, transaction],
-        validId // 更新対象の取引IDを除外
+        transactionsResult.value,
+        transaction
       );
 
       if (!validationResult.success) {
@@ -588,22 +587,22 @@ function validateSaleTransactionInput(input: {
 /**
  * 全取引を時系列順に並べ、全期間で保有口数がマイナスにならないことを検証する。
  * 過去日付での売却登録により、未来の時点で保有口数がマイナスになることを防ぐ。
+ * 本検証を適用している経路は、売却取引の新規登録と更新のみである。
+ * 購入取引の編集（`updateSpotPurchase`）と削除（`deleteSpotPurchase`）は対象外であり、
+ * それらの経路では保有口数がマイナスになるデータが作られうる。この点はissue #207の対応範囲外であり、別途対応が必要である。
  *
- * @param transactions 全取引（検証対象の新規/更新取引を含む）
- * @param excludeTransactionId 更新時に除外する取引ID（新規登録時はnull）
+ * @param existingTransactions 既存の全取引。検証対象取引と同一idの既存行は、更新経路で更新前の行を二重計上しないため除外する。
+ * @param targetTransaction 検証対象の新規または更新取引。既存行を除外した集合へ必ず加えて検証する。
  */
 function validateHoldingsAcrossAllDates(
-  transactions: Transaction[],
-  excludeTransactionId: string | null
+  existingTransactions: Transaction[],
+  targetTransaction: Transaction
 ): Result<void> {
-  // 更新対象の取引を除外
-  const filteredTransactions =
-    excludeTransactionId !== null
-      ? transactions.filter((t) => t.id !== excludeTransactionId)
-      : transactions;
-
-  // 日付順にソート（同日の場合は作成日時順）
-  const sortedTransactions = [...filteredTransactions].sort((a, b) => {
+  // 検証対象の集合を日付順にソートする（同日の場合は作成日時順）。
+  const sortedTransactions = [
+    ...existingTransactions.filter((transaction) => transaction.id !== targetTransaction.id),
+    targetTransaction,
+  ].sort((a, b) => {
     if (a.date !== b.date) {
       return a.date < b.date ? -1 : 1;
     }
