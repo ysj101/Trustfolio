@@ -12,6 +12,7 @@ import {
   sendWeeklyReport,
   doGet,
   include,
+  handleApiRequestJson,
 } from '../src/main';
 import type { EmailService } from '../src/service/EmailService';
 import type { AppContainer } from '../src/usecase/appContainer';
@@ -68,6 +69,24 @@ describe('main', () => {
       expect(json.success).toBe(false);
       expect(json.error.message).toContain('POSTデータが空');
     }
+  });
+
+  it('handleApiRequestJsonは戻り値をJSON文字列で返し、nullプロパティを保持する', async () => {
+    // 前提: routerのhandleApiRequestがnullプロパティを含む成功結果を返す。
+    // 事前条件: なし（router はモック済みで、Spreadsheet 等の外部依存には触れない）
+    // 検証: 戻り値が文字列であり、JSON.parse後もnullが保持され、同じリクエストが渡される。
+    const { handleApiRequest } = vi.mocked(await import('../src/api/router'));
+    const request = { action: 'listFunds' } as const;
+    handleApiRequest.mockReturnValue({
+      success: true,
+      value: { funds: [{ id: 'fund-001', assetClass: null }] },
+    });
+
+    const result = handleApiRequestJson(request);
+
+    expect(typeof result).toBe('string');
+    expect(JSON.parse(result).value.funds[0].assetClass).toBeNull();
+    expect(handleApiRequest).toHaveBeenCalledWith(request);
   });
 
   it('POSTデータが action を持たない場合はバリデーションエラーを返す', async () => {

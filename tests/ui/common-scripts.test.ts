@@ -86,6 +86,44 @@ function loadTrustfolioUi(documentMock: unknown, googleMock: unknown): Record<st
 }
 
 /**
+ * google.script.run を模したモックを生成する。
+ *
+ * callApi は withSuccessHandler / withFailureHandler をチェーンした後に
+ * handleApiRequestJson(request) を呼ぶ。本モックは登録された両ハンドラを保持し、
+ * handleApiRequestJson が呼ばれた時点で respond に渡して「GAS 側の応答」を再現する。
+ * ハンドラ未登録のまま応答しようとした場合は暗黙に無視せず例外で失敗させる。
+ *
+ * @param respond - GAS 側の応答を再現する関数。onSuccess / onFailure のどちらかを呼ぶ。
+ * @returns run: google.script.run 相当のモック / requests: handleApiRequestJson に渡されたリクエストの記録
+ */
+function createScriptRunMock(
+  respond: (onSuccess: (value: unknown) => void, onFailure: (error: unknown) => void) => void
+): { run: unknown; requests: unknown[] } {
+  const requests: unknown[] = [];
+  let onSuccess: (value: unknown) => void = () => {
+    throw new Error('withSuccessHandler が登録されていません。');
+  };
+  let onFailure: (error: unknown) => void = () => {
+    throw new Error('withFailureHandler が登録されていません。');
+  };
+  const run = {
+    withSuccessHandler(handler: (value: unknown) => void) {
+      onSuccess = handler;
+      return run;
+    },
+    withFailureHandler(handler: (error: unknown) => void) {
+      onFailure = handler;
+      return run;
+    },
+    handleApiRequestJson(request: unknown) {
+      requests.push(request);
+      respond(onSuccess, onFailure);
+    },
+  };
+  return { run, requests };
+}
+
+/**
  * createElement で生成される DOM 要素を模した最小限のノードモック。
  *
  * 描画ファクトリ（renderFundSelect / createListItem / createTransactionItem 等）が
@@ -247,40 +285,72 @@ describe('TrustfolioUi.formatPercent', () => {
 });
 
 describe('TrustfolioUi.callApi', () => {
-  it('成功時はレスポンスでresolveする', async () => {
-    // google.script.run の成功ハンドラを同期的に呼ぶモック
-    const response = { success: true, value: { message: 'ok' } };
-    const run = {
-      withSuccessHandler(onSuccess: (value: unknown) => void) {
-        // 後続のhandleApiRequestで使うために保持
-        (run as { onSuccess?: (value: unknown) => void }).onSuccess = onSuccess;
-        return run;
-      },
-      withFailureHandler() {
-        return run;
-      },
-      handleApiRequest() {
-        (run as { onSuccess?: (value: unknown) => void }).onSuccess?.(response);
+  it('成功時はJSON文字列を復元したレスポンスでresolveする', async () => {
+    // 前提: GAS の handleApiRequestJson は Result オブジェクトを JSON 文字列にして返す。
+    // 事前条件: レスポンスは銘柄の null プロパティ（assetClass / rakutenFundId）を含む。
+    // 検証: callApi が JSON.parse 済みの値を返し、null が保持され、
+    //       リクエストがそのまま handleApiRequestJson へ渡される。
+    const response = {
+      success: true,
+      value: {
+        funds: [
+          { id: 'fund-001', name: 'eMAXIS Slim 全世界株式', assetClass: null, rakutenFundId: null },
+        ],
       },
     };
+    const { run, requests } = createScriptRunMock((onSuccess) =>
+      onSuccess(JSON.stringify(response))
+    );
     const ui = loadTrustfolioUi({}, { script: { run } });
-    await expect(ui.callApi({ action: 'listFunds' })).resolves.toEqual(response);
+    const request = { action: 'listFunds' };
+    const result = await ui.callApi(request);
+    expect(result).toEqual(response);
+    expect(result.value.funds[0].assetClass).toBeNull();
+    expect(requests).toEqual([request]);
+  });
+
+  it('成功ハンドラが文字列以外を受け取った場合はrejectする', async () => {
+    // 前提: GAS から JSON 文字列ではなくオブジェクトが返される（handleApiRequestJson の契約違反）。
+    // 事前条件: なし
+    // 検証: 暗黙に resolve せず、受け取った値の型を含むエラーで reject する。
+    const { run } = createScriptRunMock((onSuccess) => onSuccess({ success: true }));
+    const ui = loadTrustfolioUi({}, { script: { run } });
+    await expect(ui.callApi({ action: 'listFunds' })).rejects.toThrow(
+      'APIレスポンスが文字列ではありません: object'
+    );
+  });
+
+  it('成功ハンドラが null を受け取った場合は null と明示してrejectする', async () => {
+    // 前提: GAS から null が返される（例: トランポリンが return を欠いて何も返さない場合）。
+    // 事前条件: なし
+    // 検証: typeof null が 'object' になって原因が隠れることなく、'null' と明示したエラーで reject する。
+    const { run } = createScriptRunMock((onSuccess) => onSuccess(null));
+    const ui = loadTrustfolioUi({}, { script: { run } });
+    await expect(ui.callApi({ action: 'listFunds' })).rejects.toThrow(
+      'APIレスポンスが文字列ではありません: null'
+    );
+  });
+
+  it('成功ハンドラが不正なJSON文字列を受け取った場合はrejectする', async () => {
+    // 前提: GAS から JSON として解釈できない文字列（閉じ括弧が欠けた JSON）が返される。
+    // 事前条件: なし
+    // 検証: JSON.parse の失敗が、文脈の分かる日本語メッセージのエラーとして reject へ伝播する。
+    const { run } = createScriptRunMock((onSuccess) =>
+      onSuccess('{"success": true, "value": "閉じ括弧が欠けたJSON"')
+    );
+    const ui = loadTrustfolioUi({}, { script: { run } });
+    await expect(ui.callApi({ action: 'listFunds' })).rejects.toThrow(
+      'APIレスポンスのJSON解析に失敗しました'
+    );
   });
 
   it('失敗時はエラーでrejectする', async () => {
-    const error = new Error('通信に失敗しました。');
-    const run = {
-      withSuccessHandler() {
-        return run;
-      },
-      withFailureHandler(onFailure: (error: unknown) => void) {
-        (run as { onFailure?: (error: unknown) => void }).onFailure = onFailure;
-        return run;
-      },
-      handleApiRequest() {
-        (run as { onFailure?: (error: unknown) => void }).onFailure?.(error);
-      },
-    };
+    // 前提: GAS の呼び出し自体が失敗し、withFailureHandler が呼ばれる。
+    // 事前条件: なし
+    // 検証: 失敗ハンドラへ渡されたエラーがそのまま reject へ伝播する。
+    const { run } = createScriptRunMock((_onSuccess, onFailure) =>
+      onFailure(new Error('通信に失敗しました。'))
+    );
     const ui = loadTrustfolioUi({}, { script: { run } });
     await expect(ui.callApi({ action: 'listFunds' })).rejects.toThrow('通信に失敗しました。');
   });

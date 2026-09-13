@@ -9,74 +9,52 @@ import { defineConfig, type Plugin } from 'vite';
 const projectRoot = import.meta.dirname;
 
 /**
- * GAS（Google Apps Script）のグローバル関数を定義するフッター文字列。
+ * GAS（Google Apps Script）のグローバル関数トランポリンを生成するフッター関数。
  *
  * Vite はライブラリモードで `src/main.ts` を IIFE バンドルし、グローバル変数
  * `TrustfolioApp` に各 export を割り当てる。一方 GAS ランタイムは、Web アプリの
  * エントリポイント（`doGet` / `doPost`）やトリガー関数を「トップレベルのグローバル
- * 関数名」で直接呼び出す。そのため、`TrustfolioApp.xxx()` へ委譲するトランポリン
- * 関数群をバンドル末尾に追記する必要がある。
+ * 関数名」で直接呼び出す。そのため、バンドラから渡されるエントリチャンクの export 名
+ * （`chunk.exports`）ごとに `TrustfolioApp.xxx(...)` へ委譲するトランポリン関数を
+ * 生成し、バンドル末尾に追記する。
  *
- * 【重要】ここで定義する関数名・シグネチャは GAS から名前で参照される契約である。
- * 移行前の `rollup.config.js` の `footer` 定数と完全に一致させており、一字一句
- * 変更してはならない（変更すると GAS のトリガー設定や Web アプリが破綻する）。
+ * 【重要】`src/main.ts` から export した関数は全て GAS の公開面（名前で参照される契約）
+ * になる。参照元は次の 4 種類であり、参照元を確認せずに export を改名・削除してはならない
+ * （変更すると GAS のトリガー設定や Web アプリが破綻する）。
+ * - Web アプリのエントリポイント: `doGet` / `doPost`（GAS ランタイムが呼ぶ）
+ * - Web UI からの API 呼び出し: `handleApiRequestJson`
+ *   （src/ui/common-scripts.html の callApi が google.script.run 経由で呼ぶ）
+ * - HTML テンプレートのスクリプトレット: `include`
+ *   （src/ui/Index.html / src/ui/Performance.html の `<?!= include('...'); ?>` が
+ *   HtmlService のテンプレート評価時に呼ぶ）
+ * - トリガー・メニュー・手動実行: 上記以外の全て
+ *   （ScriptApp.newTrigger の関数名指定、またはスクリプトエディタからの手動実行）
+ *
+ * トランポリンは export 一覧から機械的に生成されるため、export の追加・改名・削除に
+ * 対する手動同期は不要である。逆に、テスト目的の内部ヘルパーを `src/main.ts` から
+ * export してはならない（そのまま GAS の公開関数になる）。
+ *
+ * 生成される各トランポリンは次の 3 行になる。引数は可変長でそのまま委譲する
+ * （GAS はトリガー・google.script.run・テンプレートのいずれも位置引数で呼ぶため、
+ * 仮引数名に意味はない）。
+ *
+ * ```
+ * function <name>(...args) {
+ *   return TrustfolioApp.<name>(...args);
+ * }
+ * ```
+ *
+ * @param chunk - バンドラが描画したチャンク。`exports` にエントリの export 名が入る。
+ * @returns バンドル末尾に追記するトランポリン関数群の文字列
  */
-const gasGlobalFunctionsFooter = [
-  'function doGet(e) {',
-  '  return TrustfolioApp.doGet(e);',
-  '}',
-  'function doPost(e) {',
-  '  return TrustfolioApp.doPost(e);',
-  '}',
-  'function onOpen(e) {',
-  '  return TrustfolioApp.onOpen(e);',
-  '}',
-  'function initializeSheets() {',
-  '  return TrustfolioApp.initializeSheets();',
-  '}',
-  'function handleApiRequest(request) {',
-  '  return TrustfolioApp.handleApiRequest(request);',
-  '}',
-  'function include(filename) {',
-  '  return TrustfolioApp.include(filename);',
-  '}',
-  'function runRakutenIntegrationTest() {',
-  '  return TrustfolioApp.runRakutenIntegrationTest();',
-  '}',
-  'function fetchAllNavs() {',
-  '  return TrustfolioApp.fetchAllNavs();',
-  '}',
-  'function executeRecurringPurchasesDaily() {',
-  '  return TrustfolioApp.executeRecurringPurchasesDaily();',
-  '}',
-  'function setupNavFetchTrigger() {',
-  '  return TrustfolioApp.setupNavFetchTrigger();',
-  '}',
-  'function setupRecurringPurchasesTrigger() {',
-  '  return TrustfolioApp.setupRecurringPurchasesTrigger();',
-  '}',
-  'function deleteNavFetchTrigger() {',
-  '  return TrustfolioApp.deleteNavFetchTrigger();',
-  '}',
-  'function sendWeeklyReport() {',
-  '  return TrustfolioApp.sendWeeklyReport();',
-  '}',
-  'function setupWeeklyReportTrigger() {',
-  '  return TrustfolioApp.setupWeeklyReportTrigger();',
-  '}',
-  'function deleteWeeklyReportTrigger() {',
-  '  return TrustfolioApp.deleteWeeklyReportTrigger();',
-  '}',
-  'function fetchMarketIndices() {',
-  '  return TrustfolioApp.fetchMarketIndices();',
-  '}',
-  'function setupMarketIndexFetchTrigger() {',
-  '  return TrustfolioApp.setupMarketIndexFetchTrigger();',
-  '}',
-  'function deleteMarketIndexFetchTrigger() {',
-  '  return TrustfolioApp.deleteMarketIndexFetchTrigger();',
-  '}',
-].join('\n');
+function createGasGlobalFunctionsFooter(chunk: { exports: string[] }): string {
+  if (chunk.exports.length === 0) {
+    throw new Error('src/main.ts に export が存在しません。GAS のグローバル関数を生成できません。');
+  }
+  return chunk.exports
+    .map((name) => `function ${name}(...args) {\n  return TrustfolioApp.${name}(...args);\n}`)
+    .join('\n');
+}
 
 /**
  * ディレクトリを再帰的にコピーするヘルパー。
@@ -189,7 +167,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         // GAS グローバル関数のトランポリンをバンドル末尾に追記する。
-        footer: gasGlobalFunctionsFooter,
+        footer: createGasGlobalFunctionsFooter,
       },
     },
   },
