@@ -1,6 +1,5 @@
 import type { ApiRequest } from './api/router';
 import { handleApiRequest } from './api/router';
-export { handleApiRequest } from './api/router';
 export { runRakutenIntegrationTest } from './integration/RakutenIntegrationTest';
 export type { NavFetchResult, PerformanceRecordFailure } from './usecase/NavFetchUseCase';
 import type { AppError, Result } from './domain/types';
@@ -21,6 +20,27 @@ import { logError, logWarn } from './utils/logger';
 export function doGet(): GoogleAppsScript.HTML.HtmlOutput {
   const template = HtmlService.createTemplateFromFile('Index');
   return template.evaluate().setTitle('Trustfolio');
+}
+
+/**
+ * Web UI の google.script.run から呼び出す唯一の API エントリーポイント。
+ *
+ * google.script.run はサーバーからの戻り値のうち値が null のプロパティをクライアント側で
+ * 欠落させる（例: Fund.assetClass: null が undefined になる）。そのため Result オブジェクトを
+ * JSON 文字列に直列化して返し、クライアント側（common-scripts.html の callApi）で JSON.parse する。
+ *
+ * 注意:
+ * - JSON 化するのは戻り値（サーバー → クライアント）方向のみである。リクエスト（引数）は
+ *   従来どおりオブジェクトのまま google.script.run で転送され、本関数では変換しない。
+ - 本関数は vite.config.ts のフッター生成により GAS のグローバル関数として公開される。
+ *   関数名を変更してデプロイすると、デプロイ前から開いていた Web UI タブは旧名で呼び出し
+ *   続けて「Script function not found」で失敗するため、デプロイ後はタブの再読み込みが必要である。
+ *
+ * @param request - APIリクエスト
+ * @returns null プロパティを保持した API レスポンスの JSON 文字列
+ */
+export function handleApiRequestJson(request: ApiRequest): string {
+  return JSON.stringify(handleApiRequest(request));
 }
 
 /**
