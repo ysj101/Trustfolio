@@ -97,20 +97,46 @@
     }
 
     /**
-     * GAS の handleApiRequest を Promise でラップして呼び出す。
+     * GAS の handleApiRequestJson が返した JSON 文字列を Result オブジェクトへ復元する。
+     *
+     * 文字列以外の値・JSON として解釈できない文字列は、いずれも「サーバー側の契約
+     * （Result を JSON.stringify した文字列を返す）への違反」なので、暗黙に解決せず
+     * 文脈の分かる日本語メッセージのエラーを投げて fail fast する。JSON.parse が投げる
+     * 英語の SyntaxError をそのまま画面へ出さないための包み直しである。
+     *
+     * @param {unknown} value - google.script.run の成功ハンドラが受け取った値
+     * @returns {unknown} JSON.parse 済みのレスポンス（Result型オブジェクト）
+     */
+    function parseApiResponse(value) {
+      if (typeof value !== 'string') {
+        // typeof null は 'object' になり原因が隠れるため、null は明示的に 'null' と報告する。
+        throw new Error(
+          `APIレスポンスが文字列ではありません: ${value === null ? 'null' : typeof value}`
+        );
+      }
+      try {
+        return JSON.parse(value);
+      } catch (error) {
+        throw new Error(`APIレスポンスのJSON解析に失敗しました: ${error.message}`);
+      }
+    }
+
+    /**
+     * GAS の handleApiRequestJson を Promise でラップして呼び出す。
+     * サーバーが JSON 文字列で返す理由（google.script.run が null プロパティを欠落させる）は
+     * src/main.ts の handleApiRequestJson の TSDoc を参照。ここでは parseApiResponse で復元する。
      *
      * @param {unknown} request - APIリクエストオブジェクト
-     * @returns {Promise<unknown>} レスポンス（Result型オブジェクト）
+     * @returns {Promise<unknown>} JSON.parse 済みのレスポンス（Result型オブジェクト）
      */
     function callApi(request) {
+      // 復元は then 側で行う（google.script.run は成功ハンドラ内の例外を飲み込み reject されないため）。
       return new Promise((resolve, reject) => {
         google.script.run
           .withSuccessHandler(resolve)
-          .withFailureHandler((error) => {
-            reject(error);
-          })
-          .handleApiRequest(request);
-      });
+          .withFailureHandler(reject)
+          .handleApiRequestJson(request);
+      }).then(parseApiResponse);
     }
 
     /**
