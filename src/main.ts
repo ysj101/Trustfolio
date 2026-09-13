@@ -32,7 +32,7 @@ export function doGet(): GoogleAppsScript.HTML.HtmlOutput {
  * 注意:
  * - JSON 化するのは戻り値（サーバー → クライアント）方向のみである。リクエスト（引数）は
  *   従来どおりオブジェクトのまま google.script.run で転送され、本関数では変換しない。
- - 本関数は vite.config.ts のフッター生成により GAS のグローバル関数として公開される。
+ * - 本関数は vite.config.ts のフッター生成により GAS のグローバル関数として公開される。
  *   関数名を変更してデプロイすると、デプロイ前から開いていた Web UI タブは旧名で呼び出し
  *   続けて「Script function not found」で失敗するため、デプロイ後はタブの再読み込みが必要である。
  *
