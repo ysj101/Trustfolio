@@ -39,6 +39,150 @@
       badgeClass: `${assetClassBadgeBaseClass} border border-amber-500/40 bg-amber-500/15 text-amber-300`,
     };
 
+    /**
+     * 基準価額の取得元種別。投資信託登録フォームのセレクト（Index.html の fundNavSourceKind）の
+     * value と一致させる。
+     * - none: 取得しない（rakutenFundId / navSource / navSourceCode すべて null）
+     * - rakuten: 楽天証券（rakutenFundId のみ設定）
+     * - wealthadvisor: Wealth Advisor（navSource='wealthadvisor' と navSourceCode を設定）
+     */
+    const NAV_SOURCE_KINDS = Object.freeze({
+      NONE: 'none',
+      RAKUTEN: 'rakuten',
+      WEALTH_ADVISOR: 'wealthadvisor',
+    });
+
+    /**
+     * Fund.navSource の永続値（src/domain/types.ts の Fund 型 navSource: 'wealthadvisor' | null と一致させる）。
+     * UI セレクトの種別 NAV_SOURCE_KINDS.WEALTH_ADVISOR とは別ドメインの値のため、流用せず別定数にする。
+     */
+    const WEALTH_ADVISOR_NAV_SOURCE = 'wealthadvisor';
+
+    /**
+     * 取得元種別ごとのセレクト表示ラベル。一覧表示（formatNavSourceLabel）でも同じ文言を使う。
+     * キーの定義順（取得しない・楽天証券・Wealth Advisor）がそのままセレクトの表示順になる。
+     * Index.html には option を直書きせず、populateNavSourceKindSelect がここから生成する。
+     */
+    const NAV_SOURCE_LABELS = Object.freeze({
+      [NAV_SOURCE_KINDS.NONE]: '取得しない',
+      [NAV_SOURCE_KINDS.RAKUTEN]: '楽天証券',
+      [NAV_SOURCE_KINDS.WEALTH_ADVISOR]: 'Wealth Advisor',
+    });
+
+    /**
+     * 基準価額の取得元セレクトをラベル定義から組み立て直す。
+     * 既存の選択肢を消去し、取得しない・楽天証券・Wealth Advisor の順で追加する
+     * （プレースホルダは置かず、先頭の「取得しない」が既定値になる）。
+     *
+     * @param {HTMLSelectElement} select - 選択肢を追加する select 要素
+     * @returns {void}
+     */
+    function populateNavSourceKindSelect(select) {
+      select.innerHTML = '';
+      appendOptions(
+        select,
+        Object.entries(NAV_SOURCE_LABELS).map(([value, label]) => ({ value, label }))
+      );
+    }
+
+    /**
+     * 取得元種別と trim 済みの入力コードから、createFund へ送信する取得元3フィールドを組み立てる。
+     * 楽天ファンドIDと Wealth Advisor 取得元コードはサーバー側で排他のため、選択された種別の
+     * フィールドだけを埋め、他方は必ず null にする。
+     *
+     * @param {'none'|'rakuten'|'wealthadvisor'} kind - 取得元種別
+     * @param {string} code - trim 済みの入力コード（none では使用しない）
+     * @returns {{ success: true, value: { rakutenFundId: string|null, navSource: 'wealthadvisor'|null, navSourceCode: string|null } } | { success: false, error: { type: 'validation'|'unexpected', message: string } }}
+     */
+    function buildNavSourceFields(kind, code) {
+      if (kind === NAV_SOURCE_KINDS.NONE)
+        return {
+          success: true,
+          value: { rakutenFundId: null, navSource: null, navSourceCode: null },
+        };
+      if (kind === NAV_SOURCE_KINDS.RAKUTEN) {
+        if (code === '')
+          return {
+            success: false,
+            error: { type: 'validation', message: '楽天ファンドIDを入力してください。' },
+          };
+        return {
+          success: true,
+          value: { rakutenFundId: code, navSource: null, navSourceCode: null },
+        };
+      }
+      if (kind === NAV_SOURCE_KINDS.WEALTH_ADVISOR) {
+        if (code === '')
+          return {
+            success: false,
+            error: { type: 'validation', message: '取得元コードを入力してください。' },
+          };
+        return {
+          success: true,
+          value: { rakutenFundId: null, navSource: WEALTH_ADVISOR_NAV_SOURCE, navSourceCode: code },
+        };
+      }
+      return {
+        success: false,
+        error: { type: 'unexpected', message: `未知の基準価額取得元種別です: ${String(kind)}` },
+      };
+    }
+
+    /**
+     * Fund の取得元フィールドから取得元種別を逆引きする。
+     * navSource が 'wealthadvisor' なら Wealth Advisor、そうでなく rakutenFundId があれば楽天証券、
+     * いずれでもなければ「取得しない」。
+     *
+     * 注意: 楽天ファンドIDと Wealth Advisor の二重指定、取得元未設定なのに取得元コードあり、
+     * Wealth Advisor なのに取得元コードなし、といった組み合わせ不変条件は
+     * src/repository/FundRepository.ts の validateNavSourceCombination がシート読み取り時に fail fast で
+     * 拒否するため、ブラウザに届く Fund は必ず満たしている。UI では型契約の検証
+     * （navSource が未知の値でないこと）だけを行い、未知の値は暗黙に「取得しない」へ読み替えず失敗 Result にする。
+     *
+     * @param {{ rakutenFundId: string|null, navSource: 'wealthadvisor'|null, navSourceCode: string|null }} fund
+     * @returns {{ success: true, value: 'none'|'rakuten'|'wealthadvisor' } | { success: false, error: { type: 'unexpected', message: string } }}
+     */
+    function resolveNavSourceKind(fund) {
+      if (fund.navSource !== null && fund.navSource !== WEALTH_ADVISOR_NAV_SOURCE)
+        return {
+          success: false,
+          error: {
+            type: 'unexpected',
+            message: `未知の基準価額取得元です: ${String(fund.navSource)}`,
+          },
+        };
+      if (fund.navSource === WEALTH_ADVISOR_NAV_SOURCE)
+        return { success: true, value: NAV_SOURCE_KINDS.WEALTH_ADVISOR };
+      if (fund.rakutenFundId !== null) return { success: true, value: NAV_SOURCE_KINDS.RAKUTEN };
+      return { success: true, value: NAV_SOURCE_KINDS.NONE };
+    }
+
+    /**
+     * 銘柄一覧に表示する基準価額取得元のラベルを返す。
+     * 種別ごとに「楽天証券: <ID>」「Wealth Advisor: <コード>」「取得元未設定」の統一形式にする
+     * （楽天証券 / Wealth Advisor の文言はセレクトの NAV_SOURCE_LABELS と共有する。取得元なしは選択肢の
+     *   「取得しない」ではなく、一覧では状態を表す「取得元未設定」と表示する）。
+     * 判定に失敗した場合は resolveNavSourceKind の失敗 Result をそのまま返す。
+     *
+     * @param {{ rakutenFundId: string|null, navSource: 'wealthadvisor'|null, navSourceCode: string|null }} fund
+     * @returns {{ success: true, value: string } | { success: false, error: { type: 'unexpected', message: string } }}
+     */
+    function formatNavSourceLabel(fund) {
+      const result = resolveNavSourceKind(fund);
+      if (!result.success) return result;
+      if (result.value === NAV_SOURCE_KINDS.RAKUTEN)
+        return {
+          success: true,
+          value: `${NAV_SOURCE_LABELS[result.value]}: ${fund.rakutenFundId}`,
+        };
+      if (result.value === NAV_SOURCE_KINDS.WEALTH_ADVISOR)
+        return {
+          success: true,
+          value: `${NAV_SOURCE_LABELS[result.value]}: ${fund.navSourceCode}`,
+        };
+      return { success: true, value: '取得元未設定' };
+    }
+
     /** 資産クラスの表示情報と順位を解決する。nullは未設定として最後に配置する。 */
     function resolveAssetClassOption(assetClass) {
       if (assetClass === null) {
@@ -58,6 +202,23 @@
     }
 
     /**
+     * select 要素に選択肢を追加する（資産クラス・取得元種別・銘柄選択の option 生成で共通利用する）。
+     * 既存の選択肢は消去しない。消去が必要な呼び出し側は事前に innerHTML = '' を行う。
+     *
+     * @param {HTMLSelectElement} select - 選択肢を追加する select 要素
+     * @param {ReadonlyArray<{ value: string, label: string }>} options - value と表示ラベルの組
+     * @returns {void}
+     */
+    function appendOptions(select, options) {
+      options.forEach((option) => {
+        const element = document.createElement('option');
+        element.value = option.value;
+        element.textContent = option.label;
+        select.appendChild(element);
+      });
+    }
+
+    /**
      * 資産クラス選択欄を共通定義から組み立て直す。
      * 既存の選択肢を消去し、未選択用プレースホルダー、株式、金の順で追加する。
      *
@@ -70,12 +231,7 @@
       placeholder.value = '';
       placeholder.textContent = '選択してください';
       select.appendChild(placeholder);
-      ASSET_CLASS_OPTIONS.forEach((assetClass) => {
-        const option = document.createElement('option');
-        option.value = assetClass.value;
-        option.textContent = assetClass.label;
-        select.appendChild(option);
-      });
+      appendOptions(select, ASSET_CLASS_OPTIONS);
     }
 
     /**
@@ -267,12 +423,10 @@
       }
 
       selectElement.disabled = false;
-      funds.forEach((fund) => {
-        const option = document.createElement('option');
-        option.value = fund.id;
-        option.textContent = fund.name;
-        selectElement.appendChild(option);
-      });
+      appendOptions(
+        selectElement,
+        funds.map((fund) => ({ value: fund.id, label: fund.name }))
+      );
 
       // 取引フォームのみ、直前の選択 fundId を維持する。
       // 選択が未設定 or 既に存在しない銘柄を指していた場合は先頭の銘柄へフォールバックする。
@@ -589,6 +743,11 @@
     }
 
     return {
+      NAV_SOURCE_KINDS,
+      populateNavSourceKindSelect,
+      buildNavSourceFields,
+      resolveNavSourceKind,
+      formatNavSourceLabel,
       callApi,
       formatCurrency,
       formatPercent,

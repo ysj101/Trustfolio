@@ -15,10 +15,72 @@
     const fundNameInput = document.getElementById('fundName');
     const fundAssetClassSelect = document.getElementById('fundAssetClass');
     const fundRakutenFundIdInput = document.getElementById('fundRakutenFundId');
-    const fundNavSourceSelect = document.getElementById('fundNavSource');
+    const fundNavSourceKindSelect = document.getElementById('fundNavSourceKind');
+    const fundRakutenFundIdField = document.getElementById('fundRakutenFundIdField');
+    const fundNavSourceCodeField = document.getElementById('fundNavSourceCodeField');
     const fundNavSourceCodeInput = document.getElementById('fundNavSourceCode');
     const fundSettlementBusinessDaysInput = document.getElementById('fundSettlementBusinessDays');
     const fundList = document.getElementById('fundList');
+
+    /** 取得元種別ごとの入力グループ。表示切替と送信時の値取得で同じ配列を走査する。 */
+    const navSourceInputGroups = Object.freeze([
+      {
+        kind: window.TrustfolioUi.NAV_SOURCE_KINDS.RAKUTEN,
+        field: fundRakutenFundIdField,
+        input: fundRakutenFundIdInput,
+      },
+      {
+        kind: window.TrustfolioUi.NAV_SOURCE_KINDS.WEALTH_ADVISOR,
+        field: fundNavSourceCodeField,
+        input: fundNavSourceCodeInput,
+      },
+    ]);
+
+    /**
+     * 基準価額の取得元セレクトの選択に応じて、登録フォームの入力欄を切り替える。
+     *
+     * - 選択中の取得元に対応する入力欄だけを表示し、required を付ける。
+     * - 非表示にした入力欄は required を外し、値をクリアする（詳細は setFieldGroupActive を参照）。
+     * - 楽天ファンドIDと Wealth Advisor 取得元コードの排他性は、この表示切替ではなく
+     *   fundForm の submit ハンドラが選択中グループの入力だけを読み、buildNavSourceFields が
+     *   他方を必ず null にすることで保証する。
+     * - 楽天証券→Wealth Advisor→楽天証券と切り替えると入力済みの ID は消える（仕様）。
+     * - 対応表 navSourceInputGroups に無い種別（'none'）はすべての入力欄を非表示にする。
+     * - 選択肢は populateNavSourceKindSelect が NAV_SOURCE_LABELS から生成するため、UI 操作では未知の値に
+     *   ならない。未知の値は実装ミス（選択肢と navSourceInputGroups の食い違い）なので暗黙に補正せず
+     *   例外を投げる（初期化時は IIFE の try/catch が表示する）。
+     */
+    function applyNavSourceKindToForm() {
+      const kind = fundNavSourceKindSelect.value;
+      const isKnownKind =
+        kind === window.TrustfolioUi.NAV_SOURCE_KINDS.NONE ||
+        navSourceInputGroups.some((group) => group.kind === kind);
+      if (!isKnownKind) throw new Error(`未知の基準価額取得元種別です: ${String(kind)}`);
+      navSourceInputGroups.forEach((group) => {
+        setFieldGroupActive(group.field, group.input, group.kind === kind);
+      });
+    }
+
+    /**
+     * 取得元の入力グループ（ラッパー要素と入力欄）の表示／非表示を切り替える。
+     *
+     * - 非表示にするときは required を外し、値もクリアする。
+     *   required の解除は、非表示の required 入力がブラウザの制約検証で送信をブロックするため必須。
+     *   値のクリアは (1) 送信成功後のリセット（onSuccess の resetFormFields はこの 2 入力を含めず
+     *   applyNavSourceKindToForm に依存する）と (2) 隠れた入力に古い値を残さないため。
+     *   排他性の保証は本関数の責務ではない（submit ハンドラと buildNavSourceFields が担う）。
+     * - 表示するときは required を付ける。
+     *
+     * @param {HTMLElement} container - 'hidden' クラスで表示制御するラッパー要素
+     * @param {HTMLInputElement} input - グループ内の入力欄
+     * @param {boolean} isActive - true で表示、false で非表示
+     * @returns {void}
+     */
+    function setFieldGroupActive(container, input, isActive) {
+      container.classList.toggle('hidden', !isActive);
+      input.required = isActive;
+      if (!isActive) input.value = '';
+    }
     const transactionForm = document.getElementById('transactionForm');
     const transactionFundSelect = document.getElementById('transactionFundSelect');
     const transactionDateInput = document.getElementById('transactionDate');
@@ -306,6 +368,20 @@
       recurringIsActiveInput.checked = recurring.isActive;
     }
 
+    /**
+     * 銘柄一覧の描画を中断する。部分描画を残さないため一覧を空にしてから例外を投げる
+     * （setMessage して続行すると初期化 IIFE の「準備ができました。」で上書きされ、エラーが見えなくなる。
+     *   取得元の不整合はサーバー側で拒否されるため、ここに到達するのは UI とサーバーの契約ドリフトであり、
+     *   暗黙に銘柄を落とさず起動を止める）。
+     *
+     * @param {string} message - 表示するエラーメッセージ
+     * @returns {never}
+     */
+    function failFundListRender(message) {
+      fundList.replaceChildren();
+      throw new Error(message);
+    }
+
     function renderFunds() {
       fundList.innerHTML = '';
       if (state.funds.length === 0) {
@@ -319,20 +395,18 @@
       state.funds.forEach((fund) => {
         const titleResult = createFundTitle(fund.name, fund.assetClass);
         if (!titleResult.success) {
-          setMessage(titleResult.error.message, 'error');
-          return;
+          return failFundListRender(titleResult.error.message);
         }
         const titleElements = titleResult.value;
         const meta = document.createElement('span');
         meta.className = listMetaClass;
-        // 取得元コードの表示: 楽天ファンドID、または Wealth Advisor の取得元コード。
-        // どちらも未設定の銘柄は取得元なしとしてコードを表示しない。
-        const codeText = fund.rakutenFundId
-          ? ` (${fund.rakutenFundId})`
-          : fund.navSource === 'wealthadvisor' && fund.navSourceCode
-            ? ` (WA: ${fund.navSourceCode})`
-            : '';
-        meta.textContent = `${fund.createdAt.split('T')[0]}${codeText}`;
+        // 基準価額の取得元を「楽天証券: <ID>」「Wealth Advisor: <コード>」「取得元未設定」の
+        // 統一形式で表示する（種別の判定と文言は common-scripts.html の formatNavSourceLabel に集約）。
+        const labelResult = window.TrustfolioUi.formatNavSourceLabel(fund);
+        if (!labelResult.success) {
+          return failFundListRender(labelResult.error.message);
+        }
+        meta.textContent = `${fund.createdAt.split('T')[0]} ${labelResult.value}`;
         const actions = [meta];
         const select = document.createElement('select');
         select.className =
@@ -900,9 +974,18 @@
       event.preventDefault();
       const name = fundNameInput.value;
       const assetClass = fundAssetClassSelect.value;
-      const rakutenFundId = fundRakutenFundIdInput.value.trim() || null;
-      const navSource = fundNavSourceSelect.value === 'wealthadvisor' ? 'wealthadvisor' : null;
-      const navSourceCode = fundNavSourceCodeInput.value.trim() || null;
+      const kind = fundNavSourceKindSelect.value;
+      const group = navSourceInputGroups.find((candidate) => candidate.kind === kind);
+      // 'none' は入力欄を持たないため code には空文字を渡す（buildNavSourceFields は none で code を使わない）。
+      const navSourceFieldsResult = window.TrustfolioUi.buildNavSourceFields(
+        kind,
+        group === undefined ? '' : group.input.value.trim()
+      );
+      if (!navSourceFieldsResult.success) {
+        setMessage(navSourceFieldsResult.error.message, 'error');
+        return;
+      }
+      const navSourceFields = navSourceFieldsResult.value;
       const settlementBusinessDaysText = fundSettlementBusinessDaysInput.value.trim();
       const settlementBusinessDays =
         settlementBusinessDaysText === '' ? null : Number(settlementBusinessDaysText);
@@ -912,23 +995,18 @@
         request: {
           action: 'createFund',
           name,
-          rakutenFundId,
+          rakutenFundId: navSourceFields.rakutenFundId,
           settlementBusinessDays,
-          navSource,
-          navSourceCode,
+          navSource: navSourceFields.navSource,
+          navSourceCode: navSourceFields.navSourceCode,
           assetClass,
         },
         onSuccess: async () => {
           window.TrustfolioUi.resetFormFields({
-            textInputs: [
-              fundNameInput,
-              fundAssetClassSelect,
-              fundRakutenFundIdInput,
-              fundNavSourceSelect,
-              fundNavSourceCodeInput,
-              fundSettlementBusinessDaysInput,
-            ],
+            textInputs: [fundNameInput, fundAssetClassSelect, fundSettlementBusinessDaysInput],
           });
+          fundNavSourceKindSelect.value = window.TrustfolioUi.NAV_SOURCE_KINDS.NONE;
+          applyNavSourceKindToForm();
           await loadFunds();
         },
       });
@@ -1399,6 +1477,9 @@
       const needsRefresh = shouldRefreshToday();
 
       try {
+        window.TrustfolioUi.populateNavSourceKindSelect(fundNavSourceKindSelect);
+        fundNavSourceKindSelect.addEventListener('change', applyNavSourceKindToForm);
+        applyNavSourceKindToForm();
         await loadFunds();
         // 日次リフレッシュが必要な場合のみ更新時刻を記録
         if (needsRefresh) {
