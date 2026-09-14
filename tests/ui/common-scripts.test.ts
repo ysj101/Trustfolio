@@ -4,6 +4,7 @@ import process from 'node:process';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ASSET_CLASSES, type AssetClass } from '../../src/domain/types';
 import { getAssetClassLabel } from '../../src/domain/assetClassLabel';
+import { WEALTH_ADVISOR_CODE_PATTERN } from '../../src/service/WealthAdvisorService';
 
 /**
  * このテストは src/ui/common-scripts.html が公開する window.TrustfolioUi の
@@ -255,6 +256,95 @@ describe('TrustfolioUi.buildNavSourceFields', () => {
       success: false,
       error: { type: 'unexpected' },
     });
+  });
+});
+
+describe('TrustfolioUi.extractWealthAdvisorNavSourceCode', () => {
+  it.each([
+    {
+      name: 'HTTPSのファンド基本情報ページURL',
+      input: 'https://apl.wealthadvisor.jp/webasp/sbi_am/pc/basic/sa_202306080A.html',
+    },
+    {
+      name: '前後に空白があるURL',
+      input: '  https://apl.wealthadvisor.jp/webasp/sbi_am/pc/basic/sa_202306080A.html  ',
+    },
+    {
+      name: 'HTTPのファンド基本情報ページURL',
+      input: 'http://apl.wealthadvisor.jp/webasp/sbi_am/pc/basic/sa_202306080A.html',
+    },
+    {
+      name: 'クエリ文字列とフラグメント付きURL',
+      input:
+        'https://apl.wealthadvisor.jp/webasp/sbi_am/pc/basic/sa_202306080A.html?from=search#概要',
+    },
+  ])('$nameから実在する取得元コードを抽出する', ({ input }) => {
+    // 前提: SBI・iシェアーズ・ゴールドファンドの実在するファンド基本情報ページURLを入力する。
+    // 事前条件: URLの company は sbi_am、pageId は sa_202306080A である。
+    // 検証: 前後の空白やURLの付加情報を除き、company/pageId だけを返す。
+    const ui = loadTrustfolioUi(createDocumentMock(), {});
+
+    expect(ui.extractWealthAdvisorNavSourceCode(input)).toBe('sbi_am/sa_202306080A');
+  });
+
+  it.each([
+    { name: '既に取得元コード形式の文字列', input: 'sbi_am/sa_202306080A' },
+    {
+      name: '別ドメイン（楽天証券）のファンド詳細ページURL',
+      input: 'https://www.rakuten-sec.co.jp/web/fund/detail/?ID=JP90C000H1T1',
+    },
+    {
+      name: 'Wealth Advisorだがパス構造が異なるURL',
+      input: 'https://apl.wealthadvisor.jp/webasp/sbi_am/pc/detail/sa_202306080A.html',
+    },
+    { name: '空文字列', input: '' },
+  ])('$nameはURL全体が対象形式に一致しないため null を返す', ({ input }) => {
+    // 前提: URL全体が指定された Wealth Advisor 基本情報ページ形式に一致しない入力を与える。
+    // 事前条件: 既存コード、別ドメイン、異なるパス、空文字列を含む。
+    // 検証: 推測による補完や部分一致を行わず、入力を変換対象外として null を返す。
+    const ui = loadTrustfolioUi(createDocumentMock(), {});
+
+    expect(ui.extractWealthAdvisorNavSourceCode(input)).toBeNull();
+  });
+
+  it('UI側とサーバー側の正規表現はcompanyとpageIdの文字クラスが完全に一致する', () => {
+    // 前提: UI側（common-scripts.htmlのWEALTH_ADVISOR_PAGE_URL_PATTERN）は、サーバー側
+    //       （WealthAdvisorService.tsのWEALTH_ADVISOR_CODE_PATTERN）の逆変換にあたる。
+    //       UI側は素のJSでサーバー側をimportできないため、文字クラスが構造的に重複している。
+    // 事前条件: 両パターンとも第1キャプチャがcompany、第2キャプチャがpageIdである。
+    // 検証: 具体例に依存せず、キャプチャグループの文字クラス定義そのものを突き合わせる。
+    //       片方だけ文字クラスを変更した場合、このテストが必ず失敗して同期漏れを検出する。
+    const ui = loadTrustfolioUi(createDocumentMock(), {});
+    /** 正規表現のソースから `([...]+)` 形式のキャプチャグループを順に取り出す。 */
+    const captureCharClasses = (pattern: RegExp): string[] =>
+      [...pattern.source.matchAll(/\((\[[^\]]+\])\+\)/g)].map((match) => match[1]);
+    const uiPattern = ui.WEALTH_ADVISOR_PAGE_URL_PATTERN as RegExp;
+
+    // 期待値: company は [a-z0-9_]、pageId は [A-Za-z0-9_.\-] の2要素になる。
+    expect(captureCharClasses(uiPattern)).toEqual(captureCharClasses(WEALTH_ADVISOR_CODE_PATTERN));
+    expect(captureCharClasses(WEALTH_ADVISOR_CODE_PATTERN)).toHaveLength(2);
+  });
+
+  it('抽出した取得元コードはサーバー側のWEALTH_ADVISOR_CODE_PATTERNに適合する', () => {
+    // 前提: UI側（common-scripts.htmlのWEALTH_ADVISOR_PAGE_URL_PATTERN）とサーバー側
+    //       （WealthAdvisorService.tsのWEALTH_ADVISOR_CODE_PATTERN）は、company と pageId の
+    //       文字クラスを同期させる必要がある。UI側は素のJSでサーバー側をimportできないため、
+    //       両者の食い違いはこのテストでのみ検出できる。
+    // 事前条件: company と pageId に許容文字（英小文字・数字・アンダースコア／英大小文字・数字・
+    //           アンダースコア・ピリオド・ハイフン）を網羅的に含むURLを与える。
+    // 検証: 抽出結果がサーバー側パターンに適合し、フォームから送信しても
+    //       FundUseCase.validateNavSource のvalidationエラーにならないことを保証する。
+    const ui = loadTrustfolioUi(createDocumentMock(), {});
+    const urls = [
+      'https://apl.wealthadvisor.jp/webasp/sbi_am/pc/basic/sa_202306080A.html',
+      'https://apl.wealthadvisor.jp/webasp/nomura_am1/pc/basic/Fund-Code_1.2.html',
+    ];
+
+    for (const url of urls) {
+      const code = ui.extractWealthAdvisorNavSourceCode(url) as string;
+      expect(code).not.toBeNull();
+      expect(WEALTH_ADVISOR_CODE_PATTERN.test(code)).toBe(true);
+    }
   });
 });
 
