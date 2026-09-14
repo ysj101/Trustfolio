@@ -467,6 +467,33 @@
                     title="&lt;company&gt;/&lt;pageId&gt;形式で入力してください"
                     class="w-full rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
                   />
+                  <!--
+                    取得元コードの調べ方の案内（issue #245）。
+                    外部リンクを置かない理由: ウエルスアドバイザー本体サイト（www.wealthadvisor.co.jp）の
+                    銘柄検索から到達できるのは www.wealthadvisor.co.jp/snapshot/{ファンドコード} 形式のページであり、
+                    そこからは company を導出できないため、リンクを置くと変換できない URL へ利用者を誘導してしまう。
+                    導線の詳細な根拠は docs/NAV_AUTO_FETCH_SETUP.md を参照。
+                    code に break-all を付ける理由: URL は改行機会を持たず、付けないと狭い幅で横あふれする。
+                  -->
+                  <p
+                    class="text-xs leading-relaxed text-slate-400 [&_code]:break-all [&_code]:text-slate-300"
+                  >
+                    取得元コードは、
+                    <code
+                      >https://apl.wealthadvisor.jp/webasp/&lt;company&gt;/pc/basic/&lt;pageId&gt;.html</code
+                    >
+                    形式のファンド基本情報ページ URL から、<code>&lt;company&gt;</code> と
+                    <code>&lt;pageId&gt;</code> をスラッシュで連結した値です。
+                    このページは運用会社サイトに組み込まれているため、運用会社の公式サイトでファンドを開き、
+                    基準価額を表示するページの URL を確認してください。
+                    例:「ＳＢＩ・iシェアーズ・ゴールドファンド（為替ヘッジなし）」はSBIアセットマネジメントのサイト（sbiam.co.jp）から
+                    <code
+                      >https://apl.wealthadvisor.jp/webasp/sbi_am/pc/basic/sa_202306080A.html</code
+                    >
+                    を開けるため、取得元コードは <code>sbi_am/sa_202306080A</code> です。
+                    このページの URL
+                    をこの欄にそのまま貼り付けても、取得元コードへ自動変換されます。
+                  </p>
                 </div>
                 <label for="fundSettlementBusinessDays" class="text-xs font-medium text-slate-400">
                   約定までの営業日数

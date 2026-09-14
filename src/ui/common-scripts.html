@@ -129,6 +129,31 @@
     }
 
     /**
+     * Wealth Advisor のファンド基本情報ページ URL を判定し、company と pageId を取り出す正規表現。
+     *
+     * URL の組み立ては src/service/WealthAdvisorService.ts が所有しており、本パターンはその逆変換にあたる。
+     * そのため company（第1キャプチャ）と pageId（第2キャプチャ）の文字クラスは、同ファイルの
+     * WEALTH_ADVISOR_CODE_PATTERN と同期させる必要がある（同期は tests/ui/common-scripts.test.ts で検証する）。
+     * スキームは http / https の両方を受け付け、クエリとフラグメントは URL の付加情報として無視する。
+     * 文字列全体をアンカーするため、別ドメインの URL に本形式を埋め込んだ文字列には一致しない。
+     */
+    const WEALTH_ADVISOR_PAGE_URL_PATTERN =
+      /^https?:\/\/apl\.wealthadvisor\.jp\/webasp\/([a-z0-9_]+)\/pc\/basic\/([A-Za-z0-9_.\-]+)\.html(?:[?#].*)?$/;
+
+    /**
+     * Wealth Advisor のファンド基本情報ページ URLを取得元コードへ変換する。
+     * URL全体が所定の形式に一致する場合だけ company/pageId を返し、推測による補完や部分一致は行わない。
+     *
+     * @param {string} input - 利用者が入力した URL または取得元コード
+     * @returns {string|null} URLから抽出した取得元コード。一致しない場合は null
+     */
+    function extractWealthAdvisorNavSourceCode(input) {
+      const match = WEALTH_ADVISOR_PAGE_URL_PATTERN.exec(input.trim());
+      if (match === null) return null;
+      return `${match[1]}/${match[2]}`;
+    }
+
+    /**
      * Fund の取得元フィールドから取得元種別を逆引きする。
      * navSource が 'wealthadvisor' なら Wealth Advisor、そうでなく rakutenFundId があれば楽天証券、
      * いずれでもなければ「取得しない」。
@@ -746,6 +771,10 @@
       NAV_SOURCE_KINDS,
       populateNavSourceKindSelect,
       buildNavSourceFields,
+      extractWealthAdvisorNavSourceCode,
+      // 正規表現そのものを公開するのは、サーバー側 WEALTH_ADVISOR_CODE_PATTERN との
+      // 文字クラス同期をテストで検証するためである（画面側からは使用しない）。
+      WEALTH_ADVISOR_PAGE_URL_PATTERN,
       resolveNavSourceKind,
       formatNavSourceLabel,
       callApi,
