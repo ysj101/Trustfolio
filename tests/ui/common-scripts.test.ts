@@ -29,7 +29,10 @@ function readCommonScriptsSource(): string {
 function createElementMock(): {
   textContent: string;
   disabled: boolean;
-  classList: { add: (...c: string[]) => void; remove: (...c: string[]) => void };
+  classList: {
+    add: (...c: string[]) => void;
+    remove: (...c: string[]) => void;
+  };
   setAttribute: (key: string, value: string) => void;
   removeAttribute: (key: string) => void;
   getAttribute: (key: string) => string | null;
@@ -191,6 +194,146 @@ function createDocumentMock(): { createElement: (tag: string) => NodeMock } {
 
 afterEach(() => {
   vi.useRealTimers();
+});
+
+/** 楽天証券から基準価額を取得する銘柄（楽天ファンドIDのみ設定）。 */
+const RAKUTEN_FUND = { rakutenFundId: 'JP90C000H1T1', navSource: null, navSourceCode: null };
+/** Wealth Advisorから取得する銘柄。 */
+const WEALTH_ADVISOR_FUND = {
+  rakutenFundId: null,
+  navSource: 'wealthadvisor',
+  navSourceCode: 'sbi_am/sa_202306080A',
+};
+/** 取得元未設定の銘柄。 */
+const UNSET_FUND = { rakutenFundId: null, navSource: null, navSourceCode: null };
+
+describe('TrustfolioUi.buildNavSourceFields', () => {
+  it('取得元種別ごとにAPI送信用の3フィールドを組み立てる', () => {
+    // 前提: 入力コードはtrim済みで、noneではコードを使用しない。
+    // 事前条件: 各種別に対応するコードを用意する。
+    // 検証: 楽天証券・Wealth Advisor・未設定が排他的な値になる。
+    const ui = loadTrustfolioUi(createDocumentMock(), {});
+    expect(ui.buildNavSourceFields('none', '')).toEqual({
+      success: true,
+      value: {
+        rakutenFundId: null,
+        navSource: null,
+        navSourceCode: null,
+      },
+    });
+    expect(ui.buildNavSourceFields('rakuten', 'JP90C000H1T1')).toEqual({
+      success: true,
+      value: {
+        rakutenFundId: 'JP90C000H1T1',
+        navSource: null,
+        navSourceCode: null,
+      },
+    });
+    expect(ui.buildNavSourceFields('wealthadvisor', 'sbi_am/sa_202306080A')).toEqual({
+      success: true,
+      value: {
+        rakutenFundId: null,
+        navSource: 'wealthadvisor',
+        navSourceCode: 'sbi_am/sa_202306080A',
+      },
+    });
+  });
+  it('空コードと未知の種別を失敗 Result にする', () => {
+    // 前提: 楽天証券とWealth Advisorはコード入力を必須とし、yahooは未定義である。
+    // 事前条件: 空コードと未知の種別をbuildNavSourceFieldsへ渡す。
+    // 検証: 必須コードの欠落と未対応値を暗黙に補正しない。
+    const ui = loadTrustfolioUi(createDocumentMock(), {});
+    expect(ui.buildNavSourceFields('rakuten', '')).toMatchObject({
+      success: false,
+      error: { type: 'validation' },
+    });
+    expect(ui.buildNavSourceFields('wealthadvisor', '')).toMatchObject({
+      success: false,
+      error: { type: 'validation' },
+    });
+    expect(ui.buildNavSourceFields('yahoo', 'sbi_am/sa_202306080A')).toMatchObject({
+      success: false,
+      error: { type: 'unexpected' },
+    });
+  });
+});
+
+describe('TrustfolioUi.resolveNavSourceKind', () => {
+  it.each([
+    { name: '楽天証券', fund: RAKUTEN_FUND, kind: 'rakuten' },
+    { name: 'Wealth Advisor', fund: WEALTH_ADVISOR_FUND, kind: 'wealthadvisor' },
+    { name: '取得元未設定', fund: UNSET_FUND, kind: 'none' },
+  ])('$name の銘柄から取得元種別 $kind を逆引きする', ({ fund, kind }) => {
+    // 前提: ブラウザに届く Fund は FundRepository の読み取り時検証を通過しており、
+    //       楽天ファンドIDと Wealth Advisor の組み合わせ不変条件を満たしている。
+    // 事前条件: navSource が 'wealthadvisor' か null のいずれかである。
+    // 検証: navSource を優先し、次に rakutenFundId の有無で 3 種別のいずれかを成功 Result で返す。
+    const ui = loadTrustfolioUi(createDocumentMock(), {});
+    expect(ui.resolveNavSourceKind(fund)).toEqual({ success: true, value: kind });
+  });
+
+  it('未知の navSource を失敗 Result にする', () => {
+    // 前提: Fund 型の navSource は 'wealthadvisor' | null の型契約を持つ。
+    // 事前条件: サーバー側で取得元が追加されたのに UI が未対応の状況を模し、'morningstar' を渡す。
+    // 検証: 暗黙に「取得元未設定」へ読み替えず、値を含むメッセージの失敗 Result を返す。
+    const ui = loadTrustfolioUi(createDocumentMock(), {});
+    expect(
+      ui.resolveNavSourceKind({
+        rakutenFundId: null,
+        navSource: 'morningstar',
+        navSourceCode: null,
+      })
+    ).toMatchObject({ success: false, error: { message: expect.stringContaining('morningstar') } });
+  });
+});
+
+describe('TrustfolioUi.formatNavSourceLabel', () => {
+  it.each([
+    { name: '楽天証券', fund: RAKUTEN_FUND, label: '楽天証券: JP90C000H1T1' },
+    {
+      name: 'Wealth Advisor',
+      fund: WEALTH_ADVISOR_FUND,
+      label: 'Wealth Advisor: sbi_am/sa_202306080A',
+    },
+    { name: '取得元未設定', fund: UNSET_FUND, label: '取得元未設定' },
+  ])('$name の銘柄を一覧表示用ラベル「$label」に変換する', ({ fund, label }) => {
+    // 前提: 銘柄一覧では取得元種別と識別子を「<取得元>: <識別子>」の統一形式で表示する。
+    // 事前条件: Fund は 3 種別のいずれかを表す正常データである。
+    // 検証: 楽天証券・Wealth Advisor はセレクトと同じ文言、取得元なしは「取得元未設定」になる。
+    const ui = loadTrustfolioUi(createDocumentMock(), {});
+    expect(ui.formatNavSourceLabel(fund)).toEqual({ success: true, value: label });
+  });
+
+  it('取得元の判定に失敗した場合は resolveNavSourceKind の失敗 Result をそのまま返す', () => {
+    // 前提: ラベル生成は種別の逆引きに依存し、逆引きの失敗は加工せず呼び出し側へ伝える。
+    // 事前条件: navSource が未知の値 'morningstar' である。
+    // 検証: formatNavSourceLabel と resolveNavSourceKind が同一の失敗 Result を返す。
+    const ui = loadTrustfolioUi(createDocumentMock(), {});
+    const fund = { rakutenFundId: null, navSource: 'morningstar', navSourceCode: null };
+    expect(ui.formatNavSourceLabel(fund)).toEqual(ui.resolveNavSourceKind(fund));
+    expect(ui.formatNavSourceLabel(fund)).toMatchObject({ success: false });
+  });
+});
+
+describe('TrustfolioUi.populateNavSourceKindSelect', () => {
+  it('共通定義から取得元の選択肢を生成する', () => {
+    // 前提: selectは空で、取得元選択肢は実装側のラベル定義から生成される。
+    // 事前条件: 実装側の NAV_SOURCE_LABELS に 3 種別（取得しない・楽天証券・Wealth Advisor）が定義されている。
+    // 検証: optionのvalueと表示順が実装側の定義と一致する。
+    const ui = loadTrustfolioUi(createDocumentMock(), {});
+    const select = createNodeMock('select');
+    ui.populateNavSourceKindSelect(select);
+    expect(select.children.map((option) => option.value)).toEqual([
+      'none',
+      'rakuten',
+      'wealthadvisor',
+    ]);
+    expect(select.children.map((option) => option.textContent)).toEqual([
+      '取得しない',
+      '楽天証券',
+      'Wealth Advisor',
+    ]);
+  });
 });
 
 describe('TrustfolioUiの資産クラスUIファクトリ', () => {

@@ -421,42 +421,52 @@
                   required
                   class="w-full rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
                 ></select>
-                <label for="fundRakutenFundId" class="text-xs font-medium text-slate-400">
-                  楽天ファンドID (12桁)
+                <label for="fundNavSourceKind" class="text-xs font-medium text-slate-400">
+                  基準価額の取得元
                 </label>
-                <input
-                  type="text"
-                  id="fundRakutenFundId"
-                  name="fundRakutenFundId"
-                  placeholder="例: JP90C000H1T1"
-                  pattern="[A-Za-z0-9]{12}"
-                  title="12桁の英数字を入力してください"
-                  class="w-full rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
-                />
-                <label for="fundNavSource" class="text-xs font-medium text-slate-400">
-                  NAV取得元
-                </label>
+                <!--
+                  楽天ファンドIDと Wealth Advisor の取得元コードはサーバー側（FundUseCase.validateNavSource）で
+                  排他のため、単一のセレクトで取得元を選び、選択に応じた入力欄を1つだけ表示する。
+                  表示・必須属性の切り替えは scripts.html の applyNavSourceKindToForm が担う。
+                  選択肢（取得しない / 楽天証券 / Wealth Advisor）は option を直書きせず、
+                  common-scripts.html の NAV_SOURCE_LABELS から scripts.html が生成する。
+                -->
                 <select
-                  id="fundNavSource"
-                  name="fundNavSource"
+                  id="fundNavSourceKind"
+                  name="fundNavSourceKind"
                   class="w-full rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
-                >
-                  <option value="">未設定</option>
-                  <option value="wealthadvisor">wealthadvisor</option>
-                </select>
-                <label for="fundNavSourceCode" class="text-xs font-medium text-slate-400">
-                  取得元コード
-                </label>
-                <!-- スラッシュ区切りの形式だけを案内し、厳密な検証はサーバー側のWEALTH_ADVISOR_CODE_PATTERNが担う。 -->
-                <input
-                  type="text"
-                  id="fundNavSourceCode"
-                  name="fundNavSourceCode"
-                  placeholder="例: sbi_am/sa_202306080A"
-                  pattern="[^/]+/[^/]+"
-                  title="&lt;company&gt;/&lt;pageId&gt;形式で入力してください"
-                  class="w-full rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
-                />
+                ></select>
+                <!-- 楽天証券を選択したときだけ表示する入力欄。 -->
+                <div id="fundRakutenFundIdField" class="hidden grid gap-4">
+                  <label for="fundRakutenFundId" class="text-xs font-medium text-slate-400">
+                    楽天ファンドID (12桁)
+                  </label>
+                  <input
+                    type="text"
+                    id="fundRakutenFundId"
+                    name="fundRakutenFundId"
+                    placeholder="例: JP90C000H1T1"
+                    pattern="[A-Za-z0-9]{12}"
+                    title="12桁の英数字を入力してください"
+                    class="w-full rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                  />
+                </div>
+                <!-- Wealth Advisor を選択したときだけ表示する入力欄。 -->
+                <div id="fundNavSourceCodeField" class="hidden grid gap-4">
+                  <label for="fundNavSourceCode" class="text-xs font-medium text-slate-400">
+                    取得元コード (&lt;company&gt;/&lt;pageId&gt;)
+                  </label>
+                  <!-- スラッシュ区切りの形式だけを案内し、厳密な検証はサーバー側のWEALTH_ADVISOR_CODE_PATTERNが担う。 -->
+                  <input
+                    type="text"
+                    id="fundNavSourceCode"
+                    name="fundNavSourceCode"
+                    placeholder="例: sbi_am/sa_202306080A"
+                    pattern="[^/]+/[^/]+"
+                    title="&lt;company&gt;/&lt;pageId&gt;形式で入力してください"
+                    class="w-full rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                  />
+                </div>
                 <label for="fundSettlementBusinessDays" class="text-xs font-medium text-slate-400">
                   約定までの営業日数
                 </label>

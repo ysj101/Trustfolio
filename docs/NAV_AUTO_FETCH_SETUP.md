@@ -8,11 +8,15 @@ Trustfolioは楽天証券のファンド詳細ページに加えて、SBI証券�
 
 ## Wealth Advisor取得元の設定
 
-`_funds`シートまたは投資信託登録フォームで、対象銘柄に次の値を設定します。
+`_funds`シートに直接設定する場合は、対象銘柄に次の3列を設定します。
 
 - `rakutenFundId`: 空欄
 - `navSource`: `wealthadvisor`
 - `navSourceCode`: `<company>/<pageId>`形式のコード
+
+投資信託登録フォームでは「基準価額の取得元」で「Wealth Advisor」を選び、「取得元コード」に`<company>/<pageId>`を入力します。このとき楽天ファンドIDは null（未設定）として送信されます。
+
+登録フォームの「基準価額の取得元」の既定値は「取得しない」です。そのまま登録すると基準価額は自動取得されないため、自動取得させる場合は登録時に「楽天証券」または「Wealth Advisor」を明示的に選択してください。
 
 協会コード`8931A236`の「ＳＢＩ・iシェアーズ・ゴールドファンド（為替ヘッジなし）」では、`navSourceCode`に`sbi_am/sa_202306080A`を設定します。このコードから、Trustfolioは`https://apl.wealthadvisor.jp/webasp/sbi_am/pc/basic/sa_202306080A.html`へアクセスします。
 
@@ -106,12 +110,16 @@ Trustfolioは楽天証券のファンド詳細ページに加えて、SBI証券�
 
 #### 「基準価額の取得元が設定されていません」とスキップされる場合
 
+登録フォームの既定値「取得しない」のまま登録したことが原因です。登録フォームで取得元を選び直してください。既存銘柄は`_funds`シートの列を編集してください。
+
 1. スプレッドシートの`_funds`シートを開く
 2. 該当銘柄の`rakutenFundId`列を確認
 3. 楽天証券のファンド詳細ページURLから12桁のIDを取得して設定
    - 例: `https://www.rakuten-sec.co.jp/web/fund/detail/?ID=JP90C000FXB7` → `JP90C000FXB7`
 
-Wealth Advisorから取得する銘柄では、楽天ファンドIDを空欄にし、`navSource`と`navSourceCode`を「Wealth Advisor取得元の設定」の内容どおりに設定します。
+登録フォームでの操作は「Wealth Advisor取得元の設定」節を参照してください。
+
+楽天証券から取得する銘柄を登録フォームで登録する場合は、「基準価額の取得元」で「楽天証券」を選び、「楽天ファンドID (12桁)」を入力します。
 
 #### NAV取得に失敗する場合
 
