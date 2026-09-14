@@ -27,17 +27,17 @@
   "devDependencies": {
     "@google/clasp": "^3.4.1",
     "@tailwindcss/cli": "^4.3.3",
-    "@types/google-apps-script": "^2.0.12",
+    "@types/google-apps-script": "^2.0.13",
     "@vitest/coverage-v8": "^4.1.11",
     "husky": "^9.1.7",
-    "lint-staged": "^17.4.1",
-    "oxfmt": "0.66.0",
-    "oxlint": "1.81.0",
+    "lint-staged": "^17.5.0",
+    "oxfmt": "0.67.0",
+    "oxlint": "1.82.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
     "typescript-js-api": "npm:typescript@^6.0.3",
     "vite": "8.2.2",
-    "vite-plus": "0.3.0",
+    "vite-plus": "0.3.1",
     "vitest": "^4.1.11"
   },
   "lint-staged": {
