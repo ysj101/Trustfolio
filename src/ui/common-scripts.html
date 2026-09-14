@@ -136,6 +136,10 @@
      * WEALTH_ADVISOR_CODE_PATTERN と同期させる必要がある（同期は tests/ui/common-scripts.test.ts で検証する）。
      * スキームは http / https の両方を受け付け、クエリとフラグメントは URL の付加情報として無視する。
      * 文字列全体をアンカーするため、別ドメインの URL に本形式を埋め込んだ文字列には一致しない。
+     *
+     * 大文字小文字を区別する点は意図的である。i フラグを付けると company が大文字を含んだまま抽出され、
+     * サーバー側 WEALTH_ADVISOR_CODE_PATTERN の [a-z0-9_]+ に適合しない取得元コードを生成してしまう。
+     * 大文字化された URL は変換せず null を返し、入力欄の pattern 属性による検証に委ねる（fail fast）。
      */
     const WEALTH_ADVISOR_PAGE_URL_PATTERN =
       /^https?:\/\/apl\.wealthadvisor\.jp\/webasp\/([a-z0-9_]+)\/pc\/basic\/([A-Za-z0-9_.\-]+)\.html(?:[?#].*)?$/;

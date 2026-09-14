@@ -465,6 +465,7 @@
                     placeholder="例: sbi_am/sa_202306080A"
                     pattern="[^/]+/[^/]+"
                     title="&lt;company&gt;/&lt;pageId&gt;形式で入力してください"
+                    aria-describedby="fundNavSourceCodeHelp"
                     class="w-full rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
                   />
                   <!--
@@ -476,6 +477,7 @@
                     code に break-all を付ける理由: URL は改行機会を持たず、付けないと狭い幅で横あふれする。
                   -->
                   <p
+                    id="fundNavSourceCodeHelp"
                     class="text-xs leading-relaxed text-slate-400 [&_code]:break-all [&_code]:text-slate-300"
                   >
                     取得元コードは、
