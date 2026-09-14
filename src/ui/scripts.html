@@ -1479,6 +1479,14 @@
       try {
         window.TrustfolioUi.populateNavSourceKindSelect(fundNavSourceKindSelect);
         fundNavSourceKindSelect.addEventListener('change', applyNavSourceKindToForm);
+        fundNavSourceCodeInput.addEventListener('change', () => {
+          // URL文字列は pattern="[^/]+/[^/]+" に合致せず、制約検証で送信がブロックされる。
+          // change は submit より先に発火するため、ブラウザの制約検証前に変換を完了させる。
+          const navSourceCode = window.TrustfolioUi.extractWealthAdvisorNavSourceCode(
+            fundNavSourceCodeInput.value
+          );
+          if (navSourceCode !== null) fundNavSourceCodeInput.value = navSourceCode;
+        });
         applyNavSourceKindToForm();
         await loadFunds();
         // 日次リフレッシュが必要な場合のみ更新時刻を記録
