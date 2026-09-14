@@ -429,7 +429,8 @@
                   排他のため、単一のセレクトで取得元を選び、選択に応じた入力欄を1つだけ表示する。
                   表示・必須属性の切り替えは scripts.html の applyNavSourceKindToForm が担う。
                   選択肢（取得しない / 楽天証券 / Wealth Advisor）は option を直書きせず、
-                  common-scripts.html の NAV_SOURCE_LABELS から scripts.html が生成する。
+                  common-scripts.html の populateNavSourceKindSelect が NAV_SOURCE_LABELS から生成する
+                  （scripts.html が初期化時にそれを呼び出す）。
                 -->
                 <select
                   id="fundNavSourceKind"
