@@ -44,6 +44,8 @@ function createNavRepository(navs: Nav[]): NavRepository {
 function createTransactionRepository(transactions: Transaction[]): TransactionRepository {
   return {
     listByFundId: (fundId) => ok(transactions.filter((tx) => tx.fundId === fundId)),
+    listByFundIdAllowingMissingSheet: (fundId) =>
+      ok(transactions.filter((tx) => tx.fundId === fundId)),
     listAll: () => ok([...transactions]),
     listByFundIdsGrouped: (fundIds) => {
       const map = new Map<string, Transaction[]>();
@@ -213,6 +215,10 @@ describe('HoldingUseCase', () => {
     ];
     const transactionRepository: TransactionRepository = {
       listByFundId: () => ({ success: false, error: { type: 'unexpected', message: '取得失敗' } }),
+      listByFundIdAllowingMissingSheet: () => ({
+        success: false,
+        error: { type: 'unexpected', message: '取得失敗' },
+      }),
       listAll: () => ok([]),
       listByFundIdsGrouped: () => ({
         success: false,

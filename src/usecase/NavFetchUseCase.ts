@@ -452,16 +452,24 @@ function recordFundPerformance(
   }
 
   // 2. 取引履歴取得
-  const transactionsResult = transactionRepository.listByFundId(fund.id);
+  // 取引0件の銘柄は実績記録でエラーにせず、保有なしとしてスキップするため専用メソッドを使う。
+  const transactionsResult = transactionRepository.listByFundIdAllowingMissingSheet(fund.id);
   if (!transactionsResult.success) return transactionsResult;
 
   // 3. 保有情報計算
   const holding = calculateHolding(fund, transactionsResult.value, nav);
   if (holding?.currentValue === null || holding?.currentValue === undefined) {
+    // calculateHoldingがnullを返す2条件（取引0件またはtotalUnits <= 0）に対応して判別する。
+    const reason =
+      transactionsResult.value.length === 0
+        ? '取引0件のため（取引シート未作成を含む）'
+        : '全口数売却済みのため';
+    Logger.log(`[${fund.name}] ${nav.date} のファンド別実績記録をスキップしました（${reason}）。`);
     return { success: true, value: undefined }; // 保有なし
   }
 
-  // unrealizedGainとunrealizedGainRateはnullでないことを確認
+  // calculateHoldingの仕様上ここには到達しないが、将来HoldingCalculatorの仕様が変わった場合に
+  // 不正な実績を書き込まないための防御である。
   if (holding.unrealizedGain === null || holding.unrealizedGainRate === null) {
     return { success: true, value: undefined };
   }
@@ -515,8 +523,12 @@ function recordGlobalPerformance(
 
   const holdings = [];
   for (const fund of fundsResult.value) {
-    const transactionsResult = transactionRepository.listByFundId(fund.id);
+    // シート不存在を取引0件として扱う契約に統一する。取引0件はcalculateHoldingがnullを返すため、
+    // continueしていた従来と計算結果は変わらず、契約だけを統一する変更である。
+    const transactionsResult = transactionRepository.listByFundIdAllowingMissingSheet(fund.id);
     if (!transactionsResult.success) continue;
+    // 直後のnavRepository.findLatestByFundIdが基準価額シートの全件読取を行うため、取引0件の銘柄ではその読取を避ける。
+    if (transactionsResult.value.length === 0) continue;
 
     const navResult = navRepository.findLatestByFundId(fund.id);
     if (!navResult.success) continue;

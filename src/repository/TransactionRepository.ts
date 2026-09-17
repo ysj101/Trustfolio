@@ -18,7 +18,27 @@ import {
 import type { SheetRepository } from './SheetRepository';
 
 export type TransactionRepository = {
+  /**
+   * 指定したファンドの取引履歴を取得する。
+   *
+   * シート不存在時は `fail('unexpected', 'シートが存在しません: ...')` として返す契約である。
+   * 取引0件を正常状態として扱いたい経路では、listByFundIdAllowingMissingSheetを使用する。
+   *
+   * @param fundId 取引履歴を取得するファンドID
+   * @returns 取得・解析済みの取引履歴、または取得失敗
+   */
   listByFundId: (fundId: string) => Result<Transaction[]>;
+  /**
+   * 指定したファンドの取引履歴を取得する。
+   *
+   * 取引シートが存在しない場合は、そのファンドの取引が0件であると明示的に解釈し、空配列を返す。
+   * この契約は暗黙のフォールバックではなく、実績記録における「取引0件」の扱いを明示したものである。
+   * シート不存在をエラーとして返す既存の listByFundId とは、取引履歴画面の挙動を壊さないために分離している。
+   *
+   * @param fundId 取引履歴を取得するファンドID
+   * @returns 取得・解析済みの取引履歴、または取得失敗
+   */
+  listByFundIdAllowingMissingSheet: (fundId: string) => Result<Transaction[]>;
   listAll: (fundIds: string[]) => Result<Transaction[]>;
   listByFundIdsGrouped: (fundIds: string[]) => Result<Map<string, Transaction[]>>;
   createTransaction: (transaction: Transaction) => Result<void>;
@@ -49,6 +69,34 @@ function sortTransactionsByDateDescending(transactions: Transaction[]): void {
 }
 
 /**
+ * 指定したファンドの取引シートを読み取り、解析して取引日の降順に並べる。
+ *
+ * シート不存在時の扱いだけは公開APIごとに異なるため、呼び出し元から渡された関数で
+ * 結果を決める。取引履歴・保有情報では既存のエラー契約を維持し、実績記録では取引0件を
+ * 正常状態として扱うため、この差分以外の読取・解析・並べ替え処理を共通化している。
+ *
+ * @param sheetRepository シートリポジトリ
+ * @param fundId 対象ファンドID
+ * @param onMissingSheet シート不存在時の結果を返す関数
+ * @returns 解析・並べ替え済みの取引一覧、または失敗
+ */
+function listTransactionsByFundId(
+  sheetRepository: SheetRepository,
+  fundId: string,
+  onMissingSheet: () => Result<Transaction[]>
+): Result<Transaction[]> {
+  const rowsResult = readTransactionRows(sheetRepository, fundId);
+  if (!rowsResult.success) return rowsResult;
+  if (rowsResult.value === null) return onMissingSheet();
+
+  const parsedResult = parseAllRows(rowsResult.value, parseRow);
+  if (!parsedResult.success) return parsedResult;
+
+  sortTransactionsByDateDescending(parsedResult.value);
+  return { success: true, value: parsedResult.value };
+}
+
+/**
  * 取引履歴シートへのアクセスを担当する。
  */
 export function createTransactionRepository(
@@ -56,28 +104,21 @@ export function createTransactionRepository(
 ): TransactionRepository {
   const repository: TransactionRepository = {
     listByFundId: (fundId: string): Result<Transaction[]> => {
-      const rowsResult = readTransactionRows(sheetRepository, fundId);
-      if (!rowsResult.success) {
-        return rowsResult;
-      }
-      // 単一ファンド読取ではシート不存在をエラーとして返す（従来挙動を維持）。
-      if (rowsResult.value === null) {
-        return fail('unexpected', `シートが存在しません: ${getTransactionSheetName(fundId)}`);
-      }
-
-      const parsedResult = parseAllRows(rowsResult.value, parseRow);
-      if (!parsedResult.success) {
-        return parsedResult;
-      }
-
-      const transactions = parsedResult.value;
-      sortTransactionsByDateDescending(transactions);
-
-      return { success: true, value: transactions };
+      return listTransactionsByFundId(sheetRepository, fundId, () =>
+        fail('unexpected', `シートが存在しません: ${getTransactionSheetName(fundId)}`)
+      );
+    },
+    listByFundIdAllowingMissingSheet: (fundId: string): Result<Transaction[]> => {
+      return listTransactionsByFundId(sheetRepository, fundId, () => ({
+        success: true,
+        value: [],
+      }));
     },
     listAll: (fundIds: string[]): Result<Transaction[]> => {
       const allTransactions: Transaction[] = [];
 
+      // 全ファンド分を集めた後に一度だけ並べ替える設計のため、ファンドごとに並べ替える
+      // listTransactionsByFundId は使わない（使うと並べ替えが二重に走り冗長になる）。
       for (const fundId of fundIds) {
         const rowsResult = readTransactionRows(sheetRepository, fundId);
 
@@ -112,28 +153,12 @@ export function createTransactionRepository(
 
       // 各ファンドのトランザクションシートを読み込み
       for (const fundId of fundIds) {
-        const rowsResult = readTransactionRows(sheetRepository, fundId);
-
-        // マイグレーション・読取の失敗は握りつぶさず即座に伝播する（fail fast）
-        if (!rowsResult.success) {
-          return rowsResult;
-        }
-        // シートが存在しない場合のみスキップ(エラーにしない)
-        if (rowsResult.value === null) {
-          continue;
-        }
-
-        const parsedResult = parseAllRows(rowsResult.value, parseRow);
-        if (!parsedResult.success) {
-          return parsedResult;
-        }
-
-        // 取引日で降順に並べ、同一取引日は登録日時の降順に並べる
-        const transactions = parsedResult.value;
-        sortTransactionsByDateDescending(transactions);
-
-        // Mapに格納
-        transactionsMap.set(fundId, transactions);
+        const transactionsResult = listTransactionsByFundId(sheetRepository, fundId, () => ({
+          success: true,
+          value: [],
+        }));
+        if (!transactionsResult.success) return transactionsResult;
+        transactionsMap.set(fundId, transactionsResult.value);
       }
 
       return { success: true, value: transactionsMap };
