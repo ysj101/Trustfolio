@@ -3,6 +3,42 @@ import { createTransactionRepository } from '../../src/repository/TransactionRep
 import { getTransactionSheetName, SHEET_NAMES } from '../../src/Config';
 import { createInMemorySheetRepository, fail, headerRow } from '../fakes';
 
+/**
+ * 同一取引日で登録日時だけが異なる取引行を作り、並び順検証の入力を共通化する。
+ */
+function createSameDateTransactionRows(fundId: string, olderId: string, newerId: string) {
+  return [
+    [
+      olderId,
+      fundId,
+      'SPOT_PURCHASE',
+      '2026-08-10',
+      10000,
+      25000,
+      4000,
+      '',
+      '',
+      '',
+      '',
+      '2026-08-10T01:00:00.000Z',
+    ],
+    [
+      newerId,
+      fundId,
+      'SPOT_PURCHASE',
+      '2026-08-10',
+      20000,
+      25000,
+      8000,
+      '',
+      '',
+      '',
+      '',
+      '2026-08-10T07:00:00.000Z',
+    ],
+  ];
+}
+
 describe('TransactionRepository', () => {
   it('空行を除外して取引履歴を取得する', () => {
     // 前提: 取引シートに空行が混在する
@@ -46,34 +82,11 @@ describe('TransactionRepository', () => {
     const sheetRepository = createInMemorySheetRepository({
       [sheetName]: [
         headerRow(SHEET_NAMES.TRANSACTIONS),
-        [
+        ...createSameDateTransactionRows(
+          '全世界株式ファンド',
           '全世界株式-午前登録',
-          '全世界株式ファンド',
-          'SPOT_PURCHASE',
-          '2026-08-10',
-          10000,
-          25000,
-          4000,
-          '',
-          '',
-          '',
-          '',
-          '2026-08-10T01:00:00.000Z',
-        ],
-        [
-          '全世界株式-午後登録',
-          '全世界株式ファンド',
-          'SPOT_PURCHASE',
-          '2026-08-10',
-          20000,
-          25000,
-          8000,
-          '',
-          '',
-          '',
-          '',
-          '2026-08-10T07:00:00.000Z',
-        ],
+          '全世界株式-午後登録'
+        ),
       ],
     });
     const repository = createTransactionRepository(sheetRepository);
@@ -85,6 +98,83 @@ describe('TransactionRepository', () => {
       expect(result.value.map((transaction) => transaction.id)).toEqual([
         '全世界株式-午後登録',
         '全世界株式-午前登録',
+      ]);
+    }
+  });
+
+  it('listByFundIdAllowingMissingSheetはシート不存在時に空配列を返す', () => {
+    // 前提: 取引履歴シートが作成されていない銘柄が存在する。
+    // 検証: シート不存在を取引0件として明示的に扱い、成功した空配列を返す。
+    const repository = createTransactionRepository(createInMemorySheetRepository({}));
+    const result = repository.listByFundIdAllowingMissingSheet(
+      'ＳＢＩ・ｉシェアーズ・ゴールドファンド（為替ヘッジなし）'
+    );
+    expect(result).toEqual({ success: true, value: [] });
+  });
+
+  it('listByFundIdAllowingMissingSheetはヘッダー行のみのシートで空配列を返す', () => {
+    // 前提: 取引シートは存在するが、ヘッダー行以外の取引行が存在しない。
+    // 事前条件: 対象ファンドのシートには最新の取引ヘッダーだけが保存されている。
+    // 検証: シート不存在とは異なる読取経路でも、取引0件を成功した空配列として返す。
+    const sheetName = getTransactionSheetName('国内株式ファンド');
+    const sheetRepository = createInMemorySheetRepository({
+      [sheetName]: [headerRow(SHEET_NAMES.TRANSACTIONS)],
+    });
+    const repository = createTransactionRepository(sheetRepository);
+
+    const result = repository.listByFundIdAllowingMissingSheet('国内株式ファンド');
+
+    expect(result).toEqual({ success: true, value: [] });
+  });
+
+  it('listByFundIdAllowingMissingSheetは不正な取引行の解析失敗を返す', () => {
+    // 前提: 取引シートに、必須項目である取引IDが空文字の不正な取引行が存在する。
+    // 事前条件: ファンドID・取引種別・取引日など、取引ID以外の項目は妥当である。
+    // 検証: シート不存在時の空配列契約が、行の解析失敗まで成功へ変換しない。
+    const sheetName = getTransactionSheetName('先進国株式ファンド');
+    const sheetRepository = createInMemorySheetRepository({
+      [sheetName]: [
+        headerRow(SHEET_NAMES.TRANSACTIONS),
+        [
+          '',
+          '先進国株式ファンド',
+          'SPOT_PURCHASE',
+          '2026-07-01',
+          20000,
+          12000,
+          10000,
+          '',
+          '',
+          '',
+          '',
+          '2026-07-01T00:00:00.000Z',
+        ],
+      ],
+    });
+    const repository = createTransactionRepository(sheetRepository);
+
+    const result = repository.listByFundIdAllowingMissingSheet('先進国株式ファンド');
+
+    expect(result.success).toBe(false);
+  });
+
+  it('listByFundIdAllowingMissingSheetは存在するシートをlistByFundIdと同じ順序で返す', () => {
+    // 前提: 同一取引日に登録日時が異なる取引が保存されている。
+    // 検証: 新しい登録日時の取引IDが先に並び、期待する順序を明示的に確認する。
+    const sheetName = getTransactionSheetName('バランスファンド');
+    const sheetRepository = createInMemorySheetRepository({
+      [sheetName]: [
+        headerRow(SHEET_NAMES.TRANSACTIONS),
+        ...createSameDateTransactionRows('バランスファンド', 'tx-古い登録', 'tx-新しい登録'),
+      ],
+    });
+    const repository = createTransactionRepository(sheetRepository);
+    const actual = repository.listByFundIdAllowingMissingSheet('バランスファンド');
+    expect(actual.success).toBe(true);
+    if (actual.success) {
+      expect(actual.value.map((transaction) => transaction.id)).toEqual([
+        'tx-新しい登録',
+        'tx-古い登録',
       ]);
     }
   });

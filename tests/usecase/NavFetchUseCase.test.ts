@@ -90,6 +90,7 @@ describe('NavFetchUseCase', () => {
 
     const transactionRepository: TransactionRepository = {
       listByFundId: () => ok([]),
+      listByFundIdAllowingMissingSheet: () => ok([]),
       listAll: () => ok([]),
       createTransaction: () => ok(undefined),
       findByIdempotencyKey: () => ok(null),
@@ -172,6 +173,7 @@ describe('NavFetchUseCase', () => {
 
     const transactionRepository: TransactionRepository = {
       listByFundId: () => ok([]),
+      listByFundIdAllowingMissingSheet: () => ok([]),
       listAll: () => ok([]),
       createTransaction: () => ok(undefined),
       findByIdempotencyKey: () => ok(null),
@@ -303,6 +305,8 @@ describe('NavFetchUseCase', () => {
     const transactionRepository: TransactionRepository = {
       listByFundId: (fundId) =>
         ok(transactions.filter((transaction) => transaction.fundId === fundId)),
+      listByFundIdAllowingMissingSheet: (fundId) =>
+        ok(transactions.filter((transaction) => transaction.fundId === fundId)),
       listAll: () => ok(transactions),
       createTransaction: () => ok(undefined),
       findByIdempotencyKey: () => ok(null),
@@ -382,6 +386,7 @@ describe('NavFetchUseCase', () => {
 
     const transactionRepository: TransactionRepository = {
       listByFundId: () => ok([]),
+      listByFundIdAllowingMissingSheet: () => ok([]),
       listAll: () => ok([]),
       createTransaction: () => ok(undefined),
       findByIdempotencyKey: () => ok(null),
@@ -492,6 +497,7 @@ describe('NavFetchUseCase', () => {
 
     const transactionRepository: TransactionRepository = {
       listByFundId: () => ok([]),
+      listByFundIdAllowingMissingSheet: () => ok([]),
       listAll: () => ok([]),
       createTransaction: () => ok(undefined),
       findByIdempotencyKey: () => ok(null),
@@ -626,6 +632,7 @@ describe('NavFetchUseCase', () => {
     };
     const transactionRepository: TransactionRepository = {
       listByFundId: () => ok([]),
+      listByFundIdAllowingMissingSheet: () => ok([]),
       listAll: () => ok([]),
       listByFundIdsGrouped: () => ok(new Map()),
       createTransaction: () => ok(undefined),
@@ -700,6 +707,7 @@ describe('NavFetchUseCase', () => {
     };
     const transactionRepository: TransactionRepository = {
       listByFundId: () => ok([]),
+      listByFundIdAllowingMissingSheet: () => ok([]),
       listAll: () => ok([]),
       listByFundIdsGrouped: () => ok(new Map()),
       createTransaction: () => ok(undefined),
@@ -740,5 +748,78 @@ describe('NavFetchUseCase', () => {
     }
     expect(rakutenFetch).not.toHaveBeenCalled();
     expect(wealthAdvisorFetch).not.toHaveBeenCalled();
+  });
+
+  it('取引0件（取引シート未作成）の銘柄でもファンド別実績の記録失敗が発生しない', () => {
+    // 前提: 取引シートが未作成で、取引が0件の銘柄が1件存在する。
+    // 事前条件: 楽天証券から基準価額を取得・登録でき、ファンド別実績は未記録である。
+    // 検証: 処理が成功し、実績記録失敗が発生せず、保有なしのためファンド別実績も記録されない。
+    const fund: Fund = {
+      id: '01M2EB1JSER5M3RAZP4N9AVTDZ',
+      name: 'ＳＢＩ・ｉシェアーズ・ゴールドファンド（為替ヘッジなし）',
+      rakutenFundId: 'TDZ',
+      settlementBusinessDays: null,
+      navSource: null,
+      navSourceCode: null,
+      assetClass: null,
+      createdAt: '2026-09-02T00:00:00.000Z',
+    };
+    const fundRepository: FundRepository = {
+      listFunds: () => ok([fund]),
+      findByName: () => ok(null),
+      findById: () => ok(null),
+      createFund: () => ok(undefined),
+      updateFund: () => ok(undefined),
+      updateAssetClass: () => ok(undefined),
+    };
+    const navRepository: NavRepository = {
+      listByFundId: () => ok([]),
+      findByFundAndDate: () => ok(null),
+      findLatestByFundId: () => ok(null),
+      createNav: () => ok(undefined),
+    };
+    const transactionRepository: TransactionRepository = {
+      listByFundId: () => fail('unexpected', 'シートが存在しません: _tx_TDZ'),
+      listByFundIdAllowingMissingSheet: () => ok([]),
+      listAll: () => ok([]),
+      createTransaction: () => ok(undefined),
+      findByIdempotencyKey: () => ok(null),
+      findById: () => ok(null),
+      updateTransaction: () => ok(undefined),
+      deleteTransaction: () => ok(undefined),
+    };
+    let performanceRecorded = false;
+    const performanceRepository: PerformanceRepository = {
+      createPerformance: () => {
+        performanceRecorded = true;
+        return ok(undefined);
+      },
+      createGlobalPerformance: () => ok(undefined),
+      findByFundAndDate: () => ok(null),
+      findGlobalByDate: () => ok(null),
+      findLatestByFundId: () => ok(null),
+    };
+    const rakutenService: RakutenService = {
+      fetchLatestNav: (rakutenFundId) =>
+        ok({
+          rakutenFundId,
+          nav: { date: '2026-09-01', value: 26093 },
+        }),
+    };
+
+    const result = createNavFetchUseCase(
+      fundRepository,
+      navRepository,
+      transactionRepository,
+      performanceRepository,
+      rakutenService,
+      wealthAdvisorService
+    ).fetchAndRegisterAllNavs();
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.value.performanceFailures).toEqual([]);
+    }
+    expect(performanceRecorded).toBe(false);
   });
 });

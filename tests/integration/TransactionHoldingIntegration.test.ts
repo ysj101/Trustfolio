@@ -30,6 +30,10 @@ const createTransactionRepository = (initialTransactions: Transaction[]) => {
       success: true as const,
       value: transactionStore.filter((t) => t.fundId === fundId),
     }),
+    listByFundIdAllowingMissingSheet: (fundId: string) => ({
+      success: true as const,
+      value: transactionStore.filter((t) => t.fundId === fundId),
+    }),
     findById: (id: string, fundId: string) => ({
       success: true as const,
       value: transactionStore.find((t) => t.id === id && t.fundId === fundId) || null,

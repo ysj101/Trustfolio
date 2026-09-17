@@ -69,6 +69,7 @@ describe('PortfolioUseCase', () => {
     };
     const transactionRepository: TransactionRepository = {
       listByFundId: () => ok([]),
+      listByFundIdAllowingMissingSheet: () => ok([]),
       listAll: () => ok(transactions),
       listByFundIdsGrouped: (fundIds) => {
         const map = new Map<string, Transaction[]>();
@@ -192,6 +193,7 @@ describe('PortfolioUseCase', () => {
     };
     const transactionRepository: TransactionRepository = {
       listByFundId: () => ok([]),
+      listByFundIdAllowingMissingSheet: () => ok([]),
       listAll: () => ok(transactions),
       listByFundIdsGrouped: (fundIds) => {
         const map = new Map<string, Transaction[]>();
@@ -321,6 +323,7 @@ describe('PortfolioUseCase', () => {
     };
     const transactionRepository: TransactionRepository = {
       listByFundId: () => ok([]),
+      listByFundIdAllowingMissingSheet: () => ok([]),
       listAll: () => ok([]),
       listByFundIdsGrouped: () => ok(new Map()),
       createTransaction: () => ok(undefined),
@@ -373,6 +376,7 @@ describe('PortfolioUseCase', () => {
     };
     const transactionRepository: TransactionRepository = {
       listByFundId: () => ok([]),
+      listByFundIdAllowingMissingSheet: () => ok([]),
       listAll: () => ok([]),
       listByFundIdsGrouped: () => ok(new Map()),
       createTransaction: () => ok(undefined),
