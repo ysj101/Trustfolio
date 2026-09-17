@@ -88,6 +88,7 @@ vi.mock('../../src/repository/TransactionRepository', () => ({
           createdAt: '2024-01-01T00:00:00.000Z',
         },
       ]),
+    listByFundIdAllowingMissingSheet: () => ok([]),
     listAll: () => ok([]),
     createTransaction: createTransactionSpy,
     findByIdempotencyKey: () => ok(null),
