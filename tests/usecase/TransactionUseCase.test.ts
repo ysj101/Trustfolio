@@ -3,7 +3,18 @@ import { createTransactionUseCase } from '../../src/usecase/TransactionUseCase';
 import type { FundRepository } from '../../src/repository/FundRepository';
 import type { TransactionRepository } from '../../src/repository/TransactionRepository';
 import type { Fund, Transaction } from '../../src/domain/types';
-import { ok, fail } from '../fakes';
+import { createEmptyTransactionRepository, ok, fail } from '../fakes';
+
+const 国内株式ファンド: Fund = {
+  id: '国内株式ファンド',
+  name: '国内株式インデックス',
+  rakutenFundId: null,
+  settlementBusinessDays: null,
+  navSource: null,
+  navSourceCode: null,
+  assetClass: null,
+  createdAt: '2026-01-01T00:00:00.000Z',
+};
 
 function createFundRepository(funds: Fund[]): FundRepository {
   return {
@@ -20,8 +31,6 @@ function createTransactionRepository(seed: Transaction[]): TransactionRepository
   const transactions = [...seed];
   return {
     listByFundId: (fundId) => ok(transactions.filter((tx) => tx.fundId === fundId)),
-    listByFundIdAllowingMissingSheet: (fundId) =>
-      ok(transactions.filter((tx) => tx.fundId === fundId)),
     listAll: (fundIds) => ok(transactions.filter((tx) => fundIds.includes(tx.fundId))),
     createTransaction: (transaction) => {
       transactions.push(transaction);
@@ -54,18 +63,7 @@ function createTransactionRepository(seed: Transaction[]): TransactionRepository
  * 「国内株式ファンド」に対するユースケースとリポジトリを用意する。
  */
 function createUseCaseForSaleUpdate() {
-  const fundRepository = createFundRepository([
-    {
-      id: '国内株式ファンド',
-      name: '国内株式インデックス',
-      rakutenFundId: null,
-      settlementBusinessDays: null,
-      navSource: null,
-      navSourceCode: null,
-      assetClass: null,
-      createdAt: '2026-01-01T00:00:00.000Z',
-    },
-  ]);
+  const fundRepository = createFundRepository([国内株式ファンド]);
   const transactionRepository = createTransactionRepository([
     {
       id: '購入-保有口数検証用',
@@ -185,6 +183,46 @@ describe('TransactionUseCase', () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error.field).toBe('fundId');
+    }
+  });
+
+  it('取引シート未作成の銘柄の取引履歴は空配列を返す', () => {
+    // 前提: 銘柄は登録済みだが、取引シートは作成されていない。
+    // 事前条件: インメモリシートリポジトリに取引シートを作成せず、本物のTransactionRepositoryを使用する。
+    // 検証: 取引履歴取得は内部エラーではなく成功した空配列を返す。
+    const fundRepository = createFundRepository([
+      {
+        ...国内株式ファンド,
+      },
+    ]);
+    const useCase = createTransactionUseCase(fundRepository, createEmptyTransactionRepository());
+    const result = useCase.getHistory('国内株式ファンド');
+    expect(result).toEqual({ success: true, value: [] });
+  });
+
+  it('取引シート未作成の銘柄を売却すると保有口数不足の業務エラーになる', () => {
+    // 前提: 銘柄は登録済みだが、取引シートは作成されていない。
+    // 事前条件: 取引0件に対して100口の売却を検証する。
+    // 検証: シート不存在エラーではなく、保有口数不足を示すvalidationエラーになる。
+    const fundRepository = createFundRepository([
+      {
+        ...国内株式ファンド,
+      },
+    ]);
+    const useCase = createTransactionUseCase(fundRepository, createEmptyTransactionRepository());
+    const result = useCase.executeSaleTransaction({
+      fundId: '国内株式ファンド',
+      date: '2026-01-02',
+      units: 100,
+      amount: 10000,
+      navValue: 10000,
+      incomeTax: 0,
+      residentTax: 0,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.type).toBe('validation');
+      expect(result.error.message).not.toContain('シートが存在しません');
     }
   });
 
@@ -315,14 +353,7 @@ describe('TransactionUseCase', () => {
     // 検証: 両税額が0のまま売却取引へ保存される
     const fundRepository = createFundRepository([
       {
-        id: '国内株式ファンド',
-        name: '国内株式インデックス',
-        rakutenFundId: null,
-        settlementBusinessDays: null,
-        navSource: null,
-        navSourceCode: null,
-        assetClass: null,
-        createdAt: '2026-01-01T00:00:00.000Z',
+        ...国内株式ファンド,
       },
     ]);
     const transactionRepository = createTransactionRepository([

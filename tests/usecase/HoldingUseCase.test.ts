@@ -4,7 +4,7 @@ import type { FundRepository } from '../../src/repository/FundRepository';
 import type { NavRepository } from '../../src/repository/NavRepository';
 import type { TransactionRepository } from '../../src/repository/TransactionRepository';
 import type { Fund, Nav, Transaction } from '../../src/domain/types';
-import { ok } from '../fakes';
+import { createEmptyTransactionRepository, ok } from '../fakes';
 
 function createFundRepository(funds: Fund[]): FundRepository {
   return {
@@ -44,8 +44,6 @@ function createNavRepository(navs: Nav[]): NavRepository {
 function createTransactionRepository(transactions: Transaction[]): TransactionRepository {
   return {
     listByFundId: (fundId) => ok(transactions.filter((tx) => tx.fundId === fundId)),
-    listByFundIdAllowingMissingSheet: (fundId) =>
-      ok(transactions.filter((tx) => tx.fundId === fundId)),
     listAll: () => ok([...transactions]),
     listByFundIdsGrouped: (fundIds) => {
       const map = new Map<string, Transaction[]>();
@@ -134,6 +132,39 @@ describe('HoldingUseCase', () => {
     }
   });
 
+  it('取引シート未作成の銘柄は基準価額を読まずに保有なしとして成功する', () => {
+    // 前提: 銘柄は登録済みだが、取引シートは作成されていない。
+    // 事前条件: インメモリシートリポジトリに取引シートを作成せず、本物のTransactionRepositoryを使用する。
+    // 検証: getHoldingは内部エラーを返さず保有なしのnullを返し、
+    //       かつ結果に使われない基準価額シートの読取を一度も行わない。
+    const fund: Fund = {
+      id: '国内株式ファンド',
+      name: '国内株式インデックス',
+      rakutenFundId: null,
+      settlementBusinessDays: null,
+      navSource: null,
+      navSourceCode: null,
+      assetClass: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+    };
+    let 基準価額の読取回数 = 0;
+    const navRepository: NavRepository = {
+      ...createNavRepository([]),
+      findLatestByFundId: () => {
+        基準価額の読取回数 += 1;
+        return ok(null);
+      },
+    };
+    const useCase = createHoldingUseCase(
+      createFundRepository([fund]),
+      navRepository,
+      createEmptyTransactionRepository()
+    );
+
+    expect(useCase.getHolding(fund.id)).toEqual({ success: true, value: null });
+    expect(基準価額の読取回数).toBe(0);
+  });
+
   it('listHoldingsは保有がある銘柄のみ返す', () => {
     // 前提: 取引がない銘柄と取引がある銘柄が混在する
     // 事前条件: 基準価額は片方のみ用意する
@@ -215,10 +246,6 @@ describe('HoldingUseCase', () => {
     ];
     const transactionRepository: TransactionRepository = {
       listByFundId: () => ({ success: false, error: { type: 'unexpected', message: '取得失敗' } }),
-      listByFundIdAllowingMissingSheet: () => ({
-        success: false,
-        error: { type: 'unexpected', message: '取得失敗' },
-      }),
       listAll: () => ok([]),
       listByFundIdsGrouped: () => ({
         success: false,
