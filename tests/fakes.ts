@@ -1,6 +1,8 @@
 import type { Result, AppError } from '../src/domain/types';
 import { SHEET_HEADERS, type SheetDefinition } from '../src/Config';
 import type { SheetRepository } from '../src/repository/SheetRepository';
+import { createTransactionRepository } from '../src/repository/TransactionRepository';
+import type { TransactionRepository } from '../src/repository/TransactionRepository';
 import type { EmailService } from '../src/service/EmailService';
 
 export function ok<T>(value: T): Result<T> {
@@ -48,6 +50,8 @@ export function createStubSheetRepository(
   return {
     ensureSheet: () => ok({} as GoogleAppsScript.Spreadsheet.Sheet),
     getRequiredSheet: () => ok({} as GoogleAppsScript.Spreadsheet.Sheet),
+    // 既定ではシート未作成を表し、存在確認を使う読取処理が空配列を返せるようにする。
+    hasSheet: () => ok(false),
     readSheetWithHeader: () => ok({ headers: [], rows: [] }),
     readAllRows: () => ok([]),
     appendRows: () => ok(undefined),
@@ -267,6 +271,7 @@ export function createInMemorySheetRepository(
       }
       return ok({ name: sheetName, rows } as unknown as GoogleAppsScript.Spreadsheet.Sheet);
     },
+    hasSheet: (sheetName: string) => ok(store.has(sheetName)),
     readSheetWithHeader: (sheetName: string) => {
       const rows = store.get(sheetName);
       if (!rows) {
@@ -360,6 +365,15 @@ export function createInMemorySheetRepository(
       return ok(undefined);
     },
   };
+}
+
+/**
+ * 取引シートが1つも作成されていない状態の、本物のTransactionRepositoryを返す。
+ *
+ * シート不存在を取引0件として扱う統一契約を、フェイクではなく実装ごと検証するために使う。
+ */
+export function createEmptyTransactionRepository(): TransactionRepository {
+  return createTransactionRepository(createInMemorySheetRepository());
 }
 
 /**

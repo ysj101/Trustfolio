@@ -60,8 +60,6 @@ function createTransactionRepository(seed: Transaction[]): TransactionRepository
   const transactions = [...seed];
   return {
     listByFundId: (fundId) => ok(transactions.filter((tx) => tx.fundId === fundId)),
-    listByFundIdAllowingMissingSheet: (fundId) =>
-      ok(transactions.filter((tx) => tx.fundId === fundId)),
     listAll: (fundIds) => ok(transactions.filter((tx) => fundIds.includes(tx.fundId))),
     createTransaction: (transaction) => {
       transactions.push(transaction);

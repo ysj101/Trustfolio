@@ -452,8 +452,8 @@ function recordFundPerformance(
   }
 
   // 2. 取引履歴取得
-  // 取引0件の銘柄は実績記録でエラーにせず、保有なしとしてスキップするため専用メソッドを使う。
-  const transactionsResult = transactionRepository.listByFundIdAllowingMissingSheet(fund.id);
+  // listByFundIdの統一契約により、取引シート未作成の銘柄は空配列として保有なし扱いになる。
+  const transactionsResult = transactionRepository.listByFundId(fund.id);
   if (!transactionsResult.success) return transactionsResult;
 
   // 3. 保有情報計算
@@ -523,9 +523,9 @@ function recordGlobalPerformance(
 
   const holdings = [];
   for (const fund of fundsResult.value) {
-    // シート不存在を取引0件として扱う契約に統一する。取引0件はcalculateHoldingがnullを返すため、
-    // continueしていた従来と計算結果は変わらず、契約だけを統一する変更である。
-    const transactionsResult = transactionRepository.listByFundIdAllowingMissingSheet(fund.id);
+    // 取引取得が失敗した場合はcontinueにより当該銘柄がholdingsから欠落し、過少な全体実績が記録され得る。
+    // これは本PR以前から存在する既知の課題であり、GitHub issue #253で扱う予定である。
+    const transactionsResult = transactionRepository.listByFundId(fund.id);
     if (!transactionsResult.success) continue;
     // 直後のnavRepository.findLatestByFundIdが基準価額シートの全件読取を行うため、取引0件の銘柄ではその読取を避ける。
     if (transactionsResult.value.length === 0) continue;

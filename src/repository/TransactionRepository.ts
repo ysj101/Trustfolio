@@ -21,24 +21,12 @@ export type TransactionRepository = {
   /**
    * 指定したファンドの取引履歴を取得する。
    *
-   * シート不存在時は `fail('unexpected', 'シートが存在しません: ...')` として返す契約である。
-   * 取引0件を正常状態として扱いたい経路では、listByFundIdAllowingMissingSheetを使用する。
+   * 取引シートが存在しない場合は、そのファンドの取引が0件であると明示的に解釈して空配列を返す。
    *
    * @param fundId 取引履歴を取得するファンドID
    * @returns 取得・解析済みの取引履歴、または取得失敗
    */
   listByFundId: (fundId: string) => Result<Transaction[]>;
-  /**
-   * 指定したファンドの取引履歴を取得する。
-   *
-   * 取引シートが存在しない場合は、そのファンドの取引が0件であると明示的に解釈し、空配列を返す。
-   * この契約は暗黙のフォールバックではなく、実績記録における「取引0件」の扱いを明示したものである。
-   * シート不存在をエラーとして返す既存の listByFundId とは、取引履歴画面の挙動を壊さないために分離している。
-   *
-   * @param fundId 取引履歴を取得するファンドID
-   * @returns 取得・解析済みの取引履歴、または取得失敗
-   */
-  listByFundIdAllowingMissingSheet: (fundId: string) => Result<Transaction[]>;
   listAll: (fundIds: string[]) => Result<Transaction[]>;
   listByFundIdsGrouped: (fundIds: string[]) => Result<Map<string, Transaction[]>>;
   createTransaction: (transaction: Transaction) => Result<void>;
@@ -71,24 +59,16 @@ function sortTransactionsByDateDescending(transactions: Transaction[]): void {
 /**
  * 指定したファンドの取引シートを読み取り、解析して取引日の降順に並べる。
  *
- * シート不存在時の扱いだけは公開APIごとに異なるため、呼び出し元から渡された関数で
- * 結果を決める。取引履歴・保有情報では既存のエラー契約を維持し、実績記録では取引0件を
- * 正常状態として扱うため、この差分以外の読取・解析・並べ替え処理を共通化している。
- *
  * @param sheetRepository シートリポジトリ
  * @param fundId 対象ファンドID
- * @param onMissingSheet シート不存在時の結果を返す関数
  * @returns 解析・並べ替え済みの取引一覧、または失敗
  */
 function listTransactionsByFundId(
   sheetRepository: SheetRepository,
-  fundId: string,
-  onMissingSheet: () => Result<Transaction[]>
+  fundId: string
 ): Result<Transaction[]> {
   const rowsResult = readTransactionRows(sheetRepository, fundId);
   if (!rowsResult.success) return rowsResult;
-  if (rowsResult.value === null) return onMissingSheet();
-
   const parsedResult = parseAllRows(rowsResult.value, parseRow);
   if (!parsedResult.success) return parsedResult;
 
@@ -104,15 +84,7 @@ export function createTransactionRepository(
 ): TransactionRepository {
   const repository: TransactionRepository = {
     listByFundId: (fundId: string): Result<Transaction[]> => {
-      return listTransactionsByFundId(sheetRepository, fundId, () =>
-        fail('unexpected', `シートが存在しません: ${getTransactionSheetName(fundId)}`)
-      );
-    },
-    listByFundIdAllowingMissingSheet: (fundId: string): Result<Transaction[]> => {
-      return listTransactionsByFundId(sheetRepository, fundId, () => ({
-        success: true,
-        value: [],
-      }));
+      return listTransactionsByFundId(sheetRepository, fundId);
     },
     listAll: (fundIds: string[]): Result<Transaction[]> => {
       const allTransactions: Transaction[] = [];
@@ -126,11 +98,6 @@ export function createTransactionRepository(
         if (!rowsResult.success) {
           return rowsResult;
         }
-        // シートが存在しない場合のみスキップ(エラーにしない)
-        if (rowsResult.value === null) {
-          continue;
-        }
-
         const parsedResult = parseAllRows(rowsResult.value, parseRow);
         if (!parsedResult.success) {
           return parsedResult;
@@ -146,17 +113,9 @@ export function createTransactionRepository(
       // 各ファンドIDに対するトランザクション配列を保持するMap
       const transactionsMap = new Map<string, Transaction[]>();
 
-      // fundIdsを初期化（トランザクションが存在しないファンドには空配列を設定）
-      for (const fundId of fundIds) {
-        transactionsMap.set(fundId, []);
-      }
-
       // 各ファンドのトランザクションシートを読み込み
       for (const fundId of fundIds) {
-        const transactionsResult = listTransactionsByFundId(sheetRepository, fundId, () => ({
-          success: true,
-          value: [],
-        }));
+        const transactionsResult = listTransactionsByFundId(sheetRepository, fundId);
         if (!transactionsResult.success) return transactionsResult;
         transactionsMap.set(fundId, transactionsResult.value);
       }
@@ -182,11 +141,6 @@ export function createTransactionRepository(
         if (!rowsResult.success) {
           return rowsResult;
         }
-        // シートが存在しない場合のみスキップ
-        if (rowsResult.value === null) {
-          continue;
-        }
-
         const found = findRowByPredicate(
           rowsResult.value,
           parseRow,
@@ -269,29 +223,31 @@ function toRow(transaction: Transaction): unknown[] {
  *   ensureSheet によるヘッダー整合（列挿入マイグレーション）を実行する。
  *
  * 内容:
- * - シートが存在しない場合は成功として null を返す（「不存在」と「読取・整合の失敗」を
- *   型で明示的に区別し、複数ファンド読取APIが不存在だけを安全にスキップできるようにする）。
+ * - シートが存在しない場合は取引0件として空配列を返す。
  * - シートが存在する場合は ensureSheet でヘッダーを SHEET_HEADERS に整合させ、
  *   失敗時は読取へ進まず即座にエラーを返す（fail fast）。
  *
  * 注意:
  * - ensureSheet は列構成が一致していれば何も変更しないため、繰り返し呼んでも安全。
- * - 戻り値の null は「シート不存在」のみを意味する。マイグレーション失敗や読取失敗を
- *   null へ変換してはならない（握りつぶすと取引欠落のまま集計が成功してしまうため）。
+ * - シート不存在はhasSheetで値として判定し、取得・整合の失敗はそのまま呼び出し元へ伝播する。
  *
  * @param sheetRepository - シートリポジトリ。
  * @param fundId - 対象ファンドID。
- * @returns 全データ行（シート不存在時は null）、またはマイグレーション・読取失敗のエラー。
+ * @returns 全データ行（シート不存在時は空配列）、またはマイグレーション・読取失敗のエラー。
  */
 function readTransactionRows(
   sheetRepository: SheetRepository,
   fundId: string
-): Result<unknown[][] | null> {
+): Result<unknown[][]> {
   const sheetName = getTransactionSheetName(fundId);
 
-  const sheetResult = sheetRepository.getRequiredSheet(sheetName);
-  if (!sheetResult.success) {
-    return { success: true, value: null };
+  const hasSheetResult = sheetRepository.hasSheet(sheetName);
+  if (!hasSheetResult.success) {
+    return hasSheetResult;
+  }
+  if (!hasSheetResult.value) {
+    // 取引シートが未作成であることは、そのファンドの取引が0件であることを意味する。
+    return { success: true, value: [] };
   }
 
   const ensureResult = ensureTransactionSheet(sheetRepository, fundId);
@@ -324,7 +280,10 @@ function ensureTransactionSheet(sheetRepository: SheetRepository, fundId: string
 }
 
 /**
- * 取引IDから該当行を検索する(ファンド別シート対応)
+ * 取引IDから該当行を検索する（ファンド別シート対応）。
+ *
+ * 取引シートが存在しない場合は、取引が0件である統一契約に従って
+ * 該当取引なし（null）を成功結果として返す。
  * @param sheetRepository シートリポジトリ
  * @param transactionId 取引ID
  * @param fundId ファンドID
@@ -339,11 +298,6 @@ function findTransactionRow(
   if (!rowsResult.success) {
     return rowsResult;
   }
-  // 単一取引の検索ではシート不存在をエラーとして返す（従来挙動を維持）。
-  if (rowsResult.value === null) {
-    return fail('unexpected', `シートが存在しません: ${getTransactionSheetName(fundId)}`);
-  }
-
   const found = findRowByPredicate(
     rowsResult.value,
     parseRow,
