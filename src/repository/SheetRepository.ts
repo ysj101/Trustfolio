@@ -5,6 +5,14 @@ import type { Result } from '../domain/types';
 export type SheetRepository = {
   ensureSheet: (definition: SheetDefinition) => Result<GoogleAppsScript.Spreadsheet.Sheet>;
   getRequiredSheet: (sheetName: string) => Result<GoogleAppsScript.Spreadsheet.Sheet>;
+  /**
+   * 指定シートが存在するかどうかを返す。
+   *
+   * 「シートが無い」ことを失敗ではなく値で表現するためのAPIである。
+   * getRequiredSheetの失敗を不存在と読み替えると、権限エラーなど別の失敗要因が
+   * 追加されたときに取得失敗を正常値へ変換してしまうため、存在確認にはこちらを使う。
+   */
+  hasSheet: (sheetName: string) => Result<boolean>;
   /** 指定シートのヘッダーとデータ行を、シートを変更せず1回の範囲取得で返す。 */
   readSheetWithHeader: (sheetName: string) => Result<{ headers: string[]; rows: unknown[][] }>;
   readAllRows: (sheetName: string) => Result<unknown[][]>;
@@ -64,6 +72,9 @@ function createSheetRepository(
         return fail('unexpected', `シートが存在しません: ${sheetName}`);
       }
       return { success: true, value: sheet };
+    },
+    hasSheet: (sheetName: string): Result<boolean> => {
+      return { success: true, value: spreadsheet.getSheetByName(sheetName) !== null };
     },
     readSheetWithHeader: (sheetName: string): Result<{ headers: string[]; rows: unknown[][] }> => {
       const sheetResult = repository.getRequiredSheet(sheetName);

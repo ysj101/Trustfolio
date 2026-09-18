@@ -43,6 +43,11 @@ export function createHoldingUseCase(
         return propagateFailure(transactionResult);
       }
 
+      // 取引0件では保有情報を計算できず、基準価額シートの全件読取結果も利用しないため読取を避ける。
+      if (transactionResult.value.length === 0) {
+        return { success: true, value: null };
+      }
+
       const navResult = navRepository.findLatestByFundId(fundId);
       if (!navResult.success) {
         return propagateFailure(navResult);

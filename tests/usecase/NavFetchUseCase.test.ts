@@ -7,7 +7,7 @@ import type { PerformanceRepository } from '../../src/repository/PerformanceRepo
 import type { RakutenService } from '../../src/service/RakutenService';
 import type { WealthAdvisorService } from '../../src/service/WealthAdvisorService';
 import type { Fund, PerformanceRecord, Transaction } from '../../src/domain/types';
-import { ok, fail } from '../fakes';
+import { createEmptyTransactionRepository, ok, fail } from '../fakes';
 
 const wealthAdvisorService: WealthAdvisorService = {
   fetchLatestNav: (navSourceCode) =>
@@ -90,7 +90,6 @@ describe('NavFetchUseCase', () => {
 
     const transactionRepository: TransactionRepository = {
       listByFundId: () => ok([]),
-      listByFundIdAllowingMissingSheet: () => ok([]),
       listAll: () => ok([]),
       createTransaction: () => ok(undefined),
       findByIdempotencyKey: () => ok(null),
@@ -173,7 +172,6 @@ describe('NavFetchUseCase', () => {
 
     const transactionRepository: TransactionRepository = {
       listByFundId: () => ok([]),
-      listByFundIdAllowingMissingSheet: () => ok([]),
       listAll: () => ok([]),
       createTransaction: () => ok(undefined),
       findByIdempotencyKey: () => ok(null),
@@ -305,8 +303,6 @@ describe('NavFetchUseCase', () => {
     const transactionRepository: TransactionRepository = {
       listByFundId: (fundId) =>
         ok(transactions.filter((transaction) => transaction.fundId === fundId)),
-      listByFundIdAllowingMissingSheet: (fundId) =>
-        ok(transactions.filter((transaction) => transaction.fundId === fundId)),
       listAll: () => ok(transactions),
       createTransaction: () => ok(undefined),
       findByIdempotencyKey: () => ok(null),
@@ -386,7 +382,6 @@ describe('NavFetchUseCase', () => {
 
     const transactionRepository: TransactionRepository = {
       listByFundId: () => ok([]),
-      listByFundIdAllowingMissingSheet: () => ok([]),
       listAll: () => ok([]),
       createTransaction: () => ok(undefined),
       findByIdempotencyKey: () => ok(null),
@@ -497,7 +492,6 @@ describe('NavFetchUseCase', () => {
 
     const transactionRepository: TransactionRepository = {
       listByFundId: () => ok([]),
-      listByFundIdAllowingMissingSheet: () => ok([]),
       listAll: () => ok([]),
       createTransaction: () => ok(undefined),
       findByIdempotencyKey: () => ok(null),
@@ -632,7 +626,6 @@ describe('NavFetchUseCase', () => {
     };
     const transactionRepository: TransactionRepository = {
       listByFundId: () => ok([]),
-      listByFundIdAllowingMissingSheet: () => ok([]),
       listAll: () => ok([]),
       listByFundIdsGrouped: () => ok(new Map()),
       createTransaction: () => ok(undefined),
@@ -707,7 +700,6 @@ describe('NavFetchUseCase', () => {
     };
     const transactionRepository: TransactionRepository = {
       listByFundId: () => ok([]),
-      listByFundIdAllowingMissingSheet: () => ok([]),
       listAll: () => ok([]),
       listByFundIdsGrouped: () => ok(new Map()),
       createTransaction: () => ok(undefined),
@@ -778,16 +770,9 @@ describe('NavFetchUseCase', () => {
       findLatestByFundId: () => ok(null),
       createNav: () => ok(undefined),
     };
-    const transactionRepository: TransactionRepository = {
-      listByFundId: () => fail('unexpected', 'シートが存在しません: _tx_TDZ'),
-      listByFundIdAllowingMissingSheet: () => ok([]),
-      listAll: () => ok([]),
-      createTransaction: () => ok(undefined),
-      findByIdempotencyKey: () => ok(null),
-      findById: () => ok(null),
-      updateTransaction: () => ok(undefined),
-      deleteTransaction: () => ok(undefined),
-    };
+    // 取引シート未作成の状態を、フェイクではなく本物のTransactionRepositoryで再現する。
+    // これにより「シート不存在＝取引0件」という統一契約をリポジトリ層まで通して検証する。
+    const transactionRepository = createEmptyTransactionRepository();
     let performanceRecorded = false;
     const performanceRepository: PerformanceRepository = {
       createPerformance: () => {
