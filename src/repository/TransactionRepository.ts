@@ -28,6 +28,15 @@ export type TransactionRepository = {
    */
   listByFundId: (fundId: string) => Result<Transaction[]>;
   listAll: (fundIds: string[]) => Result<Transaction[]>;
+  /**
+   * 指定した全ファンドIDの取引履歴を、ファンドIDごとにまとめて取得する。
+   *
+   * 呼び出し元が取引0件の銘柄と契約違反を区別できるよう、渡したfundIdsの全件をキーとして含むMapを返す。
+   * 取引が0件の銘柄は空配列を値に持ち、指定したIDがMapに存在しない状態は発生しない。
+   *
+   * @param fundIds 取引履歴を取得するファンドID一覧
+   * @returns ファンドIDごとの取引履歴、または取得失敗
+   */
   listByFundIdsGrouped: (fundIds: string[]) => Result<Map<string, Transaction[]>>;
   createTransaction: (transaction: Transaction) => Result<void>;
   findByIdempotencyKey: (idempotencyKey: string, fundIds: string[]) => Result<Transaction | null>;

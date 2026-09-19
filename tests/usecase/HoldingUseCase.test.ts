@@ -268,4 +268,54 @@ describe('HoldingUseCase', () => {
       expect(result.error.message).toContain('取得失敗');
     }
   });
+
+  it('listHoldingsは取引Mapの銘柄キー欠落をunexpected失敗として返す', () => {
+    // 前提: 銘柄一覧に対して取引Mapが対象銘柄のキーを返さない。
+    // 事前条件: 一括取得Result自体は成功しているが、Mapの契約を満たさない。
+    // 検証: listHoldingsは暗黙に空配列へ補完せずunexpected失敗を返す。
+    const fund: Fund = {
+      id: '取引Map欠落ファンド',
+      name: '取引Map欠落ファンド',
+      rakutenFundId: null,
+      settlementBusinessDays: null,
+      navSource: null,
+      navSourceCode: null,
+      assetClass: null,
+      createdAt: '2024-01-01T00:00:00.000Z',
+    };
+    const repository = createTransactionRepository([]);
+    repository.listByFundIdsGrouped = () => ok(new Map());
+    const result = createHoldingUseCase(
+      createFundRepository([fund]),
+      createNavRepository([]),
+      repository
+    ).listHoldings();
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.type).toBe('unexpected');
+  });
+
+  it('listHoldingsは基準価額Mapの銘柄キー欠落をunexpected失敗として返す', () => {
+    // 前提: 銘柄一覧と取引Mapは揃っているが、基準価額Mapが対象銘柄のキーを返さない。
+    // 事前条件: 基準価額の一括取得Result自体は成功しているが、Mapの契約を満たさない。
+    // 検証: listHoldingsは基準価額欠落をunexpected失敗として返す。
+    const fund: Fund = {
+      id: '基準価額Map欠落ファンド',
+      name: '基準価額Map欠落ファンド',
+      rakutenFundId: null,
+      settlementBusinessDays: null,
+      navSource: null,
+      navSourceCode: null,
+      assetClass: null,
+      createdAt: '2024-01-01T00:00:00.000Z',
+    };
+    const navRepository = createNavRepository([]);
+    navRepository.findLatestByFundIds = () => ok(new Map());
+    const result = createHoldingUseCase(
+      createFundRepository([fund]),
+      navRepository,
+      createTransactionRepository([])
+    ).listHoldings();
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.type).toBe('unexpected');
+  });
 });
