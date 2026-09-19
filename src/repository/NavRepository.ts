@@ -13,6 +13,15 @@ export type NavRepository = {
   listByFundId: (fundId: string) => Result<Nav[]>;
   findByFundAndDate: (fundId: string, date: string) => Result<Nav | null>;
   findLatestByFundId: (fundId: string) => Result<Nav | null>;
+  /**
+   * 指定した全銘柄の最新基準価額を一括取得する。
+   *
+   * 渡したfundIdsの全件をキーとして含むMapを返し、最新基準価額が存在しない銘柄は値をnullにする。
+   * 呼び出し元が基準価額なしとキー欠落による契約違反を区別できるよう、キーの欠落は発生させない。
+   *
+   * @param fundIds 最新基準価額を取得する銘柄ID一覧
+   * @returns 銘柄IDごとの最新基準価額、または取得失敗
+   */
   findLatestByFundIds: (fundIds: string[]) => Result<Map<string, Nav | null>>;
   createNav: (nav: Nav) => Result<void>;
 };
@@ -77,6 +86,7 @@ export function createNavRepository(sheetRepository: SheetRepository): NavReposi
 
       // 各ファンドIDに対する最新NAVを保持するMap
       const latestNavMap = new Map<string, Nav | null>();
+      const targetFundIds = new Set(fundIds);
 
       // fundIdsを初期化（NAVが存在しないファンドにはnullを設定）
       for (const fundId of fundIds) {
@@ -86,7 +96,7 @@ export function createNavRepository(sheetRepository: SheetRepository): NavReposi
       // 各ファンドの最新NAVを特定
       for (const nav of parsedResult.value) {
         // 対象のファンドIDでない場合はスキップ
-        if (!fundIds.includes(nav.fundId)) {
+        if (!targetFundIds.has(nav.fundId)) {
           continue;
         }
 

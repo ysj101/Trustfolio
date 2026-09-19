@@ -4,6 +4,7 @@ import type { FundRepository } from '../repository/FundRepository';
 import type { NavRepository } from '../repository/NavRepository';
 import type { TransactionRepository } from '../repository/TransactionRepository';
 import { calculateHolding } from '../domain/HoldingCalculator';
+import { requireMapValue } from './mapGuard';
 
 export type HoldingUseCase = {
   getHolding: (fundId: string) => Result<Holding | null>;
@@ -80,10 +81,16 @@ export function createHoldingUseCase(
       const holdings: Holding[] = [];
 
       for (const fund of fundResult.value) {
-        const transactions = transactionsMapResult.value.get(fund.id) ?? [];
-        const nav = navsMapResult.value.get(fund.id) ?? null;
+        const transactionsResult = requireMapValue(
+          transactionsMapResult.value,
+          fund.id,
+          '取引履歴'
+        );
+        if (!transactionsResult.success) return propagateFailure(transactionsResult);
+        const navResult = requireMapValue(navsMapResult.value, fund.id, '基準価額');
+        if (!navResult.success) return propagateFailure(navResult);
 
-        const holding = calculateHolding(fund, transactions, nav);
+        const holding = calculateHolding(fund, transactionsResult.value, navResult.value);
         if (holding !== null) {
           holdings.push(holding);
         }
