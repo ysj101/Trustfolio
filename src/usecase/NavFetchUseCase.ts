@@ -8,6 +8,7 @@ import type { RakutenService } from '../service/RakutenService';
 import type { WealthAdvisorService } from '../service/WealthAdvisorService';
 import { logError } from '../utils/logger';
 import { clock } from '../utils/dateTime';
+import { requireMapValue } from './mapGuard';
 
 /**
  * 基準価額の自動取得結果（1銘柄分）。
@@ -212,7 +213,7 @@ export function createNavFetchUseCase(
         if (latestDate !== '') {
           const globalResult = recordGlobalPerformance(
             latestDate,
-            fundRepository,
+            funds,
             transactionRepository,
             navRepository,
             performanceRepository
@@ -434,7 +435,7 @@ function processFund(
  * ファンド別実績を記録する。
  * @param fund ファンド情報
  * @param nav 登録された基準価額
- * @param transactionRepository 取引リポジトリ
+ * @param transactionRepository 取引履歴リポジトリ
  * @param performanceRepository 実績リポジトリ
  * @returns 成功または失敗
  */
@@ -452,7 +453,8 @@ function recordFundPerformance(
   }
 
   // 2. 取引履歴取得
-  // listByFundIdの統一契約により、取引シート未作成の銘柄は空配列として保有なし扱いになる。
+  // 1銘柄の取引シートの不整合が他の銘柄のファンド別実績記録を巻き込まないよう、
+  // 失敗の影響を銘柄単位に閉じるため、ファンド別実績は銘柄ごとに個別読取する。
   const transactionsResult = transactionRepository.listByFundId(fund.id);
   if (!transactionsResult.success) return transactionsResult;
 
@@ -493,15 +495,15 @@ function recordFundPerformance(
 /**
  * 全体実績を記録する。
  * @param date 記録日付
- * @param fundRepository ファンドリポジトリ
- * @param transactionRepository 取引リポジトリ
+ * @param funds 呼び出し元が取得済みの銘柄一覧
+ * @param transactionRepository 取引履歴リポジトリ
  * @param navRepository 基準価額リポジトリ
  * @param performanceRepository 実績リポジトリ
  * @returns 成功または失敗
  */
 function recordGlobalPerformance(
   date: string,
-  fundRepository: FundRepository,
+  funds: readonly Fund[],
   transactionRepository: TransactionRepository,
   navRepository: NavRepository,
   performanceRepository: PerformanceRepository
@@ -510,35 +512,40 @@ function recordGlobalPerformance(
   const existingResult = performanceRepository.findGlobalByDate(date);
   if (!existingResult.success) return existingResult;
   if (existingResult.value !== null) {
+    // 既存行は再計算しないため、過去の誤値や障害による欠測は自動訂正・補完されない。
+    // PerformanceRepositoryには更新・削除がなく、訂正手段は現時点で存在しない。
+    // upsertやバックフィルの要否は別issueで扱う。
     return { success: true, value: undefined };
   }
 
   // 2. 全ファンドの保有情報を計算
-  const fundsResult = fundRepository.listFunds();
-  if (!fundsResult.success) return fundsResult;
-
-  const fundIds = fundsResult.value.map((f) => f.id);
-  const allTransactionsResult = transactionRepository.listAll(fundIds);
-  if (!allTransactionsResult.success) return allTransactionsResult;
-
+  // 呼び出し元と同一実行内に取得した銘柄スナップショットを使い、取引・基準価額のMapと
+  // ループ対象を一致させる。ここで再読取すると、実行中の銘柄追加で不整合が生じる。
+  const fundIds = funds.map((f) => f.id);
+  // 取引シートへの書込みと並行し得るため、スナップショットの安全性は同一実行内に限られる。
+  const transactionsMapResult = transactionRepository.listByFundIdsGrouped(fundIds);
+  if (!transactionsMapResult.success) return transactionsMapResult;
+  const transactionsMap = transactionsMapResult.value;
+  const navsMapResult = navRepository.findLatestByFundIds(fundIds);
+  if (!navsMapResult.success) return navsMapResult;
+  const navsMap = navsMapResult.value;
   const holdings = [];
-  for (const fund of fundsResult.value) {
-    // 取引取得が失敗した場合はcontinueにより当該銘柄がholdingsから欠落し、過少な全体実績が記録され得る。
-    // これは本PR以前から存在する既知の課題であり、GitHub issue #253で扱う予定である。
-    const transactionsResult = transactionRepository.listByFundId(fund.id);
-    if (!transactionsResult.success) continue;
-    // 直後のnavRepository.findLatestByFundIdが基準価額シートの全件読取を行うため、取引0件の銘柄ではその読取を避ける。
-    if (transactionsResult.value.length === 0) continue;
-
-    const navResult = navRepository.findLatestByFundId(fund.id);
-    if (!navResult.success) continue;
+  for (const fund of funds) {
+    const transactionsResult = requireMapValue(transactionsMap, fund.id, '取引履歴');
+    if (!transactionsResult.success) return transactionsResult;
+    const navResult = requireMapValue(navsMap, fund.id, '基準価額');
+    if (!navResult.success) return navResult;
 
     const holding = calculateHolding(fund, transactionsResult.value, navResult.value);
     if (holding !== null) holdings.push(holding);
   }
 
   // 3. ポートフォリオサマリー計算
-  const portfolio = calculatePortfolio(holdings, allTransactionsResult.value);
+  // PerformanceRecordへ書く4値は保有情報だけで算出できるが、calculatePortfolioの契約は
+  // 実現損益・税額も計算するため、結果を変えずに呼び出しを維持するには全取引が必要である。
+  // calculatePortfolioは実現損益計算時にfundIdごとに再グループ化して日付順へ並べ直すため、
+  // ここでの平坦化に並び順の責任はない。契約違反で早期returnする場合に備え、直前で作る。
+  const portfolio = calculatePortfolio(holdings, Array.from(transactionsMap.values()).flat());
 
   // calculatePortfolio は、いずれかの保有で現在値が欠損した場合に totalCurrentValue・
   // totalUnrealizedGain・totalUnrealizedGainRate を常に同時に null にする（詳細は

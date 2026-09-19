@@ -85,12 +85,28 @@ describe('NavFetchUseCase', () => {
         return ok(null);
       },
       findLatestByFundId: () => ok(null),
+      findLatestByFundIds: (fundIds) =>
+        ok(
+          new Map(
+            fundIds.map((fundId) => [
+              fundId,
+              {
+                fundId,
+                date: '2024-03-05',
+                value: 10000,
+                createdAt: '2024-03-05T00:00:00.000Z',
+              },
+            ])
+          )
+        ),
       createNav: () => ok(undefined),
     };
 
     const transactionRepository: TransactionRepository = {
       listByFundId: () => ok([]),
       listAll: () => ok([]),
+      // 渡したfundIdsの全件をキーに含めるという本物のリポジトリの契約を、フェイクでも守る。
+      listByFundIdsGrouped: (fundIds) => ok(new Map(fundIds.map((fundId) => [fundId, []]))),
       createTransaction: () => ok(undefined),
       findByIdempotencyKey: () => ok(null),
       findById: () => ok(null),
@@ -167,12 +183,15 @@ describe('NavFetchUseCase', () => {
       listByFundId: () => ok([]),
       findByFundAndDate: () => ok(null),
       findLatestByFundId: () => ok(null),
+      findLatestByFundIds: (fundIds) => ok(new Map(fundIds.map((fundId) => [fundId, null]))),
       createNav: () => ok(undefined),
     };
 
     const transactionRepository: TransactionRepository = {
       listByFundId: () => ok([]),
       listAll: () => ok([]),
+      // 渡したfundIdsの全件をキーに含めるという本物のリポジトリの契約を、フェイクでも守る。
+      listByFundIdsGrouped: (fundIds) => ok(new Map(fundIds.map((fundId) => [fundId, []]))),
       createTransaction: () => ok(undefined),
       findByIdempotencyKey: () => ok(null),
       findById: () => ok(null),
@@ -297,6 +316,22 @@ describe('NavFetchUseCase', () => {
               value: 11000,
               createdAt: '2024-03-05T00:00:00.000Z',
             }),
+      findLatestByFundIds: (fundIds) =>
+        ok(
+          new Map(
+            fundIds.map((fundId) => [
+              fundId,
+              fundId === 'fund-without-nav'
+                ? null
+                : {
+                    fundId,
+                    date: '2024-03-05',
+                    value: 11000,
+                    createdAt: '2024-03-05T00:00:00.000Z',
+                  },
+            ])
+          )
+        ),
       createNav: () => ok(undefined),
     };
 
@@ -304,6 +339,15 @@ describe('NavFetchUseCase', () => {
       listByFundId: (fundId) =>
         ok(transactions.filter((transaction) => transaction.fundId === fundId)),
       listAll: () => ok(transactions),
+      listByFundIdsGrouped: () =>
+        ok(
+          new Map(
+            funds.map((fund) => [
+              fund.id,
+              transactions.filter((transaction) => transaction.fundId === fund.id),
+            ])
+          )
+        ),
       createTransaction: () => ok(undefined),
       findByIdempotencyKey: () => ok(null),
       findById: () => ok(null),
@@ -377,12 +421,15 @@ describe('NavFetchUseCase', () => {
       listByFundId: () => ok([]),
       findByFundAndDate: () => ok(null),
       findLatestByFundId: () => ok(null),
+      findLatestByFundIds: (fundIds) => ok(new Map(fundIds.map((fundId) => [fundId, null]))),
       createNav: () => ok(undefined),
     };
 
     const transactionRepository: TransactionRepository = {
       listByFundId: () => ok([]),
       listAll: () => ok([]),
+      // 渡したfundIdsの全件をキーに含めるという本物のリポジトリの契約を、フェイクでも守る。
+      listByFundIdsGrouped: (fundIds) => ok(new Map(fundIds.map((fundId) => [fundId, []]))),
       createTransaction: () => ok(undefined),
       findByIdempotencyKey: () => ok(null),
       findById: () => ok(null),
@@ -487,12 +534,15 @@ describe('NavFetchUseCase', () => {
       listByFundId: () => ok([]),
       findByFundAndDate: () => ok(null),
       findLatestByFundId: () => ok(null),
+      findLatestByFundIds: (fundIds) => ok(new Map(fundIds.map((fundId) => [fundId, null]))),
       createNav: () => ok(undefined),
     };
 
     const transactionRepository: TransactionRepository = {
       listByFundId: () => ok([]),
       listAll: () => ok([]),
+      // 渡したfundIdsの全件をキーに含めるという本物のリポジトリの契約を、フェイクでも守る。
+      listByFundIdsGrouped: (fundIds) => ok(new Map(fundIds.map((fundId) => [fundId, []]))),
       createTransaction: () => ok(undefined),
       findByIdempotencyKey: () => ok(null),
       findById: () => ok(null),
@@ -621,13 +671,14 @@ describe('NavFetchUseCase', () => {
       listByFundId: () => ok([]),
       findByFundAndDate: () => ok(null),
       findLatestByFundId: () => ok(null),
-      findLatestByFundIds: () => ok(new Map()),
+      findLatestByFundIds: (fundIds) => ok(new Map(fundIds.map((fundId) => [fundId, null]))),
       createNav: () => ok(undefined),
     };
     const transactionRepository: TransactionRepository = {
       listByFundId: () => ok([]),
       listAll: () => ok([]),
-      listByFundIdsGrouped: () => ok(new Map()),
+      // 渡したfundIdsの全件をキーに含めるという本物のリポジトリの契約を、フェイクでも守る。
+      listByFundIdsGrouped: (fundIds) => ok(new Map(fundIds.map((fundId) => [fundId, []]))),
       createTransaction: () => ok(undefined),
       findByIdempotencyKey: () => ok(null),
       findById: () => ok(null),
@@ -695,13 +746,14 @@ describe('NavFetchUseCase', () => {
       listByFundId: () => ok([]),
       findByFundAndDate: () => ok(null),
       findLatestByFundId: () => ok(null),
-      findLatestByFundIds: () => ok(new Map()),
+      findLatestByFundIds: (fundIds) => ok(new Map(fundIds.map((fundId) => [fundId, null]))),
       createNav: () => ok(undefined),
     };
     const transactionRepository: TransactionRepository = {
       listByFundId: () => ok([]),
       listAll: () => ok([]),
-      listByFundIdsGrouped: () => ok(new Map()),
+      // 渡したfundIdsの全件をキーに含めるという本物のリポジトリの契約を、フェイクでも守る。
+      listByFundIdsGrouped: (fundIds) => ok(new Map(fundIds.map((fundId) => [fundId, []]))),
       createTransaction: () => ok(undefined),
       findByIdempotencyKey: () => ok(null),
       findById: () => ok(null),
@@ -768,6 +820,7 @@ describe('NavFetchUseCase', () => {
       listByFundId: () => ok([]),
       findByFundAndDate: () => ok(null),
       findLatestByFundId: () => ok(null),
+      findLatestByFundIds: (fundIds) => ok(new Map(fundIds.map((fundId) => [fundId, null]))),
       createNav: () => ok(undefined),
     };
     // 取引シート未作成の状態を、フェイクではなく本物のTransactionRepositoryで再現する。
@@ -806,5 +859,555 @@ describe('NavFetchUseCase', () => {
       expect(result.value.performanceFailures).toEqual([]);
     }
     expect(performanceRecorded).toBe(false);
+  });
+
+  it('全体実績記録は銘柄単位の取引読取を行わず一括取得を各1回だけ行う', () => {
+    // 前提: 基準価額を登録する取引あり銘柄が2件あり、全体実績は未登録である。
+    // 事前条件: 取引履歴の各読取メソッドを数え、2銘柄ともファンド別実績を記録できる。
+    // 検証: recordGlobalPerformanceが一括取引・一括基準価額取得を各1回だけ行い、
+    //       単数の基準価額取得と全件取引取得を行わない。ファンド別実績の個別読取は別契約である。
+    const funds: Fund[] = [
+      {
+        id: 'fund-read-once-a',
+        name: '読取回数検証ファンドA',
+        rakutenFundId: 'READONCE1234',
+        settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
+        assetClass: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'fund-read-once-b',
+        name: '読取回数検証ファンドB',
+        rakutenFundId: 'READONCE5678',
+        settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
+        assetClass: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+      },
+    ];
+    let groupedCalls = 0;
+    let listAllCalls = 0;
+    let listByFundIdCalls = 0;
+    let latestBatchCalls = 0;
+    let latestSingleCalls = 0;
+    const fundRepository: FundRepository = {
+      listFunds: () => ok(funds),
+      findByName: () => ok(null),
+      findById: () => ok(null),
+      createFund: () => ok(undefined),
+      updateFund: () => ok(undefined),
+      updateAssetClass: () => ok(undefined),
+    };
+    const navRepository: NavRepository = {
+      listByFundId: () => ok([]),
+      findByFundAndDate: () => ok(null),
+      findLatestByFundId: () => {
+        latestSingleCalls += 1;
+        return ok(null);
+      },
+      findLatestByFundIds: (fundIds) => {
+        latestBatchCalls += 1;
+        return ok(
+          new Map(
+            fundIds.map((fundId) => [
+              fundId,
+              {
+                fundId,
+                date: '2024-03-05',
+                value: 10000,
+                createdAt: '2024-03-05T00:00:00.000Z',
+              },
+            ])
+          )
+        );
+      },
+      createNav: () => ok(undefined),
+    };
+    const transactionRepository: TransactionRepository = {
+      listByFundId: (fundId) => {
+        listByFundIdCalls += 1;
+        return ok([
+          {
+            id: `transaction-${fundId}`,
+            fundId,
+            type: 'SPOT_PURCHASE',
+            date: '2024-02-01',
+            amount: 10000,
+            navValue: 10000,
+            units: 10000,
+            incomeTax: null,
+            residentTax: null,
+            recurringPurchaseId: null,
+            idempotencyKey: `transaction-${fundId}`,
+            createdAt: '2024-02-01T00:00:00.000Z',
+          },
+        ]);
+      },
+      listAll: () => {
+        listAllCalls += 1;
+        return ok([]);
+      },
+      listByFundIdsGrouped: (fundIds) => {
+        groupedCalls += 1;
+        return ok(
+          new Map(
+            fundIds.map((fundId) => [
+              fundId,
+              [
+                {
+                  id: `transaction-${fundId}`,
+                  fundId,
+                  type: 'SPOT_PURCHASE' as const,
+                  date: '2024-02-01',
+                  amount: 10000,
+                  navValue: 10000,
+                  units: 10000,
+                  incomeTax: null,
+                  residentTax: null,
+                  recurringPurchaseId: null,
+                  idempotencyKey: `transaction-${fundId}`,
+                  createdAt: '2024-02-01T00:00:00.000Z',
+                },
+              ],
+            ])
+          )
+        );
+      },
+      createTransaction: () => ok(undefined),
+      findByIdempotencyKey: () => ok(null),
+      findById: () => ok(null),
+      updateTransaction: () => ok(undefined),
+      deleteTransaction: () => ok(undefined),
+    };
+    const performanceRepository: PerformanceRepository = {
+      createPerformance: () => ok(undefined),
+      createGlobalPerformance: () => ok(undefined),
+      // ファンド別実績を既存扱いにして、取引取得の呼び出し回数を全体実績処理だけで検証する。
+      findByFundAndDate: () =>
+        ok({
+          fundId: funds[0]!.id,
+          date: '2024-03-05',
+          totalUnits: 0,
+          remainingInvestment: 0,
+          currentValue: 0,
+          totalGain: 0,
+          unrealizedGainRate: 0,
+          createdAt: '2024-03-05T00:00:00.000Z',
+        }),
+      findGlobalByDate: () => ok(null),
+      findLatestByFundId: () => ok(null),
+    };
+    const result = createNavFetchUseCase(
+      fundRepository,
+      navRepository,
+      transactionRepository,
+      performanceRepository,
+      {
+        fetchLatestNav: () =>
+          ok({
+            rakutenFundId: funds[0]!.rakutenFundId!,
+            nav: { date: '2024-03-05', value: 10000 },
+          }),
+      },
+      wealthAdvisorService
+    ).fetchAndRegisterAllNavs();
+    expect(result.success).toBe(true);
+    expect(groupedCalls).toBe(1);
+    expect(latestBatchCalls).toBe(1);
+    expect(latestSingleCalls).toBe(0);
+    expect(listAllCalls).toBe(0);
+    // ファンド別実績を既存扱いにしているため、ここで数えた個別読取はすべて全体実績処理由来である。
+    // 全体実績が銘柄ごとの読取へ戻る退行を、0回であることで固定する。
+    expect(listByFundIdCalls).toBe(0);
+  });
+
+  it.each([
+    ['取引履歴', 'transaction', '取引履歴の取得に失敗しました。'],
+    ['基準価額', 'nav', '基準価額の取得に失敗しました。'],
+  ] as const)(
+    '%s取得の失敗を全体実績の失敗として伝播する',
+    (_description, failureTarget, expectedMessage) => {
+      // 前提: 基準価額登録に成功し、全体実績計算時の指定した取得処理だけが失敗する。
+      // 検証: 基準価額登録は継続し、全体実績の失敗要素が通知され、全体実績は作成されない。
+      const fund: Fund = {
+        id: 'fund-global-performance-error',
+        name: '全体実績失敗検証ファンド',
+        rakutenFundId: 'GLOBALERROR123',
+        settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
+        assetClass: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+      };
+      const fundRepository: FundRepository = {
+        listFunds: () => ok([fund]),
+        findByName: () => ok(null),
+        findById: () => ok(null),
+        createFund: () => ok(undefined),
+        updateFund: () => ok(undefined),
+        updateAssetClass: () => ok(undefined),
+      };
+      const navRepository: NavRepository = {
+        listByFundId: () => ok([]),
+        findByFundAndDate: () => ok(null),
+        findLatestByFundId: () => ok(null),
+        findLatestByFundIds: () =>
+          failureTarget === 'nav'
+            ? fail('unexpected', expectedMessage)
+            : ok(
+                new Map([
+                  [
+                    fund.id,
+                    {
+                      fundId: fund.id,
+                      date: '2024-03-05',
+                      value: 10000,
+                      createdAt: '2024-03-05T00:00:00.000Z',
+                    },
+                  ],
+                ])
+              ),
+        createNav: () => ok(undefined),
+      };
+      const transactionRepository: TransactionRepository = {
+        listByFundId: () => ok([]),
+        listAll: () => ok([]),
+        listByFundIdsGrouped: () =>
+          failureTarget === 'transaction'
+            ? fail('unexpected', expectedMessage)
+            : ok(
+                new Map([
+                  [
+                    fund.id,
+                    [
+                      {
+                        id: 'transaction-global-error',
+                        fundId: fund.id,
+                        type: 'SPOT_PURCHASE' as const,
+                        date: '2024-02-01',
+                        amount: 10000,
+                        navValue: 10000,
+                        units: 10000,
+                        incomeTax: null,
+                        residentTax: null,
+                        recurringPurchaseId: null,
+                        idempotencyKey: 'transaction-global-error',
+                        createdAt: '2024-02-01T00:00:00.000Z',
+                      },
+                    ],
+                  ],
+                ])
+              ),
+        createTransaction: () => ok(undefined),
+        findByIdempotencyKey: () => ok(null),
+        findById: () => ok(null),
+        updateTransaction: () => ok(undefined),
+        deleteTransaction: () => ok(undefined),
+      };
+      const createGlobalPerformance = vi.fn(() => ok(undefined));
+      const performanceRepository: PerformanceRepository = {
+        createPerformance: () => ok(undefined),
+        createGlobalPerformance,
+        findByFundAndDate: () => ok(null),
+        findGlobalByDate: () => ok(null),
+        findLatestByFundId: () => ok(null),
+      };
+      const result = createNavFetchUseCase(
+        fundRepository,
+        navRepository,
+        transactionRepository,
+        performanceRepository,
+        {
+          fetchLatestNav: () =>
+            ok({ rakutenFundId: fund.rakutenFundId!, nav: { date: '2024-03-05', value: 10000 } }),
+        },
+        wealthAdvisorService
+      ).fetchAndRegisterAllNavs();
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.value.performanceFailures).toContainEqual({
+          scope: 'global',
+          fundId: null,
+          fundName: null,
+          message: expectedMessage,
+        });
+      }
+      expect(createGlobalPerformance).not.toHaveBeenCalled();
+    }
+  );
+
+  // 一括取得が成功しても、渡した銘柄IDのキーが欠落していれば契約違反である。
+  // 本物のリポジトリでは起こらないが、黙って過少な全体実績を書かないことを取引履歴・基準価額の双方で固定する。
+  it.each([
+    {
+      label: '取引Map',
+      missingLabel: '取引履歴',
+      dropTransactionKey: true,
+    },
+    {
+      label: '基準価額Map',
+      missingLabel: '基準価額',
+      dropTransactionKey: false,
+    },
+  ])(
+    '全体実績の$labelで銘柄キーが欠落した場合は過少な実績を記録しない',
+    ({ missingLabel, dropTransactionKey }) => {
+      // 前提: 2銘柄の基準価額取得・登録がいずれも成功し、全体実績は未登録である。
+      // 事前条件: 一括取得は成功を返すが、2銘柄目のキーだけを欠落させる。
+      // 検証: 全体実績は作成されず、失敗通知に欠落銘柄IDと対象Mapの名称が含まれる。
+      const funds: Fund[] = [
+        {
+          id: 'fund-map-a',
+          name: 'Map検証ファンドA',
+          rakutenFundId: 'MAPTESTA1234',
+          settlementBusinessDays: null,
+          navSource: null,
+          navSourceCode: null,
+          assetClass: null,
+          createdAt: '2024-01-01T00:00:00.000Z',
+        },
+        {
+          id: 'fund-map-b',
+          name: 'Map検証ファンドB',
+          rakutenFundId: 'MAPTESTB1234',
+          settlementBusinessDays: null,
+          navSource: null,
+          navSourceCode: null,
+          assetClass: null,
+          createdAt: '2024-01-01T00:00:00.000Z',
+        },
+      ];
+      // 欠落させない側は全件を埋め、欠落させる側だけ1銘柄目のみのMapを返す。
+      const presentFundIds = [funds[0]!.id];
+      const fundRepository: FundRepository = {
+        listFunds: () => ok(funds),
+        findByName: () => ok(null),
+        findById: () => ok(null),
+        createFund: () => ok(undefined),
+        updateFund: () => ok(undefined),
+        updateAssetClass: () => ok(undefined),
+      };
+      const navRepository: NavRepository = {
+        listByFundId: () => ok([]),
+        findByFundAndDate: () => ok(null),
+        findLatestByFundId: () => ok(null),
+        findLatestByFundIds: (fundIds) =>
+          ok(
+            new Map(
+              (dropTransactionKey ? fundIds : presentFundIds).map((fundId) => [
+                fundId,
+                { fundId, date: '2024-03-05', value: 10000, createdAt: '2024-03-05T00:00:00.000Z' },
+              ])
+            )
+          ),
+        createNav: () => ok(undefined),
+      };
+      // 基準価額Mapの欠落を検証する場合は、取引0件だと基準価額の取得前に保有なしとして扱われないよう
+      // 取引を1件持たせ、requireMapValueの基準価額判定まで到達させる。
+      const transaction: Transaction = {
+        id: 'transaction-map-check',
+        fundId: funds[1]!.id,
+        type: 'SPOT_PURCHASE',
+        date: '2024-02-01',
+        amount: 10000,
+        navValue: 10000,
+        units: 10000,
+        incomeTax: null,
+        residentTax: null,
+        recurringPurchaseId: null,
+        idempotencyKey: 'transaction-map-check',
+        createdAt: '2024-02-01T00:00:00.000Z',
+      };
+      const transactionRepository: TransactionRepository = {
+        listByFundId: () => ok([]),
+        listAll: () => ok([]),
+        listByFundIdsGrouped: (fundIds) =>
+          ok(
+            new Map(
+              (dropTransactionKey ? presentFundIds : fundIds).map((fundId) => [
+                fundId,
+                fundId === funds[1]!.id ? [transaction] : [],
+              ])
+            )
+          ),
+        createTransaction: () => ok(undefined),
+        findByIdempotencyKey: () => ok(null),
+        findById: () => ok(null),
+        updateTransaction: () => ok(undefined),
+        deleteTransaction: () => ok(undefined),
+      };
+      const createGlobalPerformance = vi.fn(() => ok(undefined));
+      const performanceRepository: PerformanceRepository = {
+        createPerformance: () => ok(undefined),
+        createGlobalPerformance,
+        findByFundAndDate: () => ok(null),
+        findGlobalByDate: () => ok(null),
+        findLatestByFundId: () => ok(null),
+      };
+      const result = createNavFetchUseCase(
+        fundRepository,
+        navRepository,
+        transactionRepository,
+        performanceRepository,
+        {
+          fetchLatestNav: (rakutenFundId) =>
+            ok({ rakutenFundId, nav: { date: '2024-03-05', value: 10000 } }),
+        },
+        wealthAdvisorService
+      ).fetchAndRegisterAllNavs();
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        const globalFailure = result.value.performanceFailures.find(
+          (failure) => failure.scope === 'global'
+        );
+        expect(globalFailure?.message).toContain(funds[1]!.id);
+        expect(globalFailure?.message).toContain(missingLabel);
+      }
+      expect(createGlobalPerformance).not.toHaveBeenCalled();
+    }
+  );
+
+  it('全体実績は取引あり銘柄だけを集計して従来と同じ計算結果を記録する', () => {
+    // 前提: 取引あり銘柄2件と取引0件銘柄1件があり、基準価額の登録に成功する。
+    // 事前条件: 銘柄Aは10,000円を11,000円、銘柄Bは20,000円を12,000円として評価する。
+    // 検証: 取引0件銘柄はholdingsに含めず、currentValue=(11,000+24,000)=35,000円、
+    //   totalGain=currentValue-(10,000+20,000)=5,000円となる。
+    const funds: Fund[] = [
+      {
+        id: 'fund-calc-a',
+        name: '計算対象A',
+        rakutenFundId: 'CALCA123456',
+        settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
+        assetClass: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'fund-calc-b',
+        name: '計算対象B',
+        rakutenFundId: 'CALCB123456',
+        settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
+        assetClass: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'fund-calc-empty',
+        name: '計算対象外（取引なし）',
+        rakutenFundId: 'CALCEMPTY12',
+        settlementBusinessDays: null,
+        navSource: null,
+        navSourceCode: null,
+        assetClass: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+      },
+    ];
+    const transactions: Transaction[] = [
+      {
+        id: 'transaction-calc-a',
+        fundId: funds[0]!.id,
+        type: 'SPOT_PURCHASE',
+        date: '2024-02-01',
+        amount: 10000,
+        navValue: 10000,
+        units: 10000,
+        incomeTax: null,
+        residentTax: null,
+        recurringPurchaseId: null,
+        idempotencyKey: 'transaction-calc-a',
+        createdAt: '2024-02-01T00:00:00.000Z',
+      },
+      {
+        id: 'transaction-calc-b',
+        fundId: funds[1]!.id,
+        type: 'SPOT_PURCHASE',
+        date: '2024-02-01',
+        amount: 20000,
+        navValue: 10000,
+        units: 20000,
+        incomeTax: null,
+        residentTax: null,
+        recurringPurchaseId: null,
+        idempotencyKey: 'transaction-calc-b',
+        createdAt: '2024-02-01T00:00:00.000Z',
+      },
+    ];
+    const fundRepository: FundRepository = {
+      listFunds: () => ok(funds),
+      findByName: () => ok(null),
+      findById: () => ok(null),
+      createFund: () => ok(undefined),
+      updateFund: () => ok(undefined),
+      updateAssetClass: () => ok(undefined),
+    };
+    const navRepository: NavRepository = {
+      listByFundId: () => ok([]),
+      findByFundAndDate: () => ok(null),
+      findLatestByFundId: () => ok(null),
+      findLatestByFundIds: (fundIds) =>
+        ok(
+          new Map(
+            fundIds.map((fundId) => [
+              fundId,
+              {
+                fundId,
+                date: '2024-03-05',
+                value: fundId === funds[0]!.id ? 11000 : 12000,
+                createdAt: '2024-03-05T00:00:00.000Z',
+              },
+            ])
+          )
+        ),
+      createNav: () => ok(undefined),
+    };
+    const transactionRepository: TransactionRepository = {
+      listByFundId: (fundId) => ok(transactions.filter((item) => item.fundId === fundId)),
+      listAll: () => ok(transactions),
+      listByFundIdsGrouped: (fundIds) =>
+        ok(
+          new Map(
+            fundIds.map((fundId) => [fundId, transactions.filter((item) => item.fundId === fundId)])
+          )
+        ),
+      createTransaction: () => ok(undefined),
+      findByIdempotencyKey: () => ok(null),
+      findById: () => ok(null),
+      updateTransaction: () => ok(undefined),
+      deleteTransaction: () => ok(undefined),
+    };
+    let recorded: PerformanceRecord | null = null;
+    const performanceRepository: PerformanceRepository = {
+      createPerformance: () => ok(undefined),
+      createGlobalPerformance: (performance) => {
+        recorded = performance;
+        return ok(undefined);
+      },
+      findByFundAndDate: () => ok(null),
+      findGlobalByDate: () => ok(null),
+      findLatestByFundId: () => ok(null),
+    };
+    const result = createNavFetchUseCase(
+      fundRepository,
+      navRepository,
+      transactionRepository,
+      performanceRepository,
+      {
+        fetchLatestNav: (rakutenFundId) =>
+          ok({ rakutenFundId, nav: { date: '2024-03-05', value: 10000 } }),
+      },
+      wealthAdvisorService
+    ).fetchAndRegisterAllNavs();
+    expect(result.success).toBe(true);
+    expect(recorded).not.toBeNull();
+    const recordedPerformance = recorded as PerformanceRecord;
+    expect(recordedPerformance.currentValue).toBe(35000);
+    expect(recordedPerformance.totalGain).toBe(5000);
   });
 });
