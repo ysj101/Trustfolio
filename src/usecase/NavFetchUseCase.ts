@@ -529,11 +529,6 @@ function recordGlobalPerformance(
   const navsMapResult = navRepository.findLatestByFundIds(fundIds);
   if (!navsMapResult.success) return navsMapResult;
   const navsMap = navsMapResult.value;
-  // PerformanceRecordへ書く4値は保有情報だけで算出できるが、calculatePortfolioの契約は
-  // 実現損益・税額も計算するため、結果を変えずに呼び出しを維持するには全取引が必要である。
-  // calculatePortfolioは実現損益計算時にfundIdごとに再グループ化して日付順へ並べ直す。
-  const allTransactions = Array.from(transactionsMap.values()).flat();
-
   const holdings = [];
   for (const fund of funds) {
     const transactionsResult = requireMapValue(transactionsMap, fund.id, '取引履歴');
@@ -546,7 +541,11 @@ function recordGlobalPerformance(
   }
 
   // 3. ポートフォリオサマリー計算
-  const portfolio = calculatePortfolio(holdings, allTransactions);
+  // PerformanceRecordへ書く4値は保有情報だけで算出できるが、calculatePortfolioの契約は
+  // 実現損益・税額も計算するため、結果を変えずに呼び出しを維持するには全取引が必要である。
+  // calculatePortfolioは実現損益計算時にfundIdごとに再グループ化して日付順へ並べ直すため、
+  // ここでの平坦化に並び順の責任はない。契約違反で早期returnする場合に備え、直前で作る。
+  const portfolio = calculatePortfolio(holdings, Array.from(transactionsMap.values()).flat());
 
   // calculatePortfolio は、いずれかの保有で現在値が欠損した場合に totalCurrentValue・
   // totalUnrealizedGain・totalUnrealizedGainRate を常に同時に null にする（詳細は
