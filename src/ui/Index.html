@@ -469,6 +469,23 @@
                     class="w-full rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
                   />
                   <!--
+                    issue #247: 保存前に取得元コードを確認する。type="button"でフォーム送信を防ぐ。
+                    結果は取得失敗・HTTP 200だが基準価額抽出不可・基準価額取得成功の3状態を表示する。
+                  -->
+                  <button
+                    id="fundNavSourceCodeCheckButton"
+                    type="button"
+                    class="inline-flex justify-self-start items-center justify-center rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white shadow-glow transition hover:bg-indigo-400 disabled:opacity-50"
+                  >
+                    確認
+                  </button>
+                  <p
+                    id="fundNavSourceCodeCheckResult"
+                    role="status"
+                    aria-live="polite"
+                    class="hidden break-all rounded-xl border border-slate-800 bg-slate-900/70 px-5 py-4 text-sm text-slate-300 data-[state=success]:border-emerald-500/30 data-[state=success]:bg-emerald-500/10 data-[state=success]:text-emerald-300 data-[state=error]:border-rose-500/30 data-[state=error]:bg-rose-500/10 data-[state=error]:text-rose-300"
+                  ></p>
+                  <!--
                     取得元コードの調べ方の案内（issue #245）。
                     外部リンクを置かない理由: ウエルスアドバイザー本体サイト（www.wealthadvisor.co.jp）の
                     銘柄検索から到達できるのは www.wealthadvisor.co.jp/snapshot/{ファンドコード} 形式のページであり、

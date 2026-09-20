@@ -308,3 +308,80 @@ describe('router', () => {
     );
   });
 });
+
+describe('checkWealthAdvisorNavSource', () => {
+  it('形式不正な取得元コードを通信前に拒否する', () => {
+    // 前提: 取得元コードにはcompany/pageId形式が必要である。
+    // 事前条件: スラッシュのないコードを指定する。
+    // 検証: 通信せず、対象フィールドのvalidationエラーを返す。
+    const fetchMock = vi.spyOn(globalThis.UrlFetchApp, 'fetch');
+    fetchMock.mockClear();
+    try {
+      expect(
+        handleApiRequest({ action: 'checkWealthAdvisorNavSource', navSourceCode: 'sbi_am' })
+      ).toEqual(
+        fail('validation', 'Wealth Advisor取得元コードが不正です: sbi_am', 'navSourceCode')
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      fetchMock.mockRestore();
+    }
+  });
+
+  it.each([null, undefined, 8931, {}, []].map((navSourceCode) => ({ navSourceCode })))(
+    '文字列以外のコード $navSourceCode を拒否する',
+    ({ navSourceCode }) => {
+      // 前提: doPostから型定義に反する外部入力が渡される場合がある。
+      // 事前条件: 文字列以外の値を意図的に渡す。
+      // 検証: trimなどで例外を起こさずvalidationエラーを返す。
+      expect(
+        handleApiRequest({
+          action: 'checkWealthAdvisorNavSource',
+          navSourceCode: navSourceCode as unknown as string,
+        })
+      ).toEqual(fail('validation', '取得元コードは文字列で入力してください。', 'navSourceCode'));
+    }
+  );
+
+  it.each([
+    {
+      description: '基準価額と基準日を取得できる',
+      html: '<th>基準価額</th><td><span class="fprice">26,093</span>円</td><td><span class="ptdate">2026年09月01日</span></td>',
+      nav: { date: '2026-09-01', value: 26093 },
+    },
+    {
+      description: '基準価額を抽出できずnullになる',
+      html: '<html><body>基準価額の掲載がないページ</body></html>',
+      nav: null,
+    },
+  ])('シート接続なしでHTTP 200の結果を返す: $description', async ({ html, nav }) => {
+    // 前提: ＳＢＩ・iシェアーズ・ゴールドファンドのコードで疎通確認する。
+    // 事前条件: HTTP 200のHTMLを返す一方、シート接続は失敗する設定とする。
+    // 検証: シートへ接続せず、抽出不可のnullも変更せず成功結果に保持する。
+    const { openSheetRepository } = vi.mocked(await import('../../src/repository/SheetRepository'));
+    openSheetRepository.mockClear();
+    openSheetRepository.mockReturnValue(fail('unexpected', 'シート接続に失敗しました。'));
+    const fetchMock = vi.spyOn(globalThis.UrlFetchApp, 'fetch').mockReturnValue({
+      getResponseCode: () => 200,
+      getContentText: () => html,
+    });
+    try {
+      expect(
+        handleApiRequest({
+          action: 'checkWealthAdvisorNavSource',
+          navSourceCode: 'sbi_am/sa_202306080A',
+        })
+      ).toEqual({
+        success: true,
+        value: {
+          url: 'https://apl.wealthadvisor.jp/webasp/sbi_am/pc/basic/sa_202306080A.html',
+          statusCode: 200,
+          nav,
+        },
+      });
+      expect(openSheetRepository).not.toHaveBeenCalled();
+    } finally {
+      fetchMock.mockRestore();
+    }
+  });
+});

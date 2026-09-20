@@ -96,7 +96,7 @@ export function fetchWealthAdvisorQuote(navSourceCode: string): Result<WealthAdv
   if (statusCode !== 200) {
     return fail(
       'unexpected',
-      `Wealth Advisorから200以外のレスポンスが返りました: ${String(statusCode)}`
+      `Wealth Advisorから200以外のレスポンスが返りました。statusCode=${String(statusCode)} url=${url}`
     );
   }
   const html = response.getContentText();

@@ -382,13 +382,17 @@
 
     /**
      * 指定したメッセージ要素に紐づく setMessage 関数を生成する。
-     * 成功メッセージ（stateValue === 'success'）は10秒後に自動で消去する。
+     * 成功メッセージ（stateValue === 'success'）は既定で10秒後に自動で消去する。
+     * 確認結果のように利用者が読み返す必要があるメッセージでは、自動消去を無効化する。
      * 自動消去用のタイマーは生成した関数ごとに独立して保持する。
      *
      * @param {HTMLElement} messageElement - メッセージ表示用の要素
+     * @param {{ autoClearSuccessMs?: number|null }} [options] - 成功メッセージの表示時間設定
+     * @param {number|null} [options.autoClearSuccessMs=10000] - 自動消去までのミリ秒。null はタイマーを設定しない。
      * @returns {(text: string, stateValue: string|null) => void} setMessage 関数
      */
-    function createSetMessage(messageElement) {
+    function createSetMessage(messageElement, options = {}) {
+      const { autoClearSuccessMs = 10000 } = options;
       let successMessageTimer = null;
       return function setMessage(text, stateValue) {
         messageElement.textContent = text;
@@ -407,14 +411,14 @@
           clearTimeout(successMessageTimer);
           successMessageTimer = null;
         }
-        if (stateValue === 'success') {
+        if (stateValue === 'success' && autoClearSuccessMs !== null) {
           successMessageTimer = setTimeout(() => {
             if (messageElement.getAttribute('data-state') === 'success') {
               messageElement.textContent = '';
               messageElement.removeAttribute('data-state');
               messageElement.classList.add('hidden');
             }
-          }, 10000);
+          }, autoClearSuccessMs);
         }
       };
     }

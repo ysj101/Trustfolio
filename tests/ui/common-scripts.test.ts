@@ -643,6 +643,23 @@ describe('TrustfolioUi.createSetMessage', () => {
     expect(messageEl.getAttribute('data-state')).toBeNull();
     expect(messageEl.hasClass('hidden')).toBe(true);
   });
+
+  it('自動消去を無効にした成功メッセージは10秒後も表示される', () => {
+    // 前提: 利用者が読み返す確認結果は、成功しても表示を保持する。
+    // 事前条件: 自動消去時間にnullを指定し、成功メッセージを表示する。
+    // 検証: タイマーを設定せず、10秒経過後も本文・成功の配色・表示状態を保持する。
+    vi.useFakeTimers();
+    const messageEl = createElementMock();
+    const ui = loadTrustfolioUi({}, {});
+    const setMessage = ui.createSetMessage(messageEl, { autoClearSuccessMs: null });
+
+    setMessage('基準価額を取得しました。', 'success');
+    expect(vi.getTimerCount()).toBe(0);
+    vi.advanceTimersByTime(10_000);
+    expect(messageEl.textContent).toBe('基準価額を取得しました。');
+    expect(messageEl.getAttribute('data-state')).toBe('success');
+    expect(messageEl.hasClass('hidden')).toBe(false);
+  });
 });
 
 describe('TrustfolioUi.renderFundSelect', () => {

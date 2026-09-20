@@ -19,8 +19,20 @@
     const fundRakutenFundIdField = document.getElementById('fundRakutenFundIdField');
     const fundNavSourceCodeField = document.getElementById('fundNavSourceCodeField');
     const fundNavSourceCodeInput = document.getElementById('fundNavSourceCode');
+    const fundNavSourceCodeCheckButton = document.getElementById('fundNavSourceCodeCheckButton');
+    const fundNavSourceCodeCheckResult = document.getElementById('fundNavSourceCodeCheckResult');
     const fundSettlementBusinessDaysInput = document.getElementById('fundSettlementBusinessDays');
     const fundList = document.getElementById('fundList');
+
+    // 利用者が基準価額とURLを読み比べて銘柄の同一性を判断できるよう、自動消去を無効化する。
+    const setNavSourceCodeCheckMessage = window.TrustfolioUi.createSetMessage(
+      fundNavSourceCodeCheckResult,
+      { autoClearSuccessMs: null }
+    );
+    // Wealth Advisorへの連打による過剰アクセスを防ぐため、利用者と合意した実行間隔の下限。
+    const NAV_SOURCE_CODE_CHECK_MIN_INTERVAL_MS = 5000;
+    let lastNavSourceCodeCheckStartedAt = 0;
+    let isNavSourceCodeCheckInFlight = false;
 
     /** 取得元種別ごとの入力グループ。表示切替と送信時の値取得で同じ配列を走査する。 */
     const navSourceInputGroups = Object.freeze([
@@ -56,6 +68,9 @@
         kind === window.TrustfolioUi.NAV_SOURCE_KINDS.NONE ||
         navSourceInputGroups.some((group) => group.kind === kind);
       if (!isKnownKind) throw new Error(`未知の基準価額取得元種別です: ${String(kind)}`);
+      // 取得元種別の切替時と登録成功後のフォームリセット時には、直前の確認結果は
+      // 現在の入力内容を説明しなくなるため、結果表示を消去する。
+      setNavSourceCodeCheckMessage('', null);
       navSourceInputGroups.forEach((group) => {
         setFieldGroupActive(group.field, group.input, group.kind === kind);
       });
@@ -1479,13 +1494,85 @@
       try {
         window.TrustfolioUi.populateNavSourceKindSelect(fundNavSourceKindSelect);
         fundNavSourceKindSelect.addEventListener('change', applyNavSourceKindToForm);
+        // change は blur まで発火しないため、確認完了後に入力欄内で編集すると古い結果が残る。
+        // input でも結果を消去し、編集中のコードを確認済みと誤認させない。
+        fundNavSourceCodeInput.addEventListener('input', () => {
+          setNavSourceCodeCheckMessage('', null);
+        });
         fundNavSourceCodeInput.addEventListener('change', () => {
+          // 入力値が変わった時点で直前の確認結果は無効になるため、結果表示を消去する。
+          setNavSourceCodeCheckMessage('', null);
           // URL文字列は pattern="[^/]+/[^/]+" に合致せず、制約検証で送信がブロックされる。
           // change は submit より先に発火するため、ブラウザの制約検証前に変換を完了させる。
           const navSourceCode = window.TrustfolioUi.extractWealthAdvisorNavSourceCode(
             fundNavSourceCodeInput.value
           );
           if (navSourceCode !== null) fundNavSourceCodeInput.value = navSourceCode;
+        });
+        fundNavSourceCodeCheckButton.addEventListener('click', async () => {
+          // setLoading(false)は全ボタンを再有効化するため、disabled状態に依存せず多重実行を防ぐ。
+          if (isNavSourceCodeCheckInFlight) {
+            setNavSourceCodeCheckMessage('確認中です。完了までお待ちください。', 'error');
+            return;
+          }
+          const requestedNavSourceCode = fundNavSourceCodeInput.value.trim();
+          /**
+           * 現在の入力と確認を依頼したコードが異なる場合に、古い応答の結果表示を消去する。
+           * 通信完了後も「確認中...」が残り、処理中と誤表示されることを防ぐ。
+           * 成功応答と通信例外の双方で、結果の解釈や整形より先に呼び出す。
+           * @returns {boolean} 応答を破棄した場合はtrue、現在の入力に対応する場合はfalse。
+           */
+          const discardOutdatedResponse = () => {
+            if (fundNavSourceCodeInput.value.trim() === requestedNavSourceCode) return false;
+            setNavSourceCodeCheckMessage('', null);
+            return true;
+          };
+          if (!requestedNavSourceCode) {
+            setNavSourceCodeCheckMessage('取得元コードを入力してください。', 'error');
+            return;
+          }
+          if (
+            Date.now() - lastNavSourceCodeCheckStartedAt <
+            NAV_SOURCE_CODE_CHECK_MIN_INTERVAL_MS
+          ) {
+            setNavSourceCodeCheckMessage(
+              `確認の実行間隔は${NAV_SOURCE_CODE_CHECK_MIN_INTERVAL_MS / 1000}秒以上あけてください。`,
+              'error'
+            );
+            return;
+          }
+          lastNavSourceCodeCheckStartedAt = Date.now();
+          isNavSourceCodeCheckInFlight = true;
+          fundNavSourceCodeCheckButton.disabled = true;
+          setNavSourceCodeCheckMessage('確認中...', null);
+          try {
+            const response = await window.TrustfolioUi.callApi({
+              action: 'checkWealthAdvisorNavSource',
+              navSourceCode: requestedNavSourceCode,
+            });
+            if (discardOutdatedResponse()) return;
+            if (response.success === false) {
+              setNavSourceCodeCheckMessage(response.error.message, 'error');
+            } else if (response.value.nav === null) {
+              // ページ取得と基準価額取得は別の状態であり、抽出不可を成功表示にしない。
+              setNavSourceCodeCheckMessage(
+                `ページは取得できましたが（HTTP ${response.value.statusCode}）、基準価額を抽出できませんでした。URL: ${response.value.url}`,
+                'error'
+              );
+            } else {
+              const nav = response.value.nav;
+              setNavSourceCodeCheckMessage(
+                `基準価額 ${window.TrustfolioUi.formatCurrency(nav.value)}（${nav.date}）を取得しました。URL: ${response.value.url}`,
+                'success'
+              );
+            }
+          } catch (error) {
+            if (discardOutdatedResponse()) return;
+            setNavSourceCodeCheckMessage(error.message, 'error');
+          } finally {
+            isNavSourceCodeCheckInFlight = false;
+            fundNavSourceCodeCheckButton.disabled = false;
+          }
         });
         applyNavSourceKindToForm();
         await loadFunds();
