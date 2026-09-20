@@ -471,10 +471,13 @@
                   <!--
                     issue #247: 保存前に取得元コードを確認する。type="button"でフォーム送信を防ぐ。
                     結果は取得失敗・HTTP 200だが基準価額抽出不可・基準価額取得成功の3状態を表示する。
+                    aria-label を付ける理由: 表示文言「確認」だけでは、スクリーンリーダー利用者が
+                    コントロール一覧などで本ボタン単体にフォーカスしたときに対象が伝わらないため。
                   -->
                   <button
                     id="fundNavSourceCodeCheckButton"
                     type="button"
+                    aria-label="取得元コードを確認"
                     class="inline-flex justify-self-start items-center justify-center rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white shadow-glow transition hover:bg-indigo-400 disabled:opacity-50"
                   >
                     確認
