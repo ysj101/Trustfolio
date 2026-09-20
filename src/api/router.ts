@@ -1,5 +1,6 @@
 import { fail } from '../domain/result';
 import type { AssetClass, Result } from '../domain/types';
+import { fetchWealthAdvisorQuote } from '../service/WealthAdvisorService';
 import { createAppContainer } from '../usecase/appContainer';
 
 type InitializeSheetsRequest = {
@@ -168,6 +169,11 @@ type FetchMarketIndicesRequest = {
   action: 'fetchMarketIndices';
 };
 
+type CheckWealthAdvisorNavSourceRequest = {
+  action: 'checkWealthAdvisorNavSource';
+  navSourceCode: string;
+};
+
 export type ApiRequest =
   | InitializeSheetsRequest
   | ListFundsRequest
@@ -193,14 +199,25 @@ export type ApiRequest =
   | FetchAllNavsRequest
   | SendWeeklyReportRequest
   | GetPortfolioPerformanceHistoryRequest
-  | FetchMarketIndicesRequest;
+  | FetchMarketIndicesRequest
+  | CheckWealthAdvisorNavSourceRequest;
 
 /**
  * APIリクエストをハンドリングする。
  */
 export function handleApiRequest(request: ApiRequest): Result<unknown> {
+  // 疎通確認はfetchWealthAdvisorQuoteだけに依存し、スプレッドシートへアクセスしない。
+  // createAppContainerは先頭でopenSheetRepositoryを呼ぶため、不要な接続を要求する前に処理する。
+  if (request.action === 'checkWealthAdvisorNavSource') {
+    // doPostはactionを持つオブジェクトまでしか検証しないため、固有フィールドはここで検証する。
+    if (typeof request.navSourceCode !== 'string') {
+      return fail('validation', '取得元コードは文字列で入力してください。', 'navSourceCode');
+    }
+    return fetchWealthAdvisorQuote(request.navSourceCode);
+  }
+
   // 依存（リポジトリ・サービス・ユースケース）の組み立ては composition root に委譲する。
-  // router 自身はリポジトリ層へ直接依存せず、ユースケースへの委譲のみを担う。
+  // 以下ではrouter 自身はリポジトリ層へ直接依存せず、ユースケースへの委譲のみを担う。
   const containerResult = createAppContainer();
   if (!containerResult.success) {
     return containerResult;

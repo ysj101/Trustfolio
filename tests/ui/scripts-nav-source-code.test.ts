@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 /**
  * このテストは src/ui/scripts.html が、投資信託登録フォームの「取得元コード」入力欄
@@ -51,16 +51,14 @@ function extractNavSourceCodeChangeHandlerBody(source: string): string {
 }
 
 /**
- * 抽出したリスナー本体を、入力欄と変換関数のスタブを与えて実行する。
+ * 抽出したリスナー本体を、入力欄・変換関数・結果表示関数のスタブを与えて実行する。
+ * 結果表示関数への呼び出しを記録し、入力変更時の消去を検証できるようにする。
  *
  * @param inputValue - 実行前に入力欄へ入っている値
  * @param converted - 変換関数が返す値（変換できない場合を表すなら null）
- * @returns 実行後の入力欄の値と、変換関数へ渡された引数
+ * @returns 実行後の入力欄の値、変換関数へ渡された引数、結果表示関数のスタブ
  */
-function runChangeHandler(
-  inputValue: string,
-  converted: string | null
-): { valueAfter: string; receivedArgument: string | null } {
+function runChangeHandler(inputValue: string, converted: string | null) {
   const handlerBody = extractNavSourceCodeChangeHandlerBody(readScriptsSource());
   const fundNavSourceCodeInput = { value: inputValue };
   let receivedArgument: string | null = null;
@@ -73,13 +71,32 @@ function runChangeHandler(
     },
   };
 
-  const handler = new Function('window', 'fundNavSourceCodeInput', handlerBody);
-  handler(windowStub, fundNavSourceCodeInput);
+  const setNavSourceCodeCheckMessage = vi.fn();
+  const handler = new Function(
+    'window',
+    'fundNavSourceCodeInput',
+    'setNavSourceCodeCheckMessage',
+    handlerBody
+  );
+  handler(windowStub, fundNavSourceCodeInput, setNavSourceCodeCheckMessage);
 
-  return { valueAfter: fundNavSourceCodeInput.value, receivedArgument };
+  return {
+    valueAfter: fundNavSourceCodeInput.value,
+    receivedArgument,
+    setNavSourceCodeCheckMessage,
+  };
 }
 
 describe('scripts.html の取得元コード入力欄の change リスナー', () => {
+  it('取得元コードの変更時に直前の確認結果を消去する', () => {
+    // 前提: 直前の確認結果は変更後の入力内容を説明しない。
+    // 事前条件: 利用者が取得元コードを直接入力し、変換関数はnullを返す。
+    // 検証: 結果表示関数を空文字とnullで1回呼び、結果表示を消去する。
+    const result = runChangeHandler('sbi_am/sa_202306080A', null);
+
+    expect(result.setNavSourceCodeCheckMessage).toHaveBeenCalledExactlyOnceWith('', null);
+  });
+
   it('取得元コード入力欄に change イベントのリスナーを登録している', () => {
     // 前提: 変換は submit 時ではなく change 時に行う（pattern による制約検証より先に発火させるため）。
     // 検証: change 以外のイベント種別へ変更された場合に、この抽出が失敗して検知できること。

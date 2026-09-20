@@ -92,6 +92,7 @@ describe('WealthAdvisorService', () => {
     // 前提: Wealth Advisorが503レスポンスを返す。
     // 事前条件: getContentTextは呼び出された場合を検出できるスパイである。
     // 検証: HTTPエラーをNAV成功として扱わず、HTMLを解析せずにunexpectedエラーを返す。
+    // 検証: エラーメッセージにはHTTPステータスと実際の取得先URLを含める。
     const getContentText = vi.fn(() => 実HTML断片);
     const fetchMock = vi.spyOn(globalThis.UrlFetchApp, 'fetch').mockReturnValue({
       getResponseCode: () => 503,
@@ -103,6 +104,11 @@ describe('WealthAdvisorService', () => {
       expect(result.error.type).toBe('unexpected');
     }
     expect(getContentText).not.toHaveBeenCalled();
+    if (!result.success) {
+      expect(result.error.message).toBe(
+        'Wealth Advisorから200以外のレスポンスが返りました。statusCode=503 url=https://apl.wealthadvisor.jp/webasp/sbi_am/pc/basic/sa_202306080A.html'
+      );
+    }
     fetchMock.mockRestore();
   });
 
