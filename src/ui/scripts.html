@@ -426,7 +426,8 @@
         nameElement.className = 'min-w-0 truncate';
         nameElement.title = fund.name;
         // バッジは縮小対象から外し、「株式」などの文言が1文字ずつ縦に折り返されないようにする。
-        badgeElement.classList.add('shrink-0');
+        // ml-auto で上段の右端に寄せ、銘柄名の長さに関係なく全行でバッジの位置をそろえる。
+        badgeElement.classList.add('ml-auto', 'shrink-0');
 
         // 基準価額の取得元を「楽天証券: <ID>」「Wealth Advisor: <コード>」「取得元未設定」の
         // 統一形式で表示する（種別の判定と文言は common-scripts.html の formatNavSourceLabel に集約）。
