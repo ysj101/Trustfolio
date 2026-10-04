@@ -143,8 +143,16 @@
     const portfolioToggleLabel = document.getElementById('portfolioToggleLabel');
     const lastUpdateTime = document.getElementById('lastUpdateTime');
 
-    const listItemClass =
-      'flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-3 text-sm text-slate-100 transition hover:border-slate-700 hover:bg-slate-900/80';
+    /** リスト行の外観（枠線・背景・余白・文字色・hover）。行内の並べ方は含めない。 */
+    const listItemSurfaceClass =
+      'rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-3 text-sm text-slate-100 transition hover:border-slate-700 hover:bg-slate-900/80';
+    const listItemClass = `flex items-center justify-between gap-3 ${listItemSurfaceClass}`;
+    /**
+     * 銘柄一覧の行。上段に「銘柄名＋資産クラスバッジ」、下段に「取得元・登録日＋資産クラス変更操作」を置く縦2段構成。
+     * 横一列（listItemClass）に全要素を並べると、一覧の幅（2カラム表示時に約490px）に収まらず
+     * 銘柄名・取得元・ボタン文言がそれぞれ縮んで複数行に折り返すため、銘柄一覧だけこの構成にする。
+     */
+    const fundListItemClass = `flex flex-col gap-2 ${listItemSurfaceClass}`;
     const listContentClass = 'flex flex-col gap-1 text-sm text-slate-300';
     const listActionsClass = 'flex items-center gap-2';
     const listMetaClass = 'text-xs text-slate-400 font-mono';
@@ -412,17 +420,33 @@
         if (!titleResult.success) {
           return failFundListRender(titleResult.error.message);
         }
-        const titleElements = titleResult.value;
-        const meta = document.createElement('span');
-        meta.className = listMetaClass;
+        const [nameElement, badgeElement] = titleResult.value;
+        // 銘柄名は1行で表示し、行幅を超える分は末尾を「…」で省略する（全文は title のツールチップで確認できる）。
+        // min-w-0 が無いと flex アイテムは文字列の幅より縮まず、省略されずに行からはみ出す。
+        nameElement.className = 'min-w-0 truncate';
+        nameElement.title = fund.name;
+        // バッジは縮小対象から外し、「株式」などの文言が1文字ずつ縦に折り返されないようにする。
+        // ml-auto で上段の右端に寄せ、銘柄名の長さに関係なく全行でバッジの位置をそろえる。
+        badgeElement.classList.add('ml-auto', 'shrink-0');
+
         // 基準価額の取得元を「楽天証券: <ID>」「Wealth Advisor: <コード>」「取得元未設定」の
         // 統一形式で表示する（種別の判定と文言は common-scripts.html の formatNavSourceLabel に集約）。
         const labelResult = window.TrustfolioUi.formatNavSourceLabel(fund);
         if (!labelResult.success) {
           return failFundListRender(labelResult.error.message);
         }
-        meta.textContent = `${fund.createdAt.split('T')[0]} ${labelResult.value}`;
-        const actions = [meta];
+        // 取得元と登録日は1行に連結すると操作欄と並べたときに幅が足りず折り返すため、2行に分けて表示する。
+        // 取得元が行幅を超える場合のみ末尾を省略し、全文は title のツールチップで確認できるようにする。
+        const navSourceElement = document.createElement('span');
+        navSourceElement.className = 'truncate';
+        navSourceElement.textContent = labelResult.value;
+        navSourceElement.title = labelResult.value;
+        const createdDateElement = document.createElement('span');
+        createdDateElement.textContent = `登録日 ${fund.createdAt.split('T')[0]}`;
+        const meta = document.createElement('div');
+        meta.className = `${listMetaClass} flex min-w-0 flex-col gap-0.5`;
+        meta.append(navSourceElement, createdDateElement);
+
         const select = document.createElement('select');
         select.className =
           'rounded-lg border border-slate-800 bg-slate-950/40 px-2 py-1.5 text-xs text-slate-100 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30';
@@ -462,13 +486,19 @@
             },
           });
         });
-        actions.push(select, settingButton);
+        // 資産クラスの変更操作（選択欄＋設定ボタン）は縮小対象から外し、ボタン文言の縦折り返しを防ぐ。
+        // ml-auto で下段の右端に寄せる。
+        const controls = document.createElement('div');
+        controls.className = `${listActionsClass} ml-auto shrink-0`;
+        controls.append(select, settingButton);
         const item = window.TrustfolioUi.createListItem({
-          itemClass: listItemClass,
-          contentClass: 'flex items-center gap-2',
-          contentChildren: titleElements,
-          actionsClass: listActionsClass,
-          actions,
+          itemClass: fundListItemClass,
+          contentClass: 'flex min-w-0 items-center gap-2',
+          contentChildren: [nameElement, badgeElement],
+          // 下段: 左に取得元・登録日、右に変更操作。画面幅が狭く横に並ばない場合は flex-wrap により
+          // 変更操作が次の行へ回り込む（文字列自体は折り返さない）。
+          actionsClass: 'flex flex-wrap items-center justify-between gap-x-3 gap-y-2',
+          actions: [meta, controls],
         });
         fundList.appendChild(item);
       });
@@ -571,22 +601,28 @@
         const fund = state.funds.find((f) => f.id === recurring.fundId);
         const fundName = fund ? fund.name : '不明な銘柄';
 
+        // 銘柄名・積立内容・期間はいずれも1行で表示し、行幅を超える分は末尾を「…」で省略する
+        // （全文は title のツールチップで確認できる。銘柄一覧と同じ表示方針）。
         // 銘柄名
         const fundNameElement = document.createElement('div');
-        fundNameElement.className = 'text-sm font-medium text-slate-100';
+        fundNameElement.className = 'truncate text-sm font-medium text-slate-100';
         fundNameElement.textContent = fundName;
+        fundNameElement.title = fundName;
 
         // 積立設定詳細
         const title = document.createElement('strong');
+        title.className = 'truncate';
         title.textContent = `${recurring.monthlyAmount.toLocaleString()}円 / 毎月${recurring.executionDay}日注文`;
+        title.title = title.textContent;
 
         const detail = document.createElement('span');
-        detail.className = 'text-xs text-slate-400';
+        detail.className = 'truncate text-xs text-slate-400';
         const period = recurring.endDate
           ? `${recurring.startDate}〜${recurring.endDate}`
           : recurring.startDate;
         const status = recurring.isActive ? 'アクティブ' : '停止中';
         detail.textContent = `${period} / ${status}`;
+        detail.title = detail.textContent;
 
         const editButton = createActionButton('編集', ghostButtonClass, () => {
           setRecurringEditMode(recurring);
@@ -607,11 +643,13 @@
         );
 
         // 外枠（li > content + actions）は共通ファクトリへ委譲する。
+        // 本文側は min-w-0 で文字列の幅より縮めるようにして省略表示を効かせ、
+        // 操作ボタン側は shrink-0 で縮小対象から外して「編集」「削除」の縦折り返しを防ぐ。
         const item = window.TrustfolioUi.createListItem({
           itemClass: listItemClass,
-          contentClass: listContentClass,
+          contentClass: `${listContentClass} min-w-0`,
           contentChildren: [fundNameElement, title, detail],
-          actionsClass: listActionsClass,
+          actionsClass: `${listActionsClass} shrink-0`,
           actions: [editButton, deleteButton],
         });
         recurringList.appendChild(item);
