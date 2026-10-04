@@ -57,7 +57,9 @@ jobs:
       #       - @google/clasp → micromatch → braces: clasp が push 対象ファイルを絞り込む際に、
       #         .claspignore（本リポジトリには存在しない）と clasp 既定の除外パターンを解析する。
       #       - @tailwindcss/cli → @parcel/watcher → micromatch → braces: watch モードの
-      #         監視除外パターンを解析する（本リポジトリのビルドは watch モードを使用しない）。
+      #         監視除外パターンを解析する。@parcel/watcher は watch モードでのみ動的 import
+      #         されるが、本リポジトリの CSS ビルド（package.json の build:css →
+      #         scripts/build-styles.sh）は --watch を付けずに実行するため、読み込まれない。
       #       いずれも解析対象のパターンは開発者が管理する設定由来であり、外部入力は渡らない。
       #       また GAS へデプロイされる成果物（dist/Code.js・dist/*.html）には含まれない。
       #     解除条件: braces の修正版が公開され、ローカルの Safe-chain（最小パッケージ経過
