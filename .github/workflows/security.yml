@@ -44,5 +44,26 @@ jobs:
       # 修正版が未リリース等でやむを得ず auditConfig（ignoreCves / ignoreGhsas）へ
       # 例外を追加する場合は、package.json 側にコメントを書けないため、
       # 対象 ID・理由・影響経路の評価・解除条件を必ずここへ記録すること。
+      #
+      # 現在の例外（package.json の pnpm.auditConfig.ignoreGhsas）:
+      #   GHSA-vfj7-8cjw-p6xm braces <=3.0.3（high・2026-10-05 追加）
+      #     内容: 深くネストしたブレースパターンを渡すと、再帰処理の呼び出しスタックが
+      #       枯渇して Node.js プロセスが RangeError で停止する（サービス拒否）。
+      #     理由: 修正版が未リリースである（アドバイザリの first_patched_version が null。
+      #       npm 上の最新版 3.0.3 自体が脆弱範囲に含まれる）。pnpm.overrides で強制できる
+      #       修正版が存在せず、依存元の @google/clasp も最新版 3.4.1 が micromatch ^4.0.8
+      #       経由で braces に依存し続けている。
+      #     影響経路の評価: braces は devDependency の次の2経路でのみ使用される。
+      #       - @google/clasp → micromatch → braces: clasp が push 対象ファイルを絞り込む際に、
+      #         .claspignore（本リポジトリには存在しない）と clasp 既定の除外パターンを解析する。
+      #       - @tailwindcss/cli → @parcel/watcher → micromatch → braces: watch モードの
+      #         監視除外パターンを解析する。@parcel/watcher は watch モードでのみ動的 import
+      #         されるが、本リポジトリの CSS ビルド（package.json の build:css →
+      #         scripts/build-styles.sh）は --watch を付けずに実行するため、読み込まれない。
+      #       いずれも解析対象のパターンは開発者が管理する設定由来であり、外部入力は渡らない。
+      #       また GAS へデプロイされる成果物（dist/Code.js・dist/*.html）には含まれない。
+      #     解除条件: braces の修正版が公開され、ローカルの Safe-chain（最小パッケージ経過
+      #       日数ガード）で解決可能になり次第、pnpm.overrides に修正版への強制を追加し、
+      #       本例外（ignoreGhsas の当該 ID と本コメント）を削除すること。
       - name: Run security audit
         run: pnpm audit --audit-level moderate
