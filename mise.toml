@@ -5,12 +5,12 @@
 # `mise install` でこのファイルに記載されたバージョンが自動的にインストールされ、
 # `mise activate` 済みのシェルではディレクトリ移動時に自動切り替えされる。
 #
-# - node: `package.json` の `engines.node` (`>=22.22.1 <23 || >=24.11.0 <25`) を
-#         満たすバージョン。推奨ランタイムとして 24 系（現行の Active LTS 線）の
+# - node: `package.json` の `engines.node` (`>=24.11.0 <25`) を満たすバージョン。
+#         engines が許容する唯一の系列である 24 系（現行の Active LTS 線）の
 #         minor を固定し、patch は mise が自動追従する（issue #199 で 22.22 から移行）。
-#         レンジの根拠と Node 22/23 系の扱いは、README「セットアップ > 必要環境」と
-#         docs/UPGRADE_STRATEGY.md の履歴（2026-08-03 issue #178、2026-08-04
-#         issue #199）を参照。
+#         レンジの根拠と Node 22 系を許容対象から外した経緯は、README
+#         「セットアップ > 必要環境」と docs/UPGRADE_STRATEGY.md の履歴
+#         （2026-08-03 issue #178、2026-08-04 issue #199、2026-10-08 issue #265）を参照。
 #
 # pnpm は本ファイルでは管理せず、Node.js に同梱される Corepack 経由で
 # `package.json` の `packageManager` フィールド (`pnpm@10.30.2+sha512...`) から

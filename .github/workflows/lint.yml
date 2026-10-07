@@ -14,11 +14,6 @@ jobs:
   lint:
     name: Lint And Format Check
     runs-on: ubuntu-slim
-    # engines.node が許容する 22 系・24 系の両ランタイムで lint（typecheck 含む）を
-    # 検証する（issue #178。test.yml と同一のマトリクス）
-    strategy:
-      matrix:
-        node-version: ['22', '24']
 
     steps:
       - name: Checkout repository
@@ -32,7 +27,9 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: ${{ matrix.node-version }}
+          # engines.node（>=24.11.0 <25）が許容する唯一の系列である 24 系の
+          # 単一バージョンで実行する（issue #265。test.yml / security.yml と同一）
+          node-version: '24'
           cache: 'pnpm'
 
       - name: Install dependencies
