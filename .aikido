@@ -1,0 +1,18 @@
+# Aikido のプロジェクト設定ファイル（issue #267）。
+#
+# Aikido Safe Chain は、カレントディレクトリから .git のある階層（リポジトリのルート）まで
+# 本ファイルを探し、`safe-chain:` セクションの設定を、ホームディレクトリの設定
+# （~/.safe-chain/config.json）の上に重ねて適用する。本ファイルを読み込むのは
+# Safe Chain 1.5.15 以降である。
+#
+# 注意:
+#   - CLI 引数（--safe-chain-minimum-package-age-hours）と環境変数
+#     （SAFE_CHAIN_MINIMUM_PACKAGE_AGE_HOURS）は本ファイルより優先される。CI ではどちらも
+#     設定しないため、本ファイルの値が適用される。
+#   - Dependabot の cooldown（.github/dependabot.yml の default-days: 3 ＝ 72 時間）は、
+#     本ファイルの最小経過時間（48 時間）より長くなければならない。短くすると、Dependabot が
+#     提案した版を CI の Safe Chain が取得できずに失敗する。
+safe-chain:
+  # 公開から 48 時間未満のパッケージの版を取得させない。既定値も 48 時間であるが、
+  # 既定値への暗黙の依存を避け、ローカルと CI で同じ値を共有するために明記する。
+  minimumPackageAgeHours: 48

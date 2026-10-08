@@ -32,6 +32,11 @@ jobs:
           node-version: '24'
           cache: 'pnpm'
 
+      # Aikido Safe Chain を導入し、次の依存取得をマルウェア検査と最小経過時間ガード
+      # （.aikido の minimumPackageAgeHours）の対象にする（issue #267）
+      - name: Setup Aikido Safe Chain
+        uses: ./.github/actions/setup-safe-chain
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 

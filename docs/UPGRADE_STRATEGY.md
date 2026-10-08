@@ -223,6 +223,41 @@ pnpm push
   4. パフォーマンス推移タブ: タブ切替（`data-[active=true]` 系）とチャート周辺のレイアウト。
   5. 全体: 成功/エラーメッセージ（emerald / rose 系。**emerald-500 は色変化が最も大きい**）の視認性。
 
+## Aikido Safe Chain の記録
+
+### 導入の構成（2026-10-09、issue #267）
+
+- **目的**: 依存パッケージの取得を、マルウェア検査と最小経過時間ガードの対象にする。最小経過時間ガードは、公開から一定時間が経過していない版を取得させない仕組みであり、公開直後に混入した悪性コードの検知が間に合わない期間を避けるためのものである。
+- **CI**: `.github/actions/setup-safe-chain/action.yml`（composite action）が、版を固定したインストーラを SHA256 検証付きで `--ci` モードで実行し、`pnpm safe-chain-verify` の出力に `OK: Safe-chain works!` が含まれることを確認する。test.yml / lint.yml / security.yml の audit ジョブは、`pnpm install` の直前にこの action を呼び出す。security.yml の report ジョブは依存をインストールしないため、Safe Chain を導入しない。
+- **ローカル**: 開発者は README の「セットアップ > インストール」の手順で、CI と同じ版を導入する。
+- **最小経過時間**: リポジトリ直下の `.aikido` に `minimumPackageAgeHours: 48` を記載し、ローカルと CI で共有する。`.aikido` は Safe Chain 1.5.15 以降でのみ読み込まれる。1.5.24 で、本リポジトリの `.aikido` を置いた環境ではインストールが成功し、値を極端に大きくした環境では全版が除外されて失敗することを実機で確認した。
+- **Dependabot との関係**: `.github/dependabot.yml` の npm エントリに `cooldown.default-days: 3`（72 時間）を明記している。cooldown が最小経過時間（48 時間）より短いと、Dependabot が提案した版を CI の Safe Chain が取得できずに失敗する。Dependabot は未設定でも既定で 3 日の cooldown を適用するが、この前提を設定上で明示するために記載した。PR #263（2026-10-03 作成）で更新された 4 パッケージは、いずれも npm 公開から 132〜226 時間後に提案されていた。
+
+### 注意点
+
+- **推移的依存**: Dependabot がロックファイルを再生成するとき、推移的依存が公開から 48 時間未満の版に解決されることがある。この場合、CI の `pnpm install --frozen-lockfile` が Safe Chain に止められて失敗する。Safe Chain 1.4.6 以降は、ロックファイルからの取得など、メタデータを経由しない直接ダウンロードにも最小経過時間を適用するためである。公開から 48 時間が経過した後にジョブを再実行すれば解消する。
+- **脆弱性対応**: 公開直後の修正版を `pnpm.overrides` で強制する場合、Aikido が安全と確認した修正版（safe patches list。Safe Chain 1.5.21 以降）を除き、48 時間待つ必要がある。この制約は issue #204 のときからローカルの Safe Chain で発生しているものと同じである。
+- **キャッシュ**: `actions/setup-node` の `cache: 'pnpm'` で復元されたパッケージはダウンロードされないため、Safe Chain の検査を経由しない。導入時は、導入前に作成された pnpm ストアのキャッシュを `gh cache delete --all` で削除する。
+
+### 版の更新手順
+
+Safe Chain の版は composite action とインストール手順に直接書いているため、Dependabot の追跡対象にならない。更新は次の手順で手動で行う。
+
+1. [Safe Chain のリリース一覧](https://github.com/AikidoSec/safe-chain/releases)で新しい版の変更内容を確認する。
+2. 新しい版のリリース資産から、Unix/Linux/macOS 用インストーラ（`install-safe-chain.sh`）の SHA256 を算出する。`<版>` は新しい版の番号に置き換える。
+
+   ```bash
+   curl -fsSL https://github.com/AikidoSec/safe-chain/releases/download/<版>/install-safe-chain.sh | shasum -a 256
+   ```
+
+3. 手順 2 の値を、Safe Chain リポジトリの **main ブランチ**の README に記載されたインストール手順の SHA256 と照合する。照合は、README の手順が新しい版の URL を指していることを確かめてから行う。一致しない場合は更新を中止し、原因を調査する。
+   - 注意: 版のタグ時点の README は参照しないこと。README はリリース後に更新されるため、タグ時点の README には前の版の値が載っている。実例として、タグ `1.5.24` の README には 1.5.23 の URL と SHA256（`b7eac1c7…`）が記載されている。
+4. 次の 2 ファイルの版と SHA256 を、同じ値へ同時に書き換える。
+   - `.github/actions/setup-safe-chain/action.yml` の `SAFE_CHAIN_VERSION` と `SAFE_CHAIN_INSTALLER_SHA256`
+   - `README.md` の「必要環境」と「インストール」に記載した版と SHA256
+5. 開発者のローカル環境で、README の手順を実行して同じ版へ更新する。
+6. PR の CI で、test.yml / lint.yml / security.yml の `Verify safe-chain` ステップが成功することを確認する。
+
 ## 参考資料
 
 - [Semantic Versioning 2.0.0](https://semver.org/)
@@ -239,3 +274,4 @@ pnpm push
 - 2026-08-03: `engines.node` を `>=22.18 <23` から `>=22.22.1 <23 || >=24.11.0 <25` へ変更（issue #178）。22 系の下限は Dependabot PR #198 で導入された lint-staged@17 の要求（`>=22.22.1`）に由来し、Node 24 系の許容はユーザー判断（24 系の下限 24.11.0 は vite-plus の要求に由来。EOL 済みの非 LTS Node 23 系はレンジで機械的に除外。Corepack 同梱は Node 24 まで）。あわせてテスト・lint CI（test.yml / lint.yml）を 22 系・24 系のマトリクスへ拡張（security.yml の pnpm audit はロックファイルの静的検査でランタイム非依存のため単一バージョンのまま）
 - 2026-08-04: 推奨ランタイムを Node 22.22 系（Maintenance LTS）から 24.19 系（現行の Active LTS 線）へ移行（issue #199）。mise.toml の pin を `24.19` へ更新し、security.yml の単一バージョンも `24` へ変更（test.yml / lint.yml の 22/24 マトリクスは engines が 22 系を許容する間は維持）。Node 24.19.0 実機で Corepack 同梱・`pnpm install`（engines WARN 解消）・lint・テスト（401件）・build・pre-commit（husky + lint-staged@17）の動作を確認済み
 - 2026-10-08: `engines.node` を `>=22.22.1 <23 || >=24.11.0 <25` から `>=24.11.0 <25` へ変更し、Node 22 系を許容対象から外した（issue #265）。理由は次の 3 点である。(1) 実運用はすでに 24 系へ統一されていた（mise.toml の pin `24.19`、security.yml の単一バージョン `24`、ローカル開発環境の Node 24.19.0）。22 系は engines と test.yml / lint.yml のマトリクスにだけ残り、CI の実行回数を倍にしていた。(2) Node 22 系は Maintenance LTS で 2027-04-30 に EOL を迎えるため、残すと半年後に再度の移行が必要になる。(3) 全 devDependencies の engines が 24 系を許容している（node_modules の package.json で確認。vite-plus 0.3.1: `^20.19.0 || ^22.18.0 || >=24.11.0`、lint-staged 17.6.0: `>=22.22.1`、vitest 4.1.11: `^20.0.0 || ^22.0.0 || >=24.0.0`、oxlint 1.86.0 / oxfmt 0.71.0 / vite 8.3.1: `^20.19.0 || >=22.12.0`、typescript 7.0.2: `>=16.20.0`、@google/clasp 3.4.1: `>=20.0.0`、husky 9.1.7: `>=18`）。下限 24.11.0 は従来どおり vite-plus の要求に由来し、上限 `<25` は Corepack を同梱しない Node 25 系以降を除外する。あわせて test.yml / lint.yml の 22/24 マトリクスを廃止し、security.yml と同じ単一バージョン `24` へ揃えた（CI のジョブ名は `Unit Tests (22)` / `Unit Tests (24)` から `Unit Tests` へ、`Lint And Format Check (22)` / `Lint And Format Check (24)` から `Lint And Format Check` へ変わる）。Node 26 系は 2026-10-28 まで LTS ではなく、Corepack を同梱しないため pnpm の取得経路（README・mise.toml のコメント・CI の pnpm/action-setup）の見直しが必要になる。このため 26 系への移行は、LTS 化と Corepack 非同梱への対応方針が決まった後に別 issue で検討する。Node 24.19.0 実機で `pnpm install`（engines WARN なし）・lint・format チェック・テスト（651 件）の成功を確認済み
+- 2026-10-09: Dependency Audit の定期監査化・PR 監査の限定と、Aikido Safe Chain の導入を行った（issue #267）。security.yml に毎日 21:17 UTC（06:17 JST）の schedule と workflow_dispatch を追加し、それらで監査が失敗したときは report ジョブが issue「Dependency Audit の定期監査で脆弱性を検出しました」を起票する（同じタイトルのオープン issue があればコメントを追記する。本文は scripts/build-audit-failure-issue.mjs が生成する）。pull_request での監査は package.json / pnpm-lock.yaml / security.yml を変更した PR に限定した。理由は、監査結果がコードではなく外部の脆弱性データベースで変わるため、新規アドバイザリの公表後に最初に CI を実行した無関係な PR が失敗していたことである（2026-10-03 の #261、2026-10-07 の #266。いずれもアドバイザリのレビュー完了から最初の CI 失敗まで CI が実行されていなかった）。あわせて CI の依存取得を Aikido Safe Chain 1.5.24 経由にし、`.aikido` で最小経過時間 48 時間を、dependabot.yml で cooldown 3 日を明示した（詳細は「Aikido Safe Chain の記録」を参照）

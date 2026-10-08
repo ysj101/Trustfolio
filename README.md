@@ -89,11 +89,14 @@ Google Sheets上で管理するGASアプリケーションです。
 
 - [mise](https://mise.jdx.dev/)（Node.js のバージョン管理）
 - Corepack（Node.js 24 に同梱。pnpm の取得・SHA 検証に利用）
+- [Aikido Safe Chain](https://github.com/AikidoSec/safe-chain) 1.5.24（npm パッケージのマルウェア検査と、公開直後のパッケージを取得させない最小経過時間ガード。リポジトリ直下の `.aikido` を読み込むために 1.5.15 以上が必須）
 - clasp（`pnpm exec clasp login`で認証）
 - Google Apps Scriptプロジェクト
 - Google スプレッドシート
 
 `mise.toml` で Node.js `24.19` 系（現行の Active LTS 線。patch は自動追従）を推奨ランタイムとして固定しています（issue #199 で 22.22 系から移行）。pnpm は `package.json` の `packageManager` (`pnpm@10.30.2+sha512...`) を Corepack が SHA まで検証してインストールするため、バージョン定義を 1 箇所に集約しています。これらは `engines.node` (`>=24.11.0 <25`)、`engines.pnpm` (`>=10.30.2 <11`) と整合しています。`engines.node` は Node 24 系だけを許容します。下限の 24.11.0 は vite-plus の要求（`>=24.11.0`）に由来し、上限の `<25` は Corepack を同梱しない Node 25 系以降を除外します。Node 22 系は 2027-04-30 に EOL を迎えるため、issue #265 で許容対象から外しました。テスト・lint・依存関係監査の CI（test.yml / lint.yml / security.yml）も Node 24 系の単一バージョンで実行します。依存関係の追加・更新・実行は `pnpm` だけを使用してください。
+
+依存関係の取得は、ローカルと CI のどちらも Aikido Safe Chain を経由させます（issue #267）。Safe Chain は `pnpm` などのパッケージマネージャーを包み、取得するパッケージをマルウェアのデータベースと照合します。さらに、公開から一定時間が経過していない版を取得させません。この最小経過時間は、リポジトリ直下の `.aikido`（`minimumPackageAgeHours: 48`）でローカルと CI に共有しています。環境変数 `SAFE_CHAIN_MINIMUM_PACKAGE_AGE_HOURS` を設定すると `.aikido` より優先されるため、ローカルでは設定しないでください。CI では `.github/actions/setup-safe-chain/action.yml` が同じ版を SHA256 検証付きで導入します。版の更新手順は `docs/UPGRADE_STRATEGY.md` の「Aikido Safe Chain の記録」を参照してください。
 
 ### インストール
 
@@ -115,8 +118,25 @@ exec zsh
 ```bash
 mise install     # mise.toml に従って Node.js 24.19.x をインストール
 corepack enable  # Corepack を有効化（Node 24 に同梱）
+```
+
+続いて Aikido Safe Chain 1.5.24 をインストールします。インストーラの SHA256 を検証してから実行してください。インストーラはシェルの設定ファイル（`~/.zshrc` など）に Safe Chain の読み込み処理を追加します。古い版を導入済みの場合も、同じ手順で 1.5.24 へ更新できます。
+
+```bash
+curl -fsSL https://github.com/AikidoSec/safe-chain/releases/download/1.5.24/install-safe-chain.sh -o /tmp/install-safe-chain.sh \
+  && echo "99eb124a3404b3ac99e8b65406b87c4ee049c1d6c17757a7d04991ae60d16e69  /tmp/install-safe-chain.sh" | shasum -a 256 -c - \
+  && sh /tmp/install-safe-chain.sh \
+  && rm /tmp/install-safe-chain.sh
+exec zsh                # シェルを再起動し、Safe Chain の読み込み処理を反映
+safe-chain --version    # 「Current safe-chain version: 1.5.24」と表示されることを確認
+pnpm safe-chain-verify  # 「OK: Safe-chain works!」と表示されることを確認
+```
+
+最後に依存関係をインストールします。
+
+```bash
 pnpm install     # Corepack が package.json の packageManager フィールドから
-                 # pnpm@10.30.2 を SHA 検証付きで自動解決
+                 # pnpm@10.30.2 を SHA 検証付きで自動解決し、Safe Chain 経由で依存を取得
 ```
 
 ### 環境変数の設定
