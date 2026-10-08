@@ -23,6 +23,8 @@
 #     Dependabot の追跡対象にならない。
 #   - actions/setup-node の `cache: 'pnpm'` で復元されたパッケージはダウンロードされないため、
 #     Safe Chain の検査を経由しない。
+#   - pnpm 本体は、本 action より前に pnpm/action-setup が取得するため、Safe Chain の検査を
+#     経由しない。pnpm の版は package.json の packageManager で固定している。
 name: Setup Aikido Safe Chain
 description: Aikido Safe Chain を版固定・SHA256 検証付きで導入し、pnpm のシムが有効であることを検証する
 

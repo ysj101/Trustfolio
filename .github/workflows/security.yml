@@ -107,7 +107,13 @@ jobs:
   #
   # - 依存をインストールせず、pnpm audit を package.json と pnpm-lock.yaml だけから再実行して
   #   検出内容を取得する。依存パッケージを取得・展開するジョブに issues: write を与えないためである。
-  # - issue 本文は scripts/build-audit-failure-issue.mjs が生成する。
+  # - issue 本文は scripts/build-audit-failure-issue.mjs が生成する。再監査でアドバイザリが
+  #   0 件だった場合（audit ジョブが脆弱性以外の理由で失敗した場合）も、その旨を記載して起票する。
+  # - 再監査の出力を JSON として解釈できない場合（再監査でもレジストリの障害が続いた場合など）は、
+  #   本文の生成を例外で中止し（fail fast）、本ジョブは issue を起票せずに失敗する。形式を
+  #   解釈できない出力を「0 件」と誤って報告しないためである。この失敗は、GitHub Actions の
+  #   失敗通知で検知する。schedule の通知は、本ワークフローの cron を最後に変更したユーザー
+  #   （GitHub の通知設定で Actions の通知を有効にしている場合）へ送られる。
   # - 同じタイトルのオープン issue があれば新規起票せず、その issue にコメントを追記する。
   # - GITHUB_TOKEN で作成した issue は、claude.yml などのワークフローを起動しない（GitHub の仕様）。
   #   起票された issue は issue-resolve スキルで対応する。
