@@ -15,6 +15,17 @@ updates:
     # これに予備2本を加えて 16 とする。
     # 依存パッケージを増やす際は本値の見直しが必要である。
     open-pull-requests-limit: 16
+    # バージョン更新の対象を、公開から 3 日（72 時間）以上経過した版に限る（issue #267）。
+    # CI は Aikido Safe Chain 経由で依存を取得し、公開から 48 時間未満の版を取得させない
+    # （リポジトリ直下の .aikido の minimumPackageAgeHours）。cooldown をそれより長くする
+    # ことで、Dependabot が提案した直接依存の版が CI で取得できずに失敗することを防ぐ。
+    # Dependabot は未設定でも既定で 3 日の cooldown を適用するが、上記の前提を設定上で
+    # 明示し、既定値への暗黙の依存を避けるために明記する。
+    # 注意: cooldown はセキュリティ更新には適用されない。また、ロックファイルの再生成で
+    # 推移的依存が公開から 48 時間未満の版に解決された場合は、CI が失敗することがある
+    # （48 時間の経過後にジョブを再実行すれば解消する）。
+    cooldown:
+      default-days: 3
     ignore:
       # typescript-js-api は npm:typescript@^6.0.3 のエイリアスであり、6系への固定は
       # 「遅れ」ではなく意図的な設計判断である。typescript@7（ネイティブ実装）は
