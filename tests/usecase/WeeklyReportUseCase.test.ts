@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test';
 import { createWeeklyReportUseCase } from '../../src/usecase/WeeklyReportUseCase';
 import type { PortfolioUseCase } from '../../src/usecase/PortfolioUseCase';
 import type { PerformanceRepository } from '../../src/repository/PerformanceRepository';

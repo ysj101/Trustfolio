@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vite-plus/test';
 import { parseEnvContent, main } from '../../scripts/sync-env-to-gas.mjs';
 
 describe('scripts/sync-env-to-gas', () => {

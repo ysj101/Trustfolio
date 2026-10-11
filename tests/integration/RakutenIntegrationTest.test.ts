@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vite-plus/test';
 import { runRakutenIntegrationTest } from '../../src/integration/RakutenIntegrationTest';
 import * as RakutenService from '../../src/service/RakutenService';
 import { ok } from '../fakes';

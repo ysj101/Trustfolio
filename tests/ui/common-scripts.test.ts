@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vite-plus/test';
 import { ASSET_CLASSES, type AssetClass } from '../../src/domain/types';
 import { getAssetClassLabel } from '../../src/domain/assetClassLabel';
 import { WEALTH_ADVISOR_CODE_PATTERN } from '../../src/service/WealthAdvisorService';

@@ -9,12 +9,15 @@ updates:
       interval: "weekly"
     # 同時にオープンできるPR数の上限。個別PRとグループPRの合計に対して効き、
     # 上限に達すると新規PRは黙って作成されなくなる（=メジャー更新を取りこぼす）。
-    # 最悪ケースは「devDependencies 14件のうち major 除外の typescript-js-api を
-    # 除く13件が同時にメジャー遅れ ＋ development グループPR 1本」＝14本。
+    # 最悪ケースは「devDependencies 12件のうち、個別PRを生みうる8件が同時に個別PRを持つ
+    # ＋ development グループPR 1本」＝9本。個別PRを生みうる8件は、major 除外の
+    # typescript-js-api と、全更新を除外した vite / vitest / @vitest/coverage-v8（下の ignore を参照）を
+    # 除いたものである。vite-plus は development グループから外しているため minor / patch も
+    # 個別PRになるが、1パッケージにつき同時に開くPRは1本である。
     # production グループは dependencies が0件のためPRを生まない。
-    # これに予備2本を加えて 16 とする。
+    # これに予備2本を加えて 11 とする（issue #272 で oxfmt / oxlint を削除し 16 から変更）。
     # 依存パッケージを増やす際は本値の見直しが必要である。
-    open-pull-requests-limit: 16
+    open-pull-requests-limit: 11
     # バージョン更新の対象を、公開から 3 日（72 時間）以上経過した版に限る（issue #267）。
     # CI は Aikido Safe Chain 経由で依存を取得し、公開から 48 時間未満の版を取得させない
     # （リポジトリ直下の .aikido の minimumPackageAgeHours）。cooldown をそれより長くする
@@ -38,7 +41,18 @@ updates:
       # 場合でも、当該更新は pnpm lint の失敗としてCIで検知される（fail fast）。
       - dependency-name: "typescript-js-api"
         update-types: ["version-update:semver-major"]
-    # 上記 typescript-js-api を除き、メジャーバージョンアップも検知対象とする。
+      # vite / vitest / @vitest/coverage-v8 の版は、vite-plus が決める（issue #272）。
+      # - vite は @voidzero-dev/vite-plus-core（Vite+ 版の vite）への別名であり、vite-plus と
+      #   同じ版でなければ vp build が失敗する。
+      # - vitest と @vitest/coverage-v8 は、vite-plus が同梱する Vitest の版にそろえる。
+      # これらは pnpm-workspace.yaml の catalog にあり、vite-plus の更新時に vp migrate で
+      # まとめて更新する（手順は docs/UPGRADE_STRATEGY.md の「Vite+（vp）への一本化の記録」）。
+      # 単独で更新すると vite-plus との組み合わせが崩れるため、すべての更新を除外する。
+      - dependency-name: "vite"
+      - dependency-name: "vitest"
+      - dependency-name: "@vitest/coverage-v8"
+    # 上記の ignore の対象（typescript-js-api の major、vite / vitest / @vitest/coverage-v8 の全更新）を
+    # 除き、メジャーバージョンアップも検知対象とする。
     # 下の groups は development が minor / patch、production が patch のみを対象とするため、
     # major はどのグループにも該当せず「1パッケージにつき1本」の個別PRとして起票される。
     # これは docs/UPGRADE_STRATEGY.md の「メジャーは段階的に実施」方針と整合する。
@@ -55,6 +69,12 @@ updates:
         update-types:
           - "minor"
           - "patch"
+        # vite-plus の更新 PR は、Dependabot が catalog の vite-plus だけを更新するため、
+        # vp migrate で vite / vitest / @vitest/coverage-v8 をそろえるまで CI（test.yml の
+        # Run build）が失敗する。グループに含めると他の devDependencies の更新まで止まるため、
+        # 個別PRにする（issue #272）。
+        exclude-patterns:
+          - "vite-plus"
       production:
         dependency-type: "production"
         update-types:

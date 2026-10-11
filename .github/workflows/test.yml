@@ -42,3 +42,12 @@ jobs:
 
       - name: Run tests
         run: pnpm test --run
+
+      # GAS へデプロイする dist/ の生成（pnpm build = vp build と Tailwind CSS のビルド）が成功する
+      # ことを確認する（issue #272）。pnpm-workspace.yaml の catalog で vite-plus と vite
+      # （@voidzero-dev/vite-plus-core の別名）の版が食い違うと、lint とテストは成功し、vp build だけが
+      # 「Expected @voidzero-dev/vite-plus-core@X, but found Y」で失敗する。Dependabot は catalog の
+      # vite-plus だけを更新するため、その PR を本ステップで失敗させる。本ジョブ（Unit Tests）は
+      # main のルールセットの必須チェックであるため、dependabot-auto-merge.yml による自動マージも止まる。
+      - name: Run build
+        run: pnpm build

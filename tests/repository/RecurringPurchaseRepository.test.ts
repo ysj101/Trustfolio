@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vite-plus/test';
 import { createRecurringPurchaseRepository } from '../../src/repository/RecurringPurchaseRepository';
 import { SHEET_NAMES } from '../../src/Config';
 import { createInMemorySheetRepository } from '../fakes';

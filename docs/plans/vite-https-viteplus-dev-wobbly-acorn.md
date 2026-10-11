@@ -209,3 +209,23 @@ Step 2 で失われる型検証を独立ステップとして復元します。
 ### コミット方針（推奨）
 
 初回 Oxfmt 再整形は大規模 diff（`src/ui/*.html` 等）を含むため、機能移行コミットと整形コミットを分離することを推奨する。
+
+---
+
+## 二層構成の廃止と vp への一本化（2026-10-12 / issue #272）
+
+本計画の「アーキテクチャ方針：`vp` と `pnpm` scripts の併存」（二層構成）は、issue #272 で廃止した。経緯と現在の構成は次のとおりである。詳細は `docs/UPGRADE_STRATEGY.md` の「Vite+（vp）への一本化の記録」を参照。
+
+### 廃止した理由
+
+- **二層構成が実データ上成立していなかった**: 本計画は「`vp` は scripts と同一の設定ファイルを読むため、両経路の結果は一致する」としていた。2026-10-11 に main（vite-plus 0.3.1）で実測したところ、正規経路と結果が一致したのは `vp test` だけであった。`vp build` は `pnpm.overrides.vite` が vite-plus 内部の別名（`vite → npm:@voidzero-dev/vite-plus-core`）まで上書きしていたため失敗し、`vp check` は Vite+ が `.oxfmtrc.json` を読まず既定値で整形を検査していたため 129 ファイルを差分と判定して失敗した。
+- **vite-plus 1.x で `vp test` も乖離する**: vite-plus 1.1.0 は Vitest 5.0.3 を同梱する。正規経路を Vitest 4 のまま残すと、両経路で一致するコマンドがなくなる。
+- **ローカル限定とした理由が解消した**: 本計画の「リスクと留意点」が挙げた「Vite+ は alpha 版」は、Vite+ 1.0 が 2026-09-28 に安定版として公開されたことで解消した。
+
+### 現在の構成
+
+- `package.json` の scripts と CI は `vp` を呼ぶ（`build:js` = `vp build`、`test` = `vp test`、`lint:oxlint` = `vp lint`、`format` / `format:check` = `vp fmt` / `vp fmt --check`）。単体の `oxfmt` / `oxlint` は devDependencies から削除した。
+- 設定は `vite.config.ts` に集約した。`vitest.config.ts` は `test` ブロックへ、`.oxfmtrc.json` は `fmt` ブロックへ、`lint:oxlint` の CLI 引数（`--import-plugin --promise-plugin --deny-warnings`）は `lint` ブロックへ移し、旧ファイルは削除した。scripts は対象パスや CLI 引数を渡さないため、`vp check` と scripts の結果は一致する。
+- `dist/` は移行前の main と完全に一致した（`diff -r` で差分なし）。
+- 本計画の「型チェックの明示ステップ化」（`pnpm typecheck` = `tsc --noEmit -p tsconfig.build.json`）は維持した。`lint.options.typeAware` / `typeCheck` の有効化は別 issue で検討する。
+- Vite+ の配布物にバンドルされた依存（vite・rolldown と、それらが依存するパッケージ）は `pnpm audit` で検出できず、`overrides` でも修正版へ強制できない。このため、`scripts/check-bundled-advisories.mjs` で配布物から同梱パッケージを抽出してアドバイザリと照合する検査を、`.github/workflows/security.yml` に追加した。

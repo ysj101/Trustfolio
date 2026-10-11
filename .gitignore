@@ -36,3 +36,7 @@ coverage/
 # mise (ユーザー固有のローカル上書き設定)
 mise.local.toml
 .mise.local.toml
+
+# Vitest 5（vp test）の作業ディレクトリ（context.annotate の添付ファイル等の既定の出力先）。
+# issue #272 の vp migrate が追加した。
+.vitest/

@@ -1,0 +1,64 @@
+# pnpm の設定（auditConfig / overrides / peerDependencyRules）と catalog（issue #272）。
+#
+# issue #272 で Vite+ 1.x へ移行した際に、vp migrate が package.json の "pnpm" フィールドから
+# 本ファイルへ移した。pnpm 10.6.2 以降は本ファイルを設定の正本として読む（pnpm 11 は
+# package.json の "pnpm" フィールドを読まない）。
+#
+# 注意:
+#   - package.json に "pnpm" フィールドを再び追加してはならない。package.json に pnpm.overrides が
+#     あると、pnpm は本ファイルの overrides を無視する（Vite+ のドキュメント「Update Vite+」）。
+#   - 本ファイルを変更した PR では、.github/workflows/security.yml の Dependency Audit が起動する。
+#   - 各設定の判断理由は次の場所に記録する。
+#     - auditConfig の例外: .github/workflows/security.yml の「Run security audit」ステップのコメント
+#     - overrides（脆弱性への対処）: issue #173 の方針（修正版への強制を既定とする）
+#     - peerDependencyRules: docs/UPGRADE_STRATEGY.md の「peer 依存の明示的許容（peerDependencyRules）の記録」
+#     - catalog と overrides の vite@* / vitest@*: docs/UPGRADE_STRATEGY.md の「Vite+（vp）への一本化の記録」
+
+auditConfig:
+  ignoreGhsas:
+    - GHSA-vfj7-8cjw-p6xm
+
+overrides:
+  qs: ">=6.16.0"
+  minimatch: ">=10.2.3"
+  express-rate-limit: ">=8.2.2"
+  "@hono/node-server": ">=2.0.5 <3"
+  hono: ">=4.13.7 <5"
+  body-parser: ">=2.3.0 <3"
+  yaml: 2.8.3
+  path-to-regexp: 8.4.0
+  picomatch@<2.3.2: 2.3.2
+  picomatch@>=4.0.0 <4.0.4: 4.0.4
+  ip-address: 10.7.1
+  fast-uri: ">=3.1.8 <4"
+  uuid@<14.0.0: ">=14.0.0"
+  esbuild@<0.28.1: ">=0.28.1"
+  postcss@<8.5.23: ">=8.5.23"
+  brace-expansion@>=4.0.0 <5.0.12: ">=5.0.12 <6"
+  tinypool@<2.1.2: ">=2.1.2 <3"
+  proxy-addr@<2.0.8: ">=2.0.8 <3"
+  source-map-js@<1.2.2: ">=1.2.2 <2"
+  "@modelcontextprotocol/sdk@<1.31.0": ">=1.31.0 <2"
+  # 依存ツリー内のすべての vite / vitest を catalog の版（Vite+ が同梱・指定する版）へそろえる。
+  # vp migrate が追加した。"@*" を付けるのは、package.json の "catalog:" 参照を書き換えず、
+  # 推移的依存と peer 依存の宣言だけを対象にするためである（Vite+ のドキュメント「Update Vite+」）。
+  vite@*: "catalog:"
+  vitest@*: "catalog:"
+
+peerDependencyRules:
+  allowedVersions:
+    "@formatjs/intl@3.1.8>typescript": ^6.0.0 || ^7.0.0
+    vitest@5.0.3>vite: 1.1.0
+    "@vitest/mocker@5.0.3>vite": 1.1.0
+
+# Vite+ のツールチェーンの版。4 項目は vite-plus の版に合わせて同時に更新しなければならない。
+#   - vite は @voidzero-dev/vite-plus-core（Vite+ 版の vite）への別名である。vite-plus と同じ版で
+#     なければ、vp build が「Expected @voidzero-dev/vite-plus-core@X, but found Y」で失敗する。
+#   - vitest と @vitest/coverage-v8 は、vite-plus が同梱する Vitest の版（vp toolchain vitest）にそろえる。
+# Dependabot は vite-plus の項目だけを更新する。更新は vp migrate で行う（手順は
+# docs/UPGRADE_STRATEGY.md の「Vite+（vp）への一本化の記録」を参照）。
+catalog:
+  vite: npm:@voidzero-dev/vite-plus-core@1.1.0
+  vitest: 5.0.3
+  vite-plus: 1.1.0
+  "@vitest/coverage-v8": 5.0.3

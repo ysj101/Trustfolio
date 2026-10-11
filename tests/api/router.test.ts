@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vite-plus/test';
 import { handleApiRequest } from '../../src/api/router';
 import {
   PERFORMANCE_SHEET_NAME,

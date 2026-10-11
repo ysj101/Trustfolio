@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vite-plus/test';
 import { createMarketIndexService } from '../../src/service/MarketIndexService';
 import { MARKET_DATA_HELPER_CELLS, MARKET_INDEX_TICKERS, SHEET_NAMES } from '../../src/Config';
 
