@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vite-plus/test';
 import {
+  BULK_ADVISORY_TIMEOUT_MS,
   BULK_ADVISORY_URL,
   collectInlinedPackages,
   evaluateFindings,
@@ -78,8 +79,10 @@ function toSortedObject(packages: Map<string, Set<string>>) {
  */
 function createFakeFetch(responder: (body: Record<string, string[]>) => unknown) {
   const requests: Array<Record<string, string[]>> = [];
-  const fetchImpl = async (url: string, init: { body: string }) => {
+  const fetchImpl = async (url: string, init: { body: string; signal: unknown }) => {
     expect(url).toBe(BULK_ADVISORY_URL);
+    // レジストリが応答しない場合に備え、すべての要求に制限時間（AbortSignal）が付いていること
+    expect(init.signal).toBeInstanceOf(AbortSignal);
     const body = JSON.parse(init.body) as Record<string, string[]>;
     requests.push(body);
     return {
@@ -375,6 +378,23 @@ describe('scripts/check-bundled-advisories', () => {
         )
       ).rejects.toThrow(
         'bulk アドバイザリ API への要求が失敗しました: HTTP 503 Service Unavailable'
+      );
+    });
+
+    it('制限時間の超過などで要求自体が失敗した場合は例外にする', async () => {
+      // 前提: レジストリが応答せず、AbortSignal.timeout により fetch が TimeoutError で中断された
+      // 検証: 「アドバイザリ 0 件」と誤認せず、制限時間と元のエラーを示して例外を投げる
+      const fetchImpl = async () => {
+        throw new DOMException('The operation was aborted due to timeout', 'TimeoutError');
+      };
+
+      await expect(
+        fetchAdvisories(
+          [{ name: 'picomatch', version: '2.3.1' }],
+          fetchImpl as unknown as typeof fetch
+        )
+      ).rejects.toThrow(
+        `bulk アドバイザリ API への要求が失敗しました（制限時間 ${BULK_ADVISORY_TIMEOUT_MS} ミリ秒の超過、または通信エラー）: The operation was aborted due to timeout`
       );
     });
 

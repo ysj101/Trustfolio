@@ -57,6 +57,13 @@ import { BUNDLED_ADVISORY_EXCEPTIONS } from './bundled-advisory-exceptions.mjs';
 /** npm レジストリの bulk アドバイザリ API の URL。 */
 export const BULK_ADVISORY_URL = 'https://registry.npmjs.org/-/npm/v1/security/advisories/bulk';
 
+/**
+ * bulk アドバイザリ API への 1 回の要求の制限時間（ミリ秒）。
+ * レジストリが応答しない場合に、CI のジョブがジョブ全体のタイムアウトまで止まらないよう、
+ * 制限時間を超えた要求は通信の失敗として例外にする（fail fast）。
+ */
+export const BULK_ADVISORY_TIMEOUT_MS = 30_000;
+
 /** Vite+ のコアパッケージ名。`vite-plus` は依存 `vite` をこのパッケージの別名として解決する。 */
 export const CORE_PACKAGE_NAME = '@voidzero-dev/vite-plus-core';
 
@@ -408,7 +415,7 @@ export function parseBulkAdvisoryResponse(response, requestBody) {
  * @param {Array<{ name: string, version: string }>} packages 照合するパッケージ（重複可）
  * @param {typeof fetch} fetchImpl HTTP クライアント
  * @returns {Promise<ReturnType<typeof parseBulkAdvisoryResponse>>} 取得したアドバイザリ
- * @throws {Error} 通信に失敗した場合、または応答の形式が想定と異なる場合
+ * @throws {Error} 通信に失敗した場合（BULK_ADVISORY_TIMEOUT_MS の超過を含む）、または応答の形式が想定と異なる場合
  */
 export async function fetchAdvisories(packages, fetchImpl) {
   const versionsByName = new Map();
@@ -431,11 +438,20 @@ export async function fetchAdvisories(packages, fetchImpl) {
         requestBody[name] = [sortedVersions[layer]];
       }
     }
-    const response = await fetchImpl(BULK_ADVISORY_URL, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(requestBody),
-    });
+    let response;
+    try {
+      response = await fetchImpl(BULK_ADVISORY_URL, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(requestBody),
+        signal: AbortSignal.timeout(BULK_ADVISORY_TIMEOUT_MS),
+      });
+    } catch (error) {
+      throw new Error(
+        `bulk アドバイザリ API への要求が失敗しました（制限時間 ${BULK_ADVISORY_TIMEOUT_MS} ミリ秒の超過、または通信エラー）: ${error.message}`,
+        { cause: error }
+      );
+    }
     if (!response.ok) {
       throw new Error(
         `bulk アドバイザリ API への要求が失敗しました: HTTP ${response.status} ${response.statusText}`
