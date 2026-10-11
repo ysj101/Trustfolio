@@ -154,10 +154,18 @@ cp .env.example .env
 | `GAS_SCRIPT_ID` | GASプロジェクトのScript ID | GASエディタのURL `https://script.google.com/home/projects/{SCRIPT_ID}/edit` から取得 |
 | `WEEKLY_REPORT_EMAIL` | 週次レポート送信先メールアドレス | 投資実績レポートを受信するメールアドレスを指定 |
 
-3. `.clasp.json`を生成します。
+3. `.clasp.json`を作成します。`.clasp.json`はGASプロジェクトのScript IDを含むため、`.gitignore`で除外しており、Gitの追跡対象には含めません。
+
+`.env`の`GAS_SCRIPT_ID`から生成する場合は、次を実行します。
 
 ```bash
 pnpm setup:clasp
+```
+
+テンプレートから作る場合は、`.clasp.json.example`をコピーし、`scriptId`の`YOUR_SCRIPT_ID_HERE`を手順2のScript IDに置き換えます。`rootDir`は`./dist`のままにします。
+
+```bash
+cp .clasp.json.example .clasp.json
 ```
 
 ### ビルド
@@ -217,11 +225,13 @@ GASエディタで既存デプロイメントを更新します（URLが固定�
 4. バージョンで「新バージョン」を選択
 5. 「デプロイ」をクリック
 
+`appsscript.json`の`webapp.access`は`MYSELF`（自分のみ）です。`pnpm push`（`clasp push`）はマニフェストをGASプロジェクトへ送るだけで、公開中のウェブアプリURLのアクセス権は変わりません。アクセス権を変えたときは、上記の手順で既存デプロイを更新し、アクセスできるユーザーが「自分のみ」になっていることを確認してください。
+
 ### 初回Webアプリデプロイ（新規プロジェクトのみ）
 
 1. GASエディタで「デプロイ」→「新しいデプロイ」
 2. 種類で「ウェブアプリ」を選択
-3. 実行ユーザー・アクセス権限を設定
+3. 実行ユーザーを「自分」（`appsscript.json`の`executeAs`: `USER_DEPLOYING`）、アクセスできるユーザーを「自分のみ」（`access`: `MYSELF`）に設定します
 4. 「デプロイ」をクリック
 
 ### 画面の開き方
@@ -366,4 +376,4 @@ Huskyとlint-stagedを使用し、コミット前に以下を自動実行：
 
 ## ライセンス
 
-ISC
+このリポジトリはMIT Licenseです。著作権表示はCopyright (c) 2026 ysjです。全文は[LICENSE](LICENSE)にあります。
