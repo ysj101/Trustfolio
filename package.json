@@ -2,6 +2,7 @@
   "name": "trustfolio-gas",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "build:css": "bash scripts/build-styles.sh",
     "build:js": "vite build",
