@@ -334,6 +334,8 @@ Dependabot が vite-plus の更新 PR を作成した場合、または手動で
    pnpm dlx --package=vite-plus@<版> vp migrate --no-interactive --no-agent --no-editor
    ```
 
+   注意: ローカルの Safe Chain は README の「必要環境」に記載した版を使うこと。`.aikido` を読まない古い版（1.5.15 未満）は、Safe Chain の既定の最小経過時間で依存を解決する。そのため、CI の Safe Chain（`.aikido` の 48 時間）が取得を拒否する版でロックファイルが作られることがある。2026-10-12 の移行では、ローカルの Safe Chain 1.4.2 が公開から約 25 時間の `tinybench@6.2.2`（vitest 5.0.3 の依存）を解決し、CI の `pnpm install --frozen-lockfile` が `blocked by safe-chain direct download minimum package age` で失敗した。`SAFE_CHAIN_MINIMUM_PACKAGE_AGE_HOURS=48 pnpm update tinybench` で、公開から 48 時間以上が経過した 6.2.1 へ解決し直して解消した。
+
 3. `pnpm exec vp toolchain vitest` で同梱 Vitest の版を確認し、`catalog` の `vitest` と `@vitest/coverage-v8` がその版であることを確認する。
 4. `pnpm install --resolution-only` で peer 依存の警告を確認し、「peer 依存の明示的許容（peerDependencyRules）の記録」の `vitest@<版>>vite` のルールを新しい組み合わせへ付け替える。
 5. `pnpm audit:bundled` を実行し、`scripts/bundled-advisory-exceptions.mjs` を再評価する。解消した例外は削除し、引き続き該当する例外は同梱元の版を更新し、新たな検出は影響経路を評価して対応または記録する。
