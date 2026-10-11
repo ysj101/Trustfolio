@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vite-plus/test';
 import { generateUlid } from '../../src/utils/ulid';
 
 describe('ulid', () => {

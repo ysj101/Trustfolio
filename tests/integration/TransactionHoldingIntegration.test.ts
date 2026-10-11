@@ -4,7 +4,7 @@
  * 目的: TransactionUseCaseで作成した売却取引が、HoldingCalculatorで正しく計算されることを検証する
  * 背景: 過去に売却時のunitsの正負に関する不整合により、保有口数が誤って計算されるバグがあった
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vite-plus/test';
 import { createTransactionUseCase } from '../../src/usecase/TransactionUseCase';
 import { calculateHolding, calculatePortfolio } from '../../src/domain/HoldingCalculator';
 import type { Fund, Nav, Transaction } from '../../src/domain/types';

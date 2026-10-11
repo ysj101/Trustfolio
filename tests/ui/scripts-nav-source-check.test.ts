@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vite-plus/test';
 
 const pageUrl = 'https://apl.wealthadvisor.jp/webasp/sbi_am/pc/basic/sa_202306080A.html';
 const quoteResponse = {

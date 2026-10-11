@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vite-plus/test';
 import { parseNavFromRakutenHtml, fetchNav } from '../../scripts/nav-fetch-test.mjs';
 import type { FetchNavResult } from '../../scripts/nav-fetch-test.mjs';
 

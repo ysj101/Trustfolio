@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vite-plus/test';
 import { createPerformanceRepository } from '../../src/repository/PerformanceRepository';
 import {
   PERFORMANCE_HEADERS,

@@ -15,9 +15,10 @@
     # ビルド・開発設定ファイル
     include = package.json
     include = pnpm-lock.yaml
+    include = pnpm-workspace.yaml
     include = tsconfig.json
     include = tsconfig.build.json
-    include = vitest.config.ts
+    include = vite.config.ts
     include = appsscript.json
 
     # コード品質設定

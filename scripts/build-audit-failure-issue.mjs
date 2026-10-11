@@ -26,8 +26,12 @@
  * 注意:
  *   - `pnpm audit --json` の出力形式が想定と異なる場合は、例外を投げて終了コード 1 で終了する
  *     （fail fast）。形式を解釈できないまま「0 件」と誤って報告しないためである。
- *   - `package.json` の `pnpm.auditConfig.ignoreGhsas` で除外した GHSA は、pnpm が
+ *   - `pnpm-workspace.yaml` の `auditConfig.ignoreGhsas` で除外した GHSA は、pnpm が
  *     `advisories` から除いて出力するため、本スクリプトの集計対象にならない。
+ *   - audit ジョブの「Check bundled packages of Vite+」ステップ
+ *     （`scripts/check-bundled-advisories.mjs`）が検出した、Vite+ の配布物に同梱された
+ *     パッケージのアドバイザリは、`pnpm audit` の出力に含まれないため本スクリプトの集計対象に
+ *     ならない（issue #272）。その場合はアドバイザリ 0 件の本文になり、実行ログの確認を促す。
  *   - 生成した本文が GitHub の issue 本文・コメントの上限（65,536 文字）を超える場合は
  *     例外を投げる。本文を黙って切り詰めると、検出内容の一部が失われるためである。
  */
@@ -277,8 +281,10 @@ export function buildIssueBody({ advisories, auditLevel, runUrl, eventName, comm
   if (advisories.length === 0) {
     lines.push(
       '監査ジョブは失敗しましたが、再監査ではアドバイザリを検出しませんでした。' +
-        '依存関係のインストールの失敗、Aikido Safe Chain による取得の阻止、' +
-        'レジストリの一時的なエラーなど、脆弱性以外の理由で失敗した可能性があります。' +
+        'Vite+ の配布物に同梱されたパッケージの検査（「Check bundled packages of Vite+」ステップ。' +
+        '`pnpm audit` では検出できない）で検出した可能性があります。' +
+        'また、依存関係のインストールの失敗、Aikido Safe Chain による取得の阻止、' +
+        'レジストリの一時的なエラーなど、脆弱性以外の理由で失敗した可能性もあります。' +
         '上記のワークフロー実行のログを確認してください。'
     );
   } else {
@@ -295,8 +301,8 @@ export function buildIssueBody({ advisories, auditLevel, runUrl, eventName, comm
       '',
       '## 対応方法',
       '',
-      '1. issue-resolve スキルに本 issue を指定し、`package.json` の `pnpm.overrides` で修正版を強制する（issue #173 の方針）。',
-      '2. 修正版が存在しない場合など、やむを得ず `pnpm.auditConfig` に例外を追加するときは、`.github/workflows/security.yml` のコメントに対象 ID・理由・影響経路の評価・解除条件を記録する。',
+      '1. issue-resolve スキルに本 issue を指定し、`pnpm-workspace.yaml` の `overrides` で修正版を強制する（issue #173 の方針）。',
+      '2. 修正版が存在しない場合など、やむを得ず `pnpm-workspace.yaml` の `auditConfig` に例外を追加するときは、`.github/workflows/security.yml` のコメントに対象 ID・理由・影響経路の評価・解除条件を記録する。',
       '3. 修正版の公開から 48 時間が経過していない場合、Aikido Safe Chain の最小経過時間ガード（`.aikido` の `minimumPackageAgeHours`）によって取得が阻止されることがある。その場合は経過を待ってから再試行する。'
     );
   }

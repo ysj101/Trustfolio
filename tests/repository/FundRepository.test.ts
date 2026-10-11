@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vite-plus/test';
 import { createFundRepository } from '../../src/repository/FundRepository';
 import { openSheetRepository } from '../../src/repository/SheetRepository';
 import { SHEET_HEADERS, SHEET_NAMES } from '../../src/Config';

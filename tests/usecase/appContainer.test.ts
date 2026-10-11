@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vite-plus/test';
 import { createAppContainer } from '../../src/usecase/appContainer';
 import { openSheetRepository } from '../../src/repository/SheetRepository';
 import { createStubSheetRepository, ok, fail } from '../fakes';
