@@ -12,8 +12,14 @@ on:
 
 jobs:
   claude-review:
-    # Dependabot PRではスキップする（シークレットアクセス制限のため）
-    if: github.actor != 'dependabot[bot]'
+    # 次のいずれかに当たる PR ではスキップする。
+    # - Dependabot の PR: Dependabot が起動したワークフローにはシークレットが渡されないため。
+    # - フォーク（別リポジトリ）からの PR: pull_request イベントではフォーク PR にシークレットが
+    #   渡されず、claude-code-action も起動したユーザーの書き込み権限を確認して停止する。公開後は
+    #   外部の利用者がフォーク PR を作れるため、失敗が確定しているジョブを起動しないよう、PR の
+    #   head リポジトリが本リポジトリと一致するときだけ実行する。フォーク元のリポジトリが削除
+    #   されると head.repo は null になり、比較は偽になる（スキップする）。
+    if: github.actor != 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository
 
     # Optional: Filter by PR author
     # if: |

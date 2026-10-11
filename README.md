@@ -23,10 +23,10 @@ Google Sheets上で管理するGASアプリケーションです。
 
 | カテゴリ | 技術 |
 |----------|------|
-| 言語 | TypeScript 5.5+ |
+| 言語 | TypeScript 7 |
 | ランタイム | Google Apps Script (V8) |
 | データストア | Google Sheets |
-| ビルド | Rollup + TypeScript |
+| ビルド | Vite 8（ライブラリモードで`dist/Code.js`へバンドル） |
 | デプロイ | clasp |
 | テスト | Vitest |
 | UI | Tailwind CSS |
@@ -38,7 +38,7 @@ Google Sheets上で管理するGASアプリケーションです。
 ```
 .
 ├── appsscript.json          # GAS マニフェスト
-├── rollup.config.js         # Rollup ビルド設定
+├── vite.config.ts           # Vite ビルド設定
 ├── tsconfig.json            # TypeScript 設定
 ├── vitest.config.ts         # Vitest テスト設定
 ├── src/
@@ -170,7 +170,7 @@ cp .clasp.json.example .clasp.json
 
 ### ビルド
 
-TypeScriptのコンパイル、HTMLのコピー、CSSのビルドを一括実行します。
+TypeScriptのバンドル、`src/ui/`のファイルと`appsscript.json`のコピー、CSSのビルドを一括実行します。
 
 ```bash
 pnpm build
@@ -179,26 +179,26 @@ pnpm build
 個別にビルドする場合：
 
 ```bash
-pnpm build:js    # TypeScriptのバンドル
-pnpm build:html  # HTMLファイルのコピー
+pnpm build:js    # TypeScriptのバンドルと、src/ui/ のファイル・appsscript.json の dist/ へのコピー
 pnpm build:css   # Tailwind CSSのビルド
 ```
 
 ### テスト
 
 ```bash
-pnpm test              # Vitestでユニットテスト実行
-pnpm test:rakuten     # 楽天証券NAV取得の統合テスト
-pnpm test:nav-fetch   # NAV自動取得の統合テスト
+pnpm test                # Vitestでユニットテスト実行
+pnpm test:rakuten        # 楽天証券NAV取得の統合テスト
+pnpm test:nav-fetch      # NAV自動取得の統合テスト
+pnpm test:wealthadvisor  # Wealth Advisor NAV取得の実サイト疎通確認
 ```
 
 ### コード品質チェック
 
 ```bash
 pnpm lint             # oxlintと専用チェックでコード検査
-pnpm lint:fix         # oxlintの自動修正とBiome整形を実行
-pnpm format           # Biomeでコード整形
-pnpm format:check     # Biomeでフォーマットチェックのみ
+pnpm lint:fix         # oxlintの自動修正とoxfmt整形を実行
+pnpm format           # oxfmtでコード整形
+pnpm format:check     # oxfmtでフォーマットチェックのみ
 ```
 
 ## デプロイ
@@ -320,7 +320,7 @@ Webアプリでは以下の操作が可能です：
 
 GitHub Actionsで以下を自動実行しています：
 
-- **Lint**: oxlintと専用チェック、Biomeフォーマット検証（[.github/workflows/lint.yml](.github/workflows/lint.yml)）
+- **Lint**: oxlintと専用チェック、oxfmtフォーマット検証（[.github/workflows/lint.yml](.github/workflows/lint.yml)）
 - **Test**: Vitestによる単体テスト実行（[.github/workflows/test.yml](.github/workflows/test.yml)）
 - **Security Check**: `pnpm audit --audit-level moderate` による依存関係監査（[.github/workflows/security.yml](.github/workflows/security.yml)）
 - **Code Review**: Claudeによる自動コードレビュー（プルリクエスト時）
@@ -331,7 +331,7 @@ GitHub Actionsで以下を自動実行しています：
 Huskyとlint-stagedを使用し、コミット前に以下を自動実行：
 
 - oxlintによる自動修正
-- Biomeによるコード整形
+- oxfmtによるコード整形
 - 関連するテストの実行
 
 ## コーディング規約
@@ -363,16 +363,16 @@ Huskyとlint-stagedを使用し、コミット前に以下を自動実行：
 | `pnpm setup:clasp` | `.env`から`.clasp.json`を生成 |
 | `pnpm sync:env` | `.env`からGASスクリプトプロパティ設定用の関数を出力 |
 | `pnpm build` | GAS用にバンドルして`dist/`へ出力 |
-| `pnpm build:js` | TypeScriptをバンドル |
-| `pnpm build:html` | HTMLファイルを`dist/`へコピー |
+| `pnpm build:js` | TypeScriptをバンドルし、`src/ui/`のファイルと`appsscript.json`を`dist/`へコピー |
 | `pnpm build:css` | Tailwind CSSをビルド |
 | `pnpm lint` | oxlintと専用チェックでコード検査 |
-| `pnpm lint:fix` | oxlintの自動修正とBiome整形を実行 |
-| `pnpm format` | Biomeでコード整形 |
-| `pnpm format:check` | Biomeでフォーマットチェック |
+| `pnpm lint:fix` | oxlintの自動修正とoxfmt整形を実行 |
+| `pnpm format` | oxfmtでコード整形 |
+| `pnpm format:check` | oxfmtでフォーマットチェック |
 | `pnpm test` | Vitestでテスト実行 |
 | `pnpm test:rakuten` | 楽天証券NAV取得の統合テスト（1銘柄） |
 | `pnpm test:nav-fetch` | NAV自動取得の統合テスト（複数銘柄） |
+| `pnpm test:wealthadvisor` | Wealth Advisor NAV取得の実サイト疎通確認（取得元コードは`WEALTHADVISOR_CODES`にカンマ区切りで指定） |
 
 ## ライセンス
 

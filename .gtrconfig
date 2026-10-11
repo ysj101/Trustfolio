@@ -17,14 +17,10 @@
     include = pnpm-lock.yaml
     include = tsconfig.json
     include = tsconfig.build.json
-    include = rollup.config.js
     include = vitest.config.ts
-    include = eslint.config.mjs
-    include = tailwind.config.js
     include = appsscript.json
 
     # コード品質設定
-    include = .prettierrc
     include = .gitignore
 
     # ドキュメント
