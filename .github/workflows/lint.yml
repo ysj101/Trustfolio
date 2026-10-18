@@ -10,6 +10,13 @@ on:
       - main
       - develop
 
+# GITHUB_TOKEN の権限をリポジトリ内容の読み取りだけに絞る（CodeQL の
+# actions/missing-workflow-permissions への対応）。本ワークフローで GITHUB_TOKEN を使うのは
+# actions/checkout（リポジトリの取得）と actions/setup-node（Node.js の配布物の取得）だけであり、
+# いずれも読み取りで足りる。書き込みが必要な処理を追加する場合は、そのジョブにだけ権限を付与すること。
+permissions:
+  contents: read
+
 jobs:
   lint:
     name: Lint And Format Check
