@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vite-plus/test';
 import { createTransactionRepository } from '../../src/repository/TransactionRepository';
 import { getTransactionSheetName, SHEET_NAMES } from '../../src/Config';
 import { createInMemorySheetRepository, fail, headerRow } from '../fakes';

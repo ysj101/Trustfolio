@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vite-plus/test';
 import { assertFundExists } from '../../src/usecase/fundGuard';
 import type { FundRepository } from '../../src/repository/FundRepository';
 import type { Fund } from '../../src/domain/types';

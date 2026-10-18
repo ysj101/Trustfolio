@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vite-plus/test';
 import { createNavFetchUseCase } from '../../src/usecase/NavFetchUseCase';
 import type { FundRepository } from '../../src/repository/FundRepository';
 import type { NavRepository } from '../../src/repository/NavRepository';

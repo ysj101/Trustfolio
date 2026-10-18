@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { defineConfig, type Plugin } from 'vite';
+import { defineConfig, type Plugin } from 'vite-plus';
 
 /**
  * このプロジェクトのルートディレクトリの絶対パス。
@@ -148,6 +148,18 @@ function copyManifest(): Plugin {
  *   ビルド（非 minify）の挙動を踏襲するため、minify は無効にする。
  * - 型チェックは行わない（Vite は型を剥がすのみ）。型検査は `pnpm typecheck`
  *   （`tsc --noEmit`）が独立ステップとして担う。
+ *
+ * 本ファイルは Vite+（`vp`）の設定の正本でもある（issue #272 で `vp` へ一本化）。
+ * `vp build` は `build` / `plugins`、`vp test` は `test`、`vp fmt` は `fmt`、`vp lint` は
+ * `lint` を読み、`vp check` は `fmt` と `lint` の両方を読む。`package.json` の scripts
+ * （`pnpm build` / `pnpm test` / `pnpm format:check` / `pnpm lint`）は対象パスや CLI 引数を
+ * 渡さずに `vp` を呼ぶため、検査の範囲とルールは本ファイルだけで決まり、`vp check` と
+ * scripts の結果は一致する。
+ *
+ * 注意: `vitest.config.ts` / `.oxfmtrc.json` / `.oxlintrc.json` を新たに置いてはならない。
+ * Vitest は `vitest.config.ts` を `vite.config.ts` より優先して読み、本ファイルの `test` を
+ * 無視する。Vite+ の公式ドキュメントも、整形・lint の設定は本ファイルの `fmt` / `lint` に
+ * 置き、`.oxfmtrc.json` 等を併用しないことを推奨している。
  */
 export default defineConfig({
   build: {
@@ -172,4 +184,68 @@ export default defineConfig({
     },
   },
   plugins: [copyUiFiles(), copyManifest()],
+  /**
+   * Vitest（`vp test` / `pnpm test`）の設定。
+   * issue #272 で `vitest.config.ts` から移した。
+   */
+  test: {
+    globals: true,
+    environment: 'node',
+    include: ['tests/**/*.test.ts'],
+    setupFiles: ['tests/setup.ts'],
+    // ネイティブモジュール（better-sqlite3）を使用するため、シーケンシャル実行
+    fileParallelism: false,
+    // Vitest v4 compatibility: preserve mock call history.
+    // Remove after tests no longer rely on calls from setup or earlier tests.
+    // https://viteplus.dev/guide/vitest-v5#remove-unneeded-compatibility-settings
+    // https://vitest.dev/guide/migration/#clearmocks-is-enabled-by-default
+    // （vp migrate が追加した Vitest v4 互換設定。Vitest 5 は各テストの前にモックの呼び出し履歴を
+    // 消去する。削除は issue #272 の対象外であり、別 issue で既存テストへの影響を確認してから行う）
+    clearMocks: false,
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+      exclude: ['node_modules/', 'dist/', '**/*.test.ts', '**/*.config.*'],
+    },
+  },
+  /**
+   * Oxfmt（`vp fmt` / `pnpm format` / `vp check`）の設定。
+   * issue #272 で `.oxfmtrc.json` から値を変えずに移した。
+   */
+  fmt: {
+    useTabs: false,
+    tabWidth: 2,
+    printWidth: 100,
+    singleQuote: true,
+    jsxSingleQuote: false,
+    quoteProps: 'preserve',
+    trailingComma: 'es5',
+    semi: true,
+    arrowParens: 'always',
+    bracketSameLine: false,
+    bracketSpacing: true,
+    // 整形の対象は、.gitignore で除外したファイルを除くリポジトリ全体である。Oxfmt は
+    // Markdown と YAML も整形するが、ドキュメント（README.md・docs/）と GitHub Actions の
+    // 設定（.github/）・pnpm-workspace.yaml はこれまで整形の対象外であったため、拡張子で除外する。
+    // 注意: Oxfmt の ignorePatterns では、ルート直下のファイルを否定パターン（"!package.json" 等）で
+    // 対象へ戻せない（2026-10-12 に Oxfmt 0.72.0 で確認）。対象を許可リストで書かず、
+    // 除外リストで書いているのはこのためである。
+    ignorePatterns: ['**/*.md', '**/*.yml', '**/*.yaml'],
+  },
+  /**
+   * Oxlint（`vp lint` / `pnpm lint:oxlint` / `vp check`）の設定。
+   * issue #272 で `package.json` の scripts の CLI 引数から移した。
+   */
+  lint: {
+    // 検査の対象は src・scripts・vite.config.ts である（移行前の lint:oxlint の対象と同じ）。
+    // tests は移行前から Oxlint の対象外であるため、引き続き除外する。
+    ignorePatterns: ['tests/**'],
+    // 旧 CLI 引数 --import-plugin --promise-plugin に相当する。plugins を指定すると Oxlint の
+    // 既定のプラグイン（unicorn・typescript・oxc）が置き換わるため、既定の 3 個も列挙する。
+    plugins: ['unicorn', 'typescript', 'oxc', 'import', 'promise'],
+    options: {
+      // 旧 CLI 引数 --deny-warnings に相当する。CLI 引数を使わない vp check でも、警告を失敗にする。
+      denyWarnings: true,
+    },
+  },
 });

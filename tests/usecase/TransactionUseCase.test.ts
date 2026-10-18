@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vite-plus/test';
 import { createTransactionUseCase } from '../../src/usecase/TransactionUseCase';
 import type { FundRepository } from '../../src/repository/FundRepository';
 import type { TransactionRepository } from '../../src/repository/TransactionRepository';

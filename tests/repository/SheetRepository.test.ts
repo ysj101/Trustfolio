@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vite-plus/test';
 import { openSheetRepository } from '../../src/repository/SheetRepository';
 import type { SheetDefinition } from '../../src/Config';
 import { createFakeSpreadsheet } from '../fakes';

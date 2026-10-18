@@ -44,9 +44,11 @@ TrustfolioはMIT Licenseのもと、無保証で提供しています（[LICENSE
 | 言語 | TypeScript 7 |
 | ランタイム | Google Apps Script (V8) |
 | データストア | Google Sheets |
-| ビルド | Vite 8（ライブラリモードで`dist/Code.js`へバンドル） |
+| ツールチェーン | Vite+（`vp`。ビルド・テスト・lint・整形を 1 つの CLI と `vite.config.ts` に集約） |
+| ビルド | Vite 8（`vp build`。ライブラリモードで`dist/Code.js`へバンドル） |
 | デプロイ | clasp |
-| テスト | Vitest |
+| テスト | Vitest 5（`vp test`） |
+| lint・整形 | Oxlint（`vp lint`）・Oxfmt（`vp fmt`） |
 | UI | Tailwind CSS |
 | エラーハンドリング | Result型（オブジェクト） |
 | ID生成 | ULID |
@@ -56,9 +58,9 @@ TrustfolioはMIT Licenseのもと、無保証で提供しています（[LICENSE
 ```
 .
 ├── appsscript.json          # GAS マニフェスト
-├── vite.config.ts           # Vite ビルド設定
+├── vite.config.ts           # Vite+ の設定（ビルド・テスト・整形・lint）
+├── pnpm-workspace.yaml      # pnpm の設定（overrides・auditConfig・peerDependencyRules）と catalog
 ├── tsconfig.json            # TypeScript 設定
-├── vitest.config.ts         # Vitest テスト設定
 ├── src/
 │   ├── main.ts              # エントリーポイント
 │   ├── Config.ts            # 設定管理
@@ -112,7 +114,7 @@ TrustfolioはMIT Licenseのもと、無保証で提供しています（[LICENSE
 - Google Apps Scriptプロジェクト
 - Google スプレッドシート
 
-`mise.toml` で Node.js `24.19` 系（現行の Active LTS 線。patch は自動追従）を推奨ランタイムとして固定しています（issue #199 で 22.22 系から移行）。pnpm は `package.json` の `packageManager` (`pnpm@10.30.2+sha512...`) を Corepack が SHA まで検証してインストールするため、バージョン定義を 1 箇所に集約しています。これらは `engines.node` (`>=24.11.0 <25`)、`engines.pnpm` (`>=10.30.2 <11`) と整合しています。`engines.node` は Node 24 系だけを許容します。下限の 24.11.0 は vite-plus の要求（`>=24.11.0`）に由来し、上限の `<25` は Corepack を同梱しない Node 25 系以降を除外します。Node 22 系は 2027-04-30 に EOL を迎えるため、issue #265 で許容対象から外しました。テスト・lint・依存関係監査の CI（test.yml / lint.yml / security.yml）も Node 24 系の単一バージョンで実行します。依存関係の追加・更新・実行は `pnpm` だけを使用してください。
+`mise.toml` で Node.js `24.19` 系（現行の Active LTS 線。patch は自動追従）を推奨ランタイムとして固定しています（issue #199 で 22.22 系から移行）。pnpm は `package.json` の `packageManager` (`pnpm@10.30.2+sha512...`) を Corepack が SHA まで検証してインストールするため、バージョン定義を 1 箇所に集約しています。これらは `engines.node` (`>=24.11.0 <25`)、`engines.pnpm` (`>=10.30.2 <11`) と整合しています。`engines.node` は Node 24 系だけを許容します。下限の 24.11.0 は vite-plus 1.x の要求（`^22.18.0 || ^24.11.0 || >=26.0.0` のうち 24 系の下限）に由来し、上限の `<25` は Corepack を同梱しない Node 25 系以降を除外します。Node 22 系は 2027-04-30 に EOL を迎えるため、issue #265 で許容対象から外しました。テスト・lint・依存関係監査の CI（test.yml / lint.yml / security.yml）も Node 24 系の単一バージョンで実行します。依存関係の追加・更新・実行は `pnpm` だけを使用してください。
 
 依存関係の取得は、ローカルと CI のどちらも Aikido Safe Chain を経由させます（issue #267）。Safe Chain は `pnpm` などのパッケージマネージャーを包み、取得するパッケージをマルウェアのデータベースと照合します。さらに、公開から一定時間が経過していない版を取得させません。この最小経過時間は、リポジトリ直下の `.aikido`（`minimumPackageAgeHours: 48`）でローカルと CI に共有しています。環境変数 `SAFE_CHAIN_MINIMUM_PACKAGE_AGE_HOURS` を設定すると `.aikido` より優先されるため、ローカルでは設定しないでください。CI では `.github/actions/setup-safe-chain/action.yml` が同じ版を SHA256 検証付きで導入します。版の更新手順は `docs/UPGRADE_STRATEGY.md` の「Aikido Safe Chain の記録」を参照してください。
 
@@ -204,7 +206,7 @@ pnpm build:css   # Tailwind CSSのビルド
 ### テスト
 
 ```bash
-pnpm test                # Vitestでユニットテスト実行
+pnpm test                # Vitest（vp test）でユニットテスト実行
 pnpm test:rakuten        # 楽天証券NAV取得の統合テスト
 pnpm test:nav-fetch      # NAV自動取得の統合テスト
 pnpm test:wealthadvisor  # Wealth Advisor NAV取得の実サイト疎通確認
@@ -213,11 +215,17 @@ pnpm test:wealthadvisor  # Wealth Advisor NAV取得の実サイト疎通確認
 ### コード品質チェック
 
 ```bash
-pnpm lint             # oxlintと専用チェックでコード検査
-pnpm lint:fix         # oxlintの自動修正とoxfmt整形を実行
-pnpm format           # oxfmtでコード整形
-pnpm format:check     # oxfmtでフォーマットチェックのみ
+pnpm lint             # Oxlint（vp lint）・専用チェック・型チェックでコード検査
+pnpm lint:fix         # Oxlintの自動修正とOxfmt（vp fmt）の整形を実行
+pnpm format           # Oxfmt（vp fmt）でコード整形
+pnpm format:check     # Oxfmt（vp fmt --check）でフォーマットチェックのみ
+pnpm exec vp check    # 整形とlintをまとめて検査（結果は pnpm format:check と pnpm lint:oxlint に一致）
+pnpm audit:bundled    # Vite+ の配布物に同梱されたパッケージを脆弱性アドバイザリと照合
 ```
+
+ビルド・テスト・lint・整形は Vite+ の `vp` コマンドで実行します（issue #272）。対象範囲とルールは `vite.config.ts` の `build`・`test`・`fmt`・`lint` に集約しており、`package.json` の scripts は対象パスや CLI 引数を渡しません。そのため、`vp check` と scripts の検査結果は一致します。`vitest.config.ts`・`.oxfmtrc.json`・`.oxlintrc.json` は置かないでください（Vitest は `vitest.config.ts` を優先して読み、`vite.config.ts` の `test` を無視します）。
+
+Vite+ の更新（`vite-plus` の版上げ）は、`vite`（`@voidzero-dev/vite-plus-core` の別名）・`vitest`・`@vitest/coverage-v8` の版を同時にそろえる必要があるため、`vp migrate` で行います。手順は `docs/UPGRADE_STRATEGY.md` の「Vite+（vp）への一本化の記録」を参照してください。
 
 ## デプロイ
 
@@ -229,8 +237,8 @@ pnpm push
 
 このコマンドで以下が自動実行されます：
 
-1. oxlintと専用チェックによるコードチェック
-2. TypeScriptのビルド
+1. Oxlint（vp lint）・専用チェック・型チェックによるコードチェック
+2. TypeScriptのビルド（vp build）とTailwind CSSのビルド
 3. GASへのコードpush（`@HEAD`デプロイメント更新）
 
 ### 本番反映
@@ -338,9 +346,9 @@ Webアプリでは以下の操作が可能です：
 
 GitHub Actionsで以下を自動実行しています：
 
-- **Lint**: oxlintと専用チェック、oxfmtフォーマット検証（[.github/workflows/lint.yml](.github/workflows/lint.yml)）
-- **Test**: Vitestによる単体テスト実行（[.github/workflows/test.yml](.github/workflows/test.yml)）
-- **Security Check**: `pnpm audit --audit-level moderate` による依存関係監査（[.github/workflows/security.yml](.github/workflows/security.yml)）
+- **Lint**: Oxlint（vp lint）と専用チェック、Oxfmt（vp fmt）のフォーマット検証（[.github/workflows/lint.yml](.github/workflows/lint.yml)）
+- **Test**: Vitest（vp test）による単体テスト実行と、ビルド（`pnpm build`）の成功確認（[.github/workflows/test.yml](.github/workflows/test.yml)）
+- **Security Check**: `pnpm audit --audit-level moderate` による依存関係監査と、Vite+ の配布物に同梱されたパッケージのアドバイザリ照合（`scripts/check-bundled-advisories.mjs`）（[.github/workflows/security.yml](.github/workflows/security.yml)）
 - **Code Review**: Claudeによる自動コードレビュー（プルリクエスト時）
 - **Dependabot Auto Merge**: パッチバージョンの自動マージ（[.github/workflows/dependabot-auto-merge.yml](.github/workflows/dependabot-auto-merge.yml)）
 
@@ -348,9 +356,9 @@ GitHub Actionsで以下を自動実行しています：
 
 Huskyとlint-stagedを使用し、コミット前に以下を自動実行：
 
-- oxlintによる自動修正
-- oxfmtによるコード整形
-- 関連するテストの実行
+- Oxlint（vp lint --fix）による自動修正
+- Oxfmt（vp fmt）によるコード整形
+- 関連するテストの実行（vp test related）
 
 ## コーディング規約
 
@@ -383,11 +391,12 @@ Huskyとlint-stagedを使用し、コミット前に以下を自動実行：
 | `pnpm build` | GAS用にバンドルして`dist/`へ出力 |
 | `pnpm build:js` | TypeScriptをバンドルし、`src/ui/`のファイルと`appsscript.json`を`dist/`へコピー |
 | `pnpm build:css` | Tailwind CSSをビルド |
-| `pnpm lint` | oxlintと専用チェックでコード検査 |
-| `pnpm lint:fix` | oxlintの自動修正とoxfmt整形を実行 |
-| `pnpm format` | oxfmtでコード整形 |
-| `pnpm format:check` | oxfmtでフォーマットチェック |
-| `pnpm test` | Vitestでテスト実行 |
+| `pnpm lint` | Oxlint（vp lint）・専用チェック・型チェックでコード検査 |
+| `pnpm lint:fix` | Oxlintの自動修正とOxfmt（vp fmt）の整形を実行 |
+| `pnpm format` | Oxfmt（vp fmt）でコード整形 |
+| `pnpm format:check` | Oxfmt（vp fmt --check）でフォーマットチェック |
+| `pnpm test` | Vitest（vp test）でテスト実行 |
+| `pnpm audit:bundled` | Vite+ の配布物に同梱されたパッケージを脆弱性アドバイザリと照合（CI の Security Check と同じ検査） |
 | `pnpm test:rakuten` | 楽天証券NAV取得の統合テスト（1銘柄） |
 | `pnpm test:nav-fetch` | NAV自動取得の統合テスト（複数銘柄） |
 | `pnpm test:wealthadvisor` | Wealth Advisor NAV取得の実サイト疎通確認（取得元コードは`WEALTHADVISOR_CODES`にカンマ区切りで指定） |

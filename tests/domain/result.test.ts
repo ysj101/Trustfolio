@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vite-plus/test';
 import { fail, propagateFailure } from '../../src/domain/result';
 import type { Result } from '../../src/domain/types';
 

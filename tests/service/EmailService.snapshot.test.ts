@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vite-plus/test';
 import { createEmailService } from '../../src/service/EmailService';
 import type { MarketIndexAlertResult } from '../../src/usecase/MarketIndexAlertUseCase';
 import type { WeeklyReport } from '../../src/usecase/WeeklyReportUseCase';

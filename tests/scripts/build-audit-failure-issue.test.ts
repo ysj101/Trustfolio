@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vite-plus/test';
 import {
   buildIssueBody,
   extractAdvisories,
@@ -194,6 +194,8 @@ describe('scripts/build-audit-failure-issue', () => {
         '| [GHSA-85c8-ppgw-ccpr](https://github.com/advisories/GHSA-85c8-ppgw-ccpr) | critical | `tinypool` | `<2.1.2` | `>=2.1.2` | `.>vite-plus>oxfmt>tinypool` |'
       );
       expect(body).toContain('## 対応方法');
+      // pnpm の設定は issue #272 で package.json から pnpm-workspace.yaml へ移った
+      expect(body).toContain('`pnpm-workspace.yaml` の `overrides` で修正版を強制する');
     });
 
     it('バージョン範囲に含まれる | をエスケープし、表の列が崩れないようにする', () => {
@@ -255,7 +257,8 @@ describe('scripts/build-audit-failure-issue', () => {
     it('アドバイザリが 0 件の場合は、実行ログの確認を促し、対応方法を出さない', () => {
       // 前提: 監査ジョブは失敗したが、再監査ではアドバイザリが検出されなかった
       // 事前条件: advisories は空配列である
-      // 検証: 脆弱性以外の理由で失敗した可能性と、実行ログの確認を促す文言が含まれる
+      // 検証: Vite+ の同梱パッケージの検査で検出した可能性、脆弱性以外の理由で失敗した可能性、
+      //       実行ログの確認を促す文言が含まれる
       const body = buildIssueBody({
         advisories: [],
         auditLevel: 'moderate',
@@ -266,6 +269,8 @@ describe('scripts/build-audit-failure-issue', () => {
 
       expect(body).toContain('## 検出したアドバイザリ（0 件）');
       expect(body).toContain('再監査ではアドバイザリを検出しませんでした');
+      expect(body).toContain('Vite+ の配布物に同梱されたパッケージの検査');
+      expect(body).toContain('脆弱性以外の理由で失敗した可能性もあります');
       expect(body).toContain('ログを確認してください');
       expect(body).not.toContain('## 対応方法');
     });

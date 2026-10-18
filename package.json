@@ -5,21 +5,22 @@
   "license": "MIT",
   "scripts": {
     "build:css": "bash scripts/build-styles.sh",
-    "build:js": "vite build",
+    "build:js": "vp build",
     "build": "pnpm build:js && pnpm build:css",
     "push": "pnpm lint && pnpm build && clasp push --force",
     "setup:clasp": "scripts/setup-clasp.sh",
     "sync:env": "node scripts/sync-env-to-gas.mjs",
     "lint": "pnpm lint:oxlint && pnpm lint:architecture && pnpm typecheck && pnpm lint:typescript-rules",
     "lint:fix": "pnpm lint:oxlint:fix && pnpm format && pnpm lint:architecture && pnpm typecheck && pnpm lint:typescript-rules",
-    "lint:oxlint": "oxlint src scripts vitest.config.ts vite.config.ts --import-plugin --promise-plugin --deny-warnings",
-    "lint:oxlint:fix": "oxlint src scripts vitest.config.ts vite.config.ts --import-plugin --promise-plugin --deny-warnings --fix",
+    "lint:oxlint": "vp lint",
+    "lint:oxlint:fix": "vp lint --fix",
     "lint:architecture": "node scripts/check-architecture.mjs",
     "lint:typescript-rules": "node scripts/check-typescript-rules.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.build.json",
-    "format": "oxfmt src tests scripts vite.config.ts vitest.config.ts package.json .oxfmtrc.json",
-    "format:check": "oxfmt --check src tests scripts vite.config.ts vitest.config.ts package.json .oxfmtrc.json",
-    "test": "vitest",
+    "format": "vp fmt",
+    "format:check": "vp fmt --check",
+    "test": "vp test",
+    "audit:bundled": "node scripts/check-bundled-advisories.mjs --audit-level moderate",
     "test:rakuten": "node scripts/rakuten-integration-test.mjs",
     "test:nav-fetch": "node scripts/nav-fetch-test.mjs",
     "test:wealthadvisor": "node scripts/wealthadvisor-fetch-test.mjs",
@@ -29,71 +30,34 @@
     "@google/clasp": "^3.4.1",
     "@tailwindcss/cli": "^4.3.3",
     "@types/google-apps-script": "^2.0.13",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "catalog:",
     "husky": "^9.1.7",
     "lint-staged": "^17.6.0",
-    "oxfmt": "0.72.0",
-    "oxlint": "1.87.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
     "typescript-js-api": "npm:typescript@^6.0.3",
-    "vite": "8.3.3",
-    "vite-plus": "0.3.1",
-    "vitest": "^4.1.11"
+    "vite": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
   },
   "lint-staged": {
     "*.{ts,js,mjs,cjs,json,css,html}": [
-      "oxfmt"
+      "vp fmt"
     ],
     "src/**/*.ts": [
-      "oxlint --import-plugin --promise-plugin --deny-warnings --fix",
-      "pnpm vitest related --run"
+      "vp lint --fix",
+      "vp test related --run"
     ],
     "scripts/**/*.mjs": [
-      "oxlint --import-plugin --promise-plugin --deny-warnings --fix"
+      "vp lint --fix"
     ],
-    "{vitest.config.ts,vite.config.ts}": [
-      "oxlint --import-plugin --promise-plugin --deny-warnings --fix"
+    "vite.config.ts": [
+      "vp lint --fix"
     ]
   },
   "engines": {
     "node": ">=24.11.0 <25",
     "pnpm": ">=10.30.2 <11"
   },
-  "packageManager": "pnpm@10.30.2+sha512.36cdc707e7b7940a988c9c1ecf88d084f8514b5c3f085f53a2e244c2921d3b2545bc20dd4ebe1fc245feec463bb298aecea7a63ed1f7680b877dc6379d8d0cb4",
-  "pnpm": {
-    "overrides": {
-      "vite": "8.3.3",
-      "qs": ">=6.16.0",
-      "minimatch": ">=10.2.3",
-      "express-rate-limit": ">=8.2.2",
-      "@hono/node-server": ">=2.0.5 <3",
-      "hono": ">=4.13.7 <5",
-      "body-parser": ">=2.3.0 <3",
-      "yaml": "2.8.3",
-      "path-to-regexp": "8.4.0",
-      "picomatch@<2.3.2": "2.3.2",
-      "picomatch@>=4.0.0 <4.0.4": "4.0.4",
-      "ip-address": "10.7.1",
-      "fast-uri": ">=3.1.8 <4",
-      "uuid@<14.0.0": ">=14.0.0",
-      "esbuild@<0.28.1": ">=0.28.1",
-      "postcss@<8.5.23": ">=8.5.23",
-      "brace-expansion@>=4.0.0 <5.0.12": ">=5.0.12 <6",
-      "tinypool@<2.1.2": ">=2.1.2 <3",
-      "proxy-addr@<2.0.8": ">=2.0.8 <3",
-      "source-map-js@<1.2.2": ">=1.2.2 <2",
-      "@modelcontextprotocol/sdk@<1.31.0": ">=1.31.0 <2"
-    },
-    "auditConfig": {
-      "ignoreGhsas": [
-        "GHSA-vfj7-8cjw-p6xm"
-      ]
-    },
-    "peerDependencyRules": {
-      "allowedVersions": {
-        "@formatjs/intl@3.1.8>typescript": "^6.0.0 || ^7.0.0"
-      }
-    }
-  }
+  "packageManager": "pnpm@10.30.2+sha512.36cdc707e7b7940a988c9c1ecf88d084f8514b5c3f085f53a2e244c2921d3b2545bc20dd4ebe1fc245feec463bb298aecea7a63ed1f7680b877dc6379d8d0cb4"
 }

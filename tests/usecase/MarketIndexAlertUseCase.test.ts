@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vite-plus/test';
 import { createMarketIndexAlertUseCase } from '../../src/usecase/MarketIndexAlertUseCase';
 import type { MarketIndexRepository } from '../../src/repository/MarketIndexRepository';
 import type { MarketIndex } from '../../src/domain/types';
