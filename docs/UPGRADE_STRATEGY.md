@@ -188,14 +188,17 @@ pnpm push
 - **解除条件**: `@google/clasp` を更新した際は、その時点の推移的依存（`@formatjs/intl` のバージョンと peer 宣言）を再評価し、typescript peer 警告が発生しなくなっていれば本ルールを削除する。警告が残る場合は、検証したバージョンへ限定を付け替えた上で本セクションを更新する。
 - **レンジ拡張（2026-07-23、issue #175 Phase 2）**: TypeScript を 6.0.3 → 7.0.2 へ更新した際、許容レンジを `^6.0.0` から `^6.0.0 || ^7.0.0` へ拡張した。判断理由・許容範囲の限定・解除条件は上記のとおり変わらない（TypeScript 7 でも `@formatjs/intl@3.1.8` の optional peer 宣言は `^5.6.0` のままであることを確認済み）。
 
-### `vitest@5.0.3>vite: 1.1.0` と `@vitest/mocker@5.0.3>vite: 1.1.0`（2026-10-12 追加、issue #272）
+### `vitest@<版>>vite` と `@vitest/mocker@<版>>vite`（2026-10-12 追加、issue #272。現在の値は `vitest@5.0.4>vite: 1.2.0` と `@vitest/mocker@5.0.4>vite: 1.2.0`）
 
 - **経緯**: Vite+ 1.1.0 へ移行した際（後述の「Vite+（vp）への一本化の記録」）、`vite` が `@voidzero-dev/vite-plus-core@1.1.0`（Vite+ 版の vite）への別名に解決されるようになった。`vitest@5.0.3` と `@vitest/mocker@5.0.3` は peerDependencies に `vite: ^6.4.0 || ^7.0.0 || ^8.0.0`（`@vitest/mocker` は `^6.0.0 || ^7.0.0 || ^8.0.0`）を宣言しており、解決された版番号 `1.1.0` がこの範囲を満たさないため、`pnpm install` で unmet peer 警告が 2 件発生した。
 - **判断理由**:
   - `@voidzero-dev/vite-plus-core@1.1.0` は vite 8.3.3 をそのまま同梱している（同パッケージの `package.json` の `bundledVersions` が `"vite": "8.3.3"` を宣言している）。peer の範囲を満たさないのは版番号の付け方の違いであり、vitest が要求する vite 8 系の機能は提供されている。
   - Vite+ はこの組み合わせ（vitest 5.0.3 と vite-plus-core 1.1.0）を `vite-plus@1.1.0` の依存として固定して配布しており、`vp test` はこの組み合わせで実行される。本リポジトリでも `pnpm test --run`（688 件）が成功した。
   - `vp migrate` は警告を `peerDependencyRules.allowAny: [vite, vitest]` と `allowedVersions` の `vite: "*"` / `vitest: "*"` で全面的に抑止したが、これは親セレクタによる限定を求める本セクションの方針に反するため採用しなかった。`allowAny` と `"*"` を削除し、親セレクタを付けた 2 件のルールへ置き換えた後、`pnpm install --resolution-only` で 2 件の警告が消えることを確認した。
-- **許容範囲の限定**: 親セレクタを検証済みの `vitest@5.0.3` と `@vitest/mocker@5.0.3` に、許容する版を `1.1.0` に限定している。vite-plus の更新で vitest または vite-plus-core の版が変わると本ルールは一致しなくなり、警告が再び顕在化する（fail fast）。
+- **許容範囲の限定**: 親セレクタを検証済みの vitest と @vitest/mocker の版に、許容する版を検証済みの vite-plus-core の版に限定している。vite-plus の更新で vitest または vite-plus-core の版が変わると本ルールは一致しなくなり、警告が再び顕在化する（fail fast）。
+- **付け替えの記録**:
+  - 2026-10-12（issue #272）: `vitest@5.0.3>vite: 1.1.0`、`@vitest/mocker@5.0.3>vite: 1.1.0` を追加した（vite-plus 1.1.0）。
+  - 2026-10-19（PR #283）: vite-plus 1.2.0 への更新で vitest が 5.0.4、vite-plus-core が 1.2.0 になり、警告が 2 件再び出た。`vitest@5.0.4>vite: 1.2.0`、`@vitest/mocker@5.0.4>vite: 1.2.0` へ付け替え、`pnpm install --resolution-only` で 2 件の警告が消えることを確認した。判断理由は上記と変わらない（`@voidzero-dev/vite-plus-core@1.2.0` の `bundledVersions` は `"vite": "8.3.4"`）。
 - **解除条件**: vite-plus を更新した際は、`pnpm install --resolution-only` の出力で警告を確認し、親セレクタと許容する版を新しい組み合わせへ付け替える。Vite+ が vite-plus-core の版番号を vite の版番号と一致させた場合、または vitest が vite-plus-core を peer として受け付けるようになった場合は、本ルールを削除する。
 - **残っている警告**: `vite-plus 1.1.0 > vitest 5.0.3 > tinyglobby 0.2.17 > fdir 6.5.0` の `unmet peer picomatch@4.0.4: found 4.0.7` は、移行前の main（`vite 8.3.3 > tinyglobby 0.2.17 > fdir 6.5.0`）から出ている警告であり、本移行では扱わない。
 
@@ -311,7 +314,7 @@ Safe Chain の版は composite action とインストール手順に直接書い
 
 ### peer 依存の検査（issue #272 の方針 6-2 の結論）
 
-`vp migrate` が追加した `peerDependencyRules.allowAny: [vite, vitest]` と `allowedVersions` の `vite: "*"` / `vitest: "*"` を削除し、親セレクタで限定した 2 件のルールへ置き換えた。詳細は「peer 依存の明示的許容（peerDependencyRules）の記録」の `vitest@5.0.3>vite: 1.1.0` の項を参照。
+`vp migrate` が追加した `peerDependencyRules.allowAny: [vite, vitest]` と `allowedVersions` の `vite: "*"` / `vitest: "*"` を削除し、親セレクタで限定した 2 件のルールへ置き換えた。詳細は「peer 依存の明示的許容（peerDependencyRules）の記録」の `vitest@<版>>vite` の項を参照。
 
 ### Dependabot と catalog の関係
 
@@ -337,7 +340,8 @@ Dependabot が vite-plus の更新 PR を作成した場合、または手動で
    注意: ローカルの Safe Chain は README の「必要環境」に記載した版を使うこと。`.aikido` を読まない古い版（1.5.15 未満）は、Safe Chain の既定の最小経過時間で依存を解決する。そのため、CI の Safe Chain（`.aikido` の 48 時間）が取得を拒否する版でロックファイルが作られることがある。2026-10-12 の移行では、ローカルの Safe Chain 1.4.2 が公開から約 25 時間の `tinybench@6.2.2`（vitest 5.0.3 の依存）を解決し、CI の `pnpm install --frozen-lockfile` が `blocked by safe-chain direct download minimum package age` で失敗した。`SAFE_CHAIN_MINIMUM_PACKAGE_AGE_HOURS=48 pnpm update tinybench` で、公開から 48 時間以上が経過した 6.2.1 へ解決し直して解消した。
 
 3. `pnpm exec vp toolchain vitest` で同梱 Vitest の版を確認し、`catalog` の `vitest` と `@vitest/coverage-v8` がその版であることを確認する。
-4. `pnpm install --resolution-only` で peer 依存の警告を確認し、「peer 依存の明示的許容（peerDependencyRules）の記録」の `vitest@<版>>vite` のルールを新しい組み合わせへ付け替える。
+4. `pnpm install --resolution-only` で peer 依存の警告を確認し、「peer 依存の明示的許容（peerDependencyRules）の記録」の `vitest@<版>>vite` のルールを新しい組み合わせへ付け替える。`vp migrate` は実行のたびに `peerDependencyRules.allowAny: [vite, vitest]` と `allowedVersions` の `vite: '*'` / `vitest: '*'` を追加し、`overrides` の `"catalog:"` のクォートをシングルクォートへ書き換える（vite-plus 1.2.0 の `vp migrate` で確認）。全面抑止は本ドキュメントの方針に反するため削除し、クォートは元に戻す。
+   - `vp migrate` の最終段の自動整形は `Expected at least one target file. All matched files may have been excluded by ignore rules.` で失敗する。整形しようとする `pnpm-lock.yaml` / `pnpm-workspace.yaml` を `vite.config.ts` の `fmt.ignorePatterns`（`**/*.yaml`）で除外しているためであり、対処は不要である（`vp migrate` 自体は終了コード 0 で終わる）。
 5. `pnpm audit:bundled` を実行し、`scripts/bundled-advisory-exceptions.mjs` を再評価する。解消した例外は削除し、引き続き該当する例外は同梱元の版を更新し、新たな検出は影響経路を評価して対応または記録する。
 6. `pnpm lint`・`pnpm format:check`・`pnpm test --run`・`pnpm build`・`pnpm exec vp check` が成功することを確認する。`dist/` を更新前の `dist/` と `diff -r` で比較し、差分がある場合はその内容を PR に記載する。
 7. `vp migrate` が `vite.config.ts` に Vitest の互換設定などを追加した場合は、その内容と理由を PR に記載する。
@@ -377,3 +381,4 @@ Dependabot が vite-plus の更新 PR を作成した場合、または手動で
 - 2026-10-08: `engines.node` を `>=22.22.1 <23 || >=24.11.0 <25` から `>=24.11.0 <25` へ変更し、Node 22 系を許容対象から外した（issue #265）。理由は次の 3 点である。(1) 実運用はすでに 24 系へ統一されていた（mise.toml の pin `24.19`、security.yml の単一バージョン `24`、ローカル開発環境の Node 24.19.0）。22 系は engines と test.yml / lint.yml のマトリクスにだけ残り、CI の実行回数を倍にしていた。(2) Node 22 系は Maintenance LTS で 2027-04-30 に EOL を迎えるため、残すと半年後に再度の移行が必要になる。(3) 全 devDependencies の engines が 24 系を許容している（node_modules の package.json で確認。vite-plus 0.3.1: `^20.19.0 || ^22.18.0 || >=24.11.0`、lint-staged 17.6.0: `>=22.22.1`、vitest 4.1.11: `^20.0.0 || ^22.0.0 || >=24.0.0`、oxlint 1.86.0 / oxfmt 0.71.0 / vite 8.3.1: `^20.19.0 || >=22.12.0`、typescript 7.0.2: `>=16.20.0`、@google/clasp 3.4.1: `>=20.0.0`、husky 9.1.7: `>=18`）。下限 24.11.0 は従来どおり vite-plus の要求に由来し、上限 `<25` は Corepack を同梱しない Node 25 系以降を除外する。あわせて test.yml / lint.yml の 22/24 マトリクスを廃止し、security.yml と同じ単一バージョン `24` へ揃えた（CI のジョブ名は `Unit Tests (22)` / `Unit Tests (24)` から `Unit Tests` へ、`Lint And Format Check (22)` / `Lint And Format Check (24)` から `Lint And Format Check` へ変わる）。Node 26 系は 2026-10-28 まで LTS ではなく、Corepack を同梱しないため pnpm の取得経路（README・mise.toml のコメント・CI の pnpm/action-setup）の見直しが必要になる。このため 26 系への移行は、LTS 化と Corepack 非同梱への対応方針が決まった後に別 issue で検討する。Node 24.19.0 実機で `pnpm install`（engines WARN なし）・lint・format チェック・テスト（651 件）の成功を確認済み
 - 2026-10-09: Dependency Audit の定期監査化・PR 監査の限定と、Aikido Safe Chain の導入を行った（issue #267）。security.yml に毎日 21:17 UTC（06:17 JST）の schedule と workflow_dispatch を追加し、それらで監査が失敗したときは report ジョブが issue「Dependency Audit の定期監査で脆弱性を検出しました」を起票する（同じタイトルのオープン issue があればコメントを追記する。本文は scripts/build-audit-failure-issue.mjs が生成する）。pull_request での監査は package.json / pnpm-lock.yaml / security.yml を変更した PR に限定した。理由は、監査結果がコードではなく外部の脆弱性データベースで変わるため、新規アドバイザリの公表後に最初に CI を実行した無関係な PR が失敗していたことである（2026-10-03 の #261、2026-10-07 の #266。いずれもアドバイザリのレビュー完了から最初の CI 失敗まで CI が実行されていなかった）。あわせて CI の依存取得を Aikido Safe Chain 1.5.24 経由にし、`.aikido` で最小経過時間 48 時間を、dependabot.yml で cooldown 3 日を明示した（詳細は「Aikido Safe Chain の記録」を参照）
 - 2026-10-12: Vite+ を 0.3.1 から 1.1.0 へ更新し、ツールチェーンを `vp` に一本化した（issue #272）。二層構成（scripts と CI は単体パッケージ、`vp` はローカル専用）を廃止し、設定を `vite.config.ts` の `build`・`test`・`fmt`・`lint` に集約した（`vitest.config.ts` と `.oxfmtrc.json` を削除）。pnpm の設定は `package.json` から `pnpm-workspace.yaml` へ移り、Vitest は 4.1.11 から 5.0.3 になった。バンドルされた依存は `pnpm audit` と `overrides` が効かないため、`scripts/check-bundled-advisories.mjs` で照合する検査を security.yml に追加した。Dependabot は catalog の vite-plus だけを更新するため、test.yml に `pnpm build` を追加し、dependabot.yml で `vite`・`vitest`・`@vitest/coverage-v8` を除外し、`vite-plus` を development グループから外した。devDependencies が 14 件から 12 件へ減ったことと除外の追加に伴い、`open-pull-requests-limit` を 16 から 11 へ変更した。詳細は「Vite+（vp）への一本化の記録」を参照
+- 2026-10-19: vite-plus を 1.1.0 から 1.2.0 へ更新した（PR #283。Dependabot の PR に、「Vite+（vp）への一本化の記録」の「vite-plus の更新手順」で補正を加えた）。Dependabot は `catalog` の `vite-plus` だけを更新していたため、`vp migrate` で `vite`（`@voidzero-dev/vite-plus-core@1.2.0`。同梱の vite は 8.3.4、rolldown は 1.2.13）・`vitest` 5.0.4・`@vitest/coverage-v8` 5.0.4 へそろえた。peer 依存の許容ルールを付け替え、`vp migrate` が再追加した全面抑止を削除した。同梱パッケージの検出は 1.1.0 と同じ 4 パッケージ・12 件であり、1.2.0 の配布物でも影響経路の評価が成り立つことを確認して、例外の同梱元を 1.2.0 へ更新した。`pnpm build` の `dist/` は更新前と完全に一致し、`vp lint --print-config` の有効なプラグインとルール（116 件）も変わらなかった。テストは Vitest 5.0.4 で 689 件成功した
