@@ -136,6 +136,51 @@ function copyManifest(): Plugin {
 }
 
 /**
+ * vite のプロキシ（`server.proxy` / `preview.proxy`）が設定されていないことを検証する
+ * Vite プラグイン（issue #286）。
+ *
+ * 目的:
+ *   `scripts/bundled-advisory-exceptions.mjs` の follow-redirects 1.16.0 の例外は、
+ *   「本リポジトリでは vite のプロキシを使わない」ことを根拠にしている。Vite+ に同梱された
+ *   follow-redirects を使うのは vite のプロキシ（http-proxy-3）だけであり、プロキシは解決後の
+ *   `server.proxy` または `preview.proxy` が設定されたときだけ生成される。この根拠が崩れたときに、
+ *   例外が黙って適用され続けないよう、設定の解決時点で失敗させる（fail fast）。
+ *
+ * 内容:
+ *   設定の解決後（`configResolved`）に、解決済みの `server.proxy` と `preview.proxy` を確かめ、
+ *   どちらかが設定されていれば例外を投げる。`configResolved` は `vp build`・`vp dev`・
+ *   `vp test`（Vitest が内部で生成するサーバーを含む）・`vp preview` のいずれでも、各コマンドが
+ *   実際に解決した設定で呼ばれる。このため、コマンドごとの解決条件（mode 等）を写さずに検査できる。
+ *   CI では `pnpm test` と `pnpm build` がこの検査を通る。
+ *
+ * 注意:
+ *   - vite は `preview.proxy` が未設定なら `server.proxy` を引き継ぐ。ただしプラグインは
+ *     解決後の `server.proxy` を書き換えられるため、両方を確かめる。
+ *   - 判定は意図的に厳しくしている。vite は proxy の各エントリが偽の場合にプロキシを生成しないが、
+ *     本プラグインは proxy が設定された時点で失敗させる。プロキシを使う必要が生じた場合は、
+ *     follow-redirects の例外の影響経路を再評価したうえで、本プラグインを見直すこと。
+ *   - 本プラグインが検査するのは `configResolved` の時点の値である。それより後に他のプラグインが
+ *     `configureServer` / `configurePreviewServer` 等で proxy を書き換えた場合は検出できない。
+ *     プラグインを追加・更新するときは、proxy を書き換えないことを確認すること。
+ *   - follow-redirects の例外を削除した（修正版を同梱した vite-plus へ更新した）ときは、
+ *     本プラグインも削除する。
+ */
+function forbidDevServerProxy(): Plugin {
+  return {
+    name: 'forbid-dev-server-proxy',
+    configResolved(config) {
+      if (config.server.proxy !== undefined || config.preview.proxy !== undefined) {
+        throw new Error(
+          'vite のプロキシ（server.proxy / preview.proxy）が設定されています。' +
+            'scripts/bundled-advisory-exceptions.mjs の follow-redirects の例外は、プロキシを使わないことを' +
+            '前提にしています。例外の影響経路を再評価してから、vite.config.ts の forbidDevServerProxy を見直してください。'
+        );
+      }
+    },
+  };
+}
+
+/**
  * Vite ビルド設定（GAS 向けライブラリモード）。
  *
  * 本プロジェクトは Google Apps Script プロジェクトであり、ブラウザ向けの開発サーバー
@@ -183,7 +228,7 @@ export default defineConfig({
       },
     },
   },
-  plugins: [copyUiFiles(), copyManifest()],
+  plugins: [copyUiFiles(), copyManifest(), forbidDevServerProxy()],
   /**
    * Vitest（`vp test` / `pnpm test`）の設定。
    * issue #272 で `vitest.config.ts` から移した。
