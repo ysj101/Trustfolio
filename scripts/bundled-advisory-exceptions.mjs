@@ -20,7 +20,7 @@
  *   - 以下の影響経路の評価（同梱物の位置・読み込み元・起動条件）は、各例外の `bundle` に記した版の
  *     配布物（`dist/`）を実際に読んで確認したものである。各例外のコメントには同梱元の版を書かない
  *     （版の正は `bundle` とする）。評価と再確認の経緯（日付・版・issue / PR）は、
- *     docs/UPGRADE_STRATEGY.md の変更履歴に記録する。
+ *     docs/UPGRADE_STRATEGY.md の「履歴」の節に記録する。
  *
  * @type {Array<{ bundle: string, package: string, version: string, ghsaIds: string[] }>}
  */

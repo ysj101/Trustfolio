@@ -25,19 +25,27 @@ import { describe, expect, it } from 'vite-plus/test';
 /** リポジトリのルートディレクトリの絶対パス（本ファイルは tests/ にある）。 */
 const projectRoot = path.resolve(import.meta.dirname, '..');
 
-/** forbidDevServerProxy プラグインが投げる例外のメッセージの先頭。 */
-const PROXY_ERROR_MESSAGE = 'vite のプロキシ（server.proxy / preview.proxy）が設定されています。';
+/**
+ * forbidDevServerProxy プラグインが投げる例外のメッセージに含まれる、ガードの関数名。
+ * メッセージは見直す対象としてこの関数名を案内する。文言全体ではなく関数名で照合するのは、
+ * 案内の文言を変えてもテストが壊れず、かつ他の原因による失敗と区別できるようにするためである。
+ */
+const GUARD_NAME = 'forbidDevServerProxy';
 
 /**
  * 本リポジトリの vite.config.ts を解決する。
  *
  * @param overrides 設定ファイルの内容に重ねるインライン設定（プロキシを足すときに使う）
+ * @param command 解決するコマンドの種類。'serve' は vp dev / vp test / vp preview、'build' は vp build と同じ
  * @returns 解決済みの設定
  */
-function resolveProjectConfig(overrides: Parameters<typeof resolveConfig>[0] = {}) {
+function resolveProjectConfig(
+  overrides: Parameters<typeof resolveConfig>[0] = {},
+  command: 'serve' | 'build' = 'serve'
+) {
   return resolveConfig(
     { ...overrides, root: projectRoot, configFile: path.join(projectRoot, 'vite.config.ts') },
-    'serve'
+    command
   );
 }
 
@@ -60,7 +68,7 @@ describe('vite.config.ts', () => {
       };
 
       // 検証: プラグインが例外を投げ、設定の解決が失敗する
-      await expect(resolveProjectConfig(overrides)).rejects.toThrow(PROXY_ERROR_MESSAGE);
+      await expect(resolveProjectConfig(overrides)).rejects.toThrow(GUARD_NAME);
     });
 
     it('preview.proxy だけが設定されても、設定の解決を失敗させる', async () => {
@@ -68,7 +76,17 @@ describe('vite.config.ts', () => {
       const overrides = { preview: { proxy: { '/api': 'https://api.example.com' } } };
 
       // 検証: プレビューサーバーのプロキシも検出し、設定の解決が失敗する
-      await expect(resolveProjectConfig(overrides)).rejects.toThrow(PROXY_ERROR_MESSAGE);
+      await expect(resolveProjectConfig(overrides)).rejects.toThrow(GUARD_NAME);
+    });
+
+    it('vp build と同じ build での解決でも、server.proxy を検出して失敗させる', async () => {
+      // 前提: プラグインは apply を指定しておらず、configResolved は build でも呼ばれる
+      //   （CI の pnpm build でも前提の崩れを検出できることを裏付ける）
+      // 事前条件: 開発サーバーに API へのプロキシを加えたうえで、build として解決する
+      const overrides = { server: { proxy: { '/api': 'https://api.example.com' } } };
+
+      // 検証: build の解決でもプラグインが例外を投げる
+      await expect(resolveProjectConfig(overrides, 'build')).rejects.toThrow(GUARD_NAME);
     });
   });
 });
