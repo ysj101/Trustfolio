@@ -17,14 +17,15 @@
  *     `pnpm audit:bundled` の出力をもとに本一覧を見直すこと（手順は
  *     docs/UPGRADE_STRATEGY.md の「Vite+（vp）への一本化の記録」を参照）。
  *   - どの検出にも一致しない例外があると検査は失敗する。解消した例外は削除すること。
- *   - 以下の影響経路の評価は、2026-10-12 に vite-plus 1.1.0 / @voidzero-dev/vite-plus-core 1.1.0 の
- *     配布物（`dist/`）を実際に読んで確認し、2026-10-19 に 1.2.0 の配布物で同じ内容
- *     （同梱物の位置・読み込み元・起動条件）が成り立つことを再確認したものである（PR #283）。
+ *   - 以下の影響経路の評価（同梱物の位置・読み込み元・起動条件）は、各例外の `bundle` に記した版の
+ *     配布物（`dist/`）を実際に読んで確認したものである。各例外のコメントには同梱元の版を書かない
+ *     （版の正は `bundle` とする）。評価と再確認の経緯（日付・版・issue / PR）は、
+ *     docs/UPGRADE_STRATEGY.md の「履歴」の節に記録する。
  *
  * @type {Array<{ bundle: string, package: string, version: string, ghsaIds: string[] }>}
  */
 export const BUNDLED_ADVISORY_EXCEPTIONS = [
-  // braces 3.0.3（@voidzero-dev/vite-plus-core 1.2.0 の dist/vite/node/chunks/node.js に同梱）
+  // braces 3.0.3（@voidzero-dev/vite-plus-core の dist/vite/node/chunks/node.js に同梱）
   //   理由: 修正版が未リリースである（アドバイザリの first_patched_version が null）。
   //     同じ GHSA は、通常の依存としての braces についても pnpm-workspace.yaml の
   //     auditConfig.ignoreGhsas で例外にしている（.github/workflows/security.yml のコメントを参照）。
@@ -37,12 +38,12 @@ export const BUNDLED_ADVISORY_EXCEPTIONS = [
   //     なお、移行前の単体の vite 8.3.3 も同じ braces 3.0.3 を同梱していた。
   //   解除条件: braces の修正版が公開され、それを同梱した vite-plus へ更新した時点で削除する。
   {
-    bundle: '@voidzero-dev/vite-plus-core@1.2.0',
+    bundle: '@voidzero-dev/vite-plus-core@1.3.0',
     package: 'braces',
     version: '3.0.3',
     ghsaIds: ['GHSA-vfj7-8cjw-p6xm'],
   },
-  // picomatch 2.3.1（@voidzero-dev/vite-plus-core 1.2.0 の dist/vite/node/chunks/node.js に同梱）
+  // picomatch 2.3.1（@voidzero-dev/vite-plus-core の dist/vite/node/chunks/node.js に同梱）
   //   理由: 修正版（2.3.2）は公開済みだが、同梱されたコピーには pnpm-workspace.yaml の
   //     overrides（picomatch@<2.3.2 → 2.3.2）が効かない。移行前の単体の vite 8.3.3 は picomatch を
   //     通常の依存として解決していたため（overrides により 4.0.7 以上）、本検出は移行で新たに生じた。
@@ -55,12 +56,12 @@ export const BUNDLED_ADVISORY_EXCEPTIONS = [
   //   解除条件: picomatch 2.3.2 以上（または picomatch を同梱しない構成）の vite-plus へ
   //     更新した時点で削除する。
   {
-    bundle: '@voidzero-dev/vite-plus-core@1.2.0',
+    bundle: '@voidzero-dev/vite-plus-core@1.3.0',
     package: 'picomatch',
     version: '2.3.1',
     ghsaIds: ['GHSA-3v7f-55p6-f55p', 'GHSA-c2c7-rcm5-vvqj'],
   },
-  // postcss-selector-parser 7.1.0（@voidzero-dev/vite-plus-core 1.2.0 の dist/vite/node/chunks/build.js に同梱）
+  // postcss-selector-parser 7.1.0（@voidzero-dev/vite-plus-core の dist/vite/node/chunks/build.js に同梱）
   //   理由: 修正版（7.1.6）は公開済みだが、同梱されたコピーには overrides が効かない。
   //     移行前の単体の vite 8.3.3 も、同じアドバイザリに該当する 7.1.1 を同梱していた。
   //   影響経路の評価: CSS Modules の処理（postcss-modules-local-by-default / postcss-modules-scope）が
@@ -69,12 +70,44 @@ export const BUNDLED_ADVISORY_EXCEPTIONS = [
   //     （scripts/build-styles.sh）が vite を介さずに生成する。解析する CSS も外部から入力されない。
   //   解除条件: postcss-selector-parser 7.1.6 以上を同梱した vite-plus へ更新した時点で削除する。
   {
-    bundle: '@voidzero-dev/vite-plus-core@1.2.0',
+    bundle: '@voidzero-dev/vite-plus-core@1.3.0',
     package: 'postcss-selector-parser',
     version: '7.1.0',
     ghsaIds: ['GHSA-rj75-hqrm-r3gf'],
   },
-  // brace-expansion 5.0.3（vite-plus 1.2.0 の dist/editor-*.js に同梱。minimatch 10.2.4 が使う）
+  // follow-redirects 1.16.0（@voidzero-dev/vite-plus-core の dist/vite/node/chunks/node.js に同梱）
+  //   理由: 修正版（1.16.1。2026-10-01 公開）は公開済みだが、同梱されたコピーには overrides が効かない。
+  //     2026-10-22 にアドバイザリの公表（2026-10-21。日付は日本時間）を受けて追加した。vite-plus 1.2.0 と、同日時点の
+  //     最新版である 1.3.0 は、いずれも 1.16.0 を同梱しており、vite-plus の更新では解消できない（issue #286）。
+  //   影響経路の評価: vite に同梱された http-proxy-3 1.23.3 だけが使う。http-proxy-3 は、プロキシの
+  //     設定で followRedirects が真の場合に限り、Node の http / https の代わりに follow-redirects で
+  //     プロキシ先へ要求を送る（既定は偽であり、vite も真に設定しない）。http-proxy-3 のプロキシを
+  //     生成するのは vite のプロキシミドルウェア（proxyMiddleware）だけであり、それを登録するのは、
+  //     vite のサーバーを生成する処理（_createServer）で server.proxy が設定されている場合と、
+  //     プレビューサーバー（preview）で解決後の preview.proxy が設定されている場合だけである。
+  //     解決後の preview.proxy は、preview.proxy が未設定なら server.proxy を引き継ぐ
+  //     （resolvePreviewOptions の `preview?.proxy ?? server.proxy`）。したがって、server.proxy と
+  //     preview.proxy のどちらかを設定すると、いずれかのサーバーでプロキシが有効になりうる。
+  //     本リポジトリの vite.config.ts は server と preview のいずれも設定しておらず、vp dev と
+  //     vp preview も使わない。Vitest は内部で vite のサーバーを生成するが、server.proxy が未設定の
+  //     ためプロキシミドルウェアは登録されない。この前提（解決後の server.proxy と preview.proxy が
+  //     ともに未設定であること）は、vite.config.ts の forbidDevServerProxy プラグインが設定の解決時に
+  //     検査し、崩れた場合は vp build / vp test 等を失敗させる（同プラグインの検証は tests/vite.config.test.ts）。
+  //     GHSA-q3jh-wrc6-jgq8（配列形式のヘッダーによる認証ヘッダー除去の回避）と
+  //     GHSA-8r9p-f939-6h3c（sensitiveHeaders の正規表現のエスケープ漏れ）は、いずれも
+  //     follow-redirects が攻撃者の制御するクロスオリジンのリダイレクトを追従した場合に、
+  //     認証ヘッダーがリダイレクト先へ送られるものである。本リポジトリでは follow-redirects が
+  //     要求を送ることがないため成立しない。GAS へデプロイする成果物には含まれない。
+  //   解除条件: follow-redirects 1.16.1 以上（または follow-redirects を同梱しない構成）の
+  //     vite-plus へ更新した時点で削除する。削除するときは、vite.config.ts の forbidDevServerProxy
+  //     プラグインと、その検証の tests/vite.config.test.ts も削除する。
+  {
+    bundle: '@voidzero-dev/vite-plus-core@1.3.0',
+    package: 'follow-redirects',
+    version: '1.16.0',
+    ghsaIds: ['GHSA-8r9p-f939-6h3c', 'GHSA-q3jh-wrc6-jgq8'],
+  },
+  // brace-expansion 5.0.3（vite-plus の dist/editor-*.js に同梱。minimatch 10.2.4 が使う）
   //   理由: 修正版（5.0.12）は公開済みだが、同梱されたコピーには overrides
   //     （brace-expansion@>=4.0.0 <5.0.12 → >=5.0.12 <6）が効かない。移行前の vite-plus 0.3.1 も
   //     同じ 5.0.3 を同梱していた。
@@ -85,7 +118,7 @@ export const BUNDLED_ADVISORY_EXCEPTIONS = [
   //     GAS へデプロイする成果物には含まれない。
   //   解除条件: brace-expansion 5.0.12 以上を同梱した vite-plus へ更新した時点で削除する。
   {
-    bundle: 'vite-plus@1.2.0',
+    bundle: 'vite-plus@1.3.0',
     package: 'brace-expansion',
     version: '5.0.3',
     ghsaIds: [
