@@ -77,7 +77,7 @@ export const BUNDLED_ADVISORY_EXCEPTIONS = [
   },
   // follow-redirects 1.16.0（@voidzero-dev/vite-plus-core の dist/vite/node/chunks/node.js に同梱）
   //   理由: 修正版（1.16.1。2026-10-01 公開）は公開済みだが、同梱されたコピーには overrides が効かない。
-  //     2026-10-22 にアドバイザリの公表（2026-10-20）を受けて追加した。vite-plus 1.2.0 と、同日時点の
+  //     2026-10-22 にアドバイザリの公表（2026-10-21。日付は日本時間）を受けて追加した。vite-plus 1.2.0 と、同日時点の
   //     最新版である 1.3.0 は、いずれも 1.16.0 を同梱しており、vite-plus の更新では解消できない（issue #286）。
   //   影響経路の評価: vite に同梱された http-proxy-3 1.23.3 だけが使う。http-proxy-3 は、プロキシの
   //     設定で followRedirects が真の場合に限り、Node の http / https の代わりに follow-redirects で
@@ -92,7 +92,7 @@ export const BUNDLED_ADVISORY_EXCEPTIONS = [
   //     vp preview も使わない。Vitest は内部で vite のサーバーを生成するが、server.proxy が未設定の
   //     ためプロキシミドルウェアは登録されない。この前提（解決後の server.proxy と preview.proxy が
   //     ともに未設定であること）は、vite.config.ts の forbidDevServerProxy プラグインが設定の解決時に
-  //     検査し、崩れた場合は vp build / vp test 等を失敗させる。
+  //     検査し、崩れた場合は vp build / vp test 等を失敗させる（同プラグインの検証は tests/vite.config.test.ts）。
   //     GHSA-q3jh-wrc6-jgq8（配列形式のヘッダーによる認証ヘッダー除去の回避）と
   //     GHSA-8r9p-f939-6h3c（sensitiveHeaders の正規表現のエスケープ漏れ）は、いずれも
   //     follow-redirects が攻撃者の制御するクロスオリジンのリダイレクトを追従した場合に、
@@ -100,7 +100,7 @@ export const BUNDLED_ADVISORY_EXCEPTIONS = [
   //     要求を送ることがないため成立しない。GAS へデプロイする成果物には含まれない。
   //   解除条件: follow-redirects 1.16.1 以上（または follow-redirects を同梱しない構成）の
   //     vite-plus へ更新した時点で削除する。削除するときは、vite.config.ts の forbidDevServerProxy
-  //     プラグインも削除する。
+  //     プラグインと、その検証の tests/vite.config.test.ts も削除する。
   {
     bundle: '@voidzero-dev/vite-plus-core@1.3.0',
     package: 'follow-redirects',

@@ -162,8 +162,9 @@ function copyManifest(): Plugin {
  *   - 本プラグインが検査するのは `configResolved` の時点の値である。それより後に他のプラグインが
  *     `configureServer` / `configurePreviewServer` 等で proxy を書き換えた場合は検出できない。
  *     プラグインを追加・更新するときは、proxy を書き換えないことを確認すること。
+ *   - 本プラグインの検証は `tests/vite.config.test.ts` で行う。
  *   - follow-redirects の例外を削除した（修正版を同梱した vite-plus へ更新した）ときは、
- *     本プラグインも削除する。
+ *     本プラグインと `tests/vite.config.test.ts` も削除する。
  */
 function forbidDevServerProxy(): Plugin {
   return {
