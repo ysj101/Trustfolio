@@ -10,7 +10,7 @@ import { clock, formatIsoDateParts, parseUtcIsoDate } from '../utils/dateTime';
 import {
   isValidIsoDate,
   validateNonEmptyString,
-  validatePositiveNumber,
+  validatePositiveInteger,
   validateRecurringDay,
 } from '../domain/validators';
 import type { FundRepository } from '../repository/FundRepository';
@@ -69,10 +69,13 @@ type NavCalendar = {
  * 1件の積立設定を処理した結果の判別共用体。
  * - `executed`: 取引を生成・登録した。
  * - `skipped`: 約定対象外・重複などの理由で登録しなかった。
+ * - `uncalculable`: 口数を計算できないため登録しなかった（issue #260）。積立設定または基準価額の
+ *   データの誤りであり、利用者の対処が必要なため、スキップとは区別して最後に失敗として報告する。
  */
 type RecurringOutcome =
   | { kind: 'executed'; transaction: Transaction }
-  | { kind: 'skipped'; reason: SkipReason };
+  | { kind: 'skipped'; reason: SkipReason }
+  | { kind: 'uncalculable'; message: string };
 
 /**
  * 積立実行（{@link RecurringUseCase.executeRecurringPurchases}）の1件処理で共有する依存・状態。
@@ -269,6 +272,7 @@ export function createRecurringUseCase(
 
       const executed: Transaction[] = [];
       const skipped: { recurringPurchaseId: string; reason: SkipReason }[] = [];
+      const uncalculableMessages: string[] = [];
 
       for (const recurring of listResult.value) {
         const outcomeResult = processRecurringPurchase(recurring, context);
@@ -279,9 +283,30 @@ export function createRecurringUseCase(
         const outcome = outcomeResult.value;
         if (outcome.kind === 'executed') {
           executed.push(outcome.transaction);
-        } else {
+        } else if (outcome.kind === 'skipped') {
           skipped.push({ recurringPurchaseId: recurring.id, reason: outcome.reason });
+        } else {
+          // 口数を計算できない積立設定があっても、他の積立設定の処理は続ける（issue #260）。
+          // 毎日のトリガーは当日の約定日だけを処理するため、ここで中断すると、後続の正常な積立購入の
+          // その日の分が二度と記録されなくなる。
+          // 注意: 銘柄が存在しない等の他の失敗（processRecurringPurchase が失敗を返すもの）は、従来どおり
+          // その場で中断する。1件ごとの失敗の扱いを統一するかは、issue #260 の範囲外である。
+          uncalculableMessages.push(outcome.message);
         }
+      }
+
+      // 口数を計算できない積立設定があった場合は、他の積立設定を処理したうえで失敗として報告する。
+      // 失敗はエラー通知（main.ts の executeRecurringPurchasesDaily）で利用者へ届く。失敗の Result には
+      // 実行結果を載せられないため、記録・スキップした件数をメッセージに含めて、処理済みの範囲を伝える。
+      if (uncalculableMessages.length > 0) {
+        return fail(
+          'validation',
+          `口数を計算できない積立設定があったため、その積立購入を記録しませんでした` +
+            `（他の積立設定は処理済みです。記録: ${String(executed.length)}件、スキップ: ${String(skipped.length)}件）。` +
+            `積立設定の月額購入金額、または基準価額（navs シート）を1円以上の整数に修正してください。` +
+            `この約定日の積立購入は自動では再実行されないため、修正後にスポット購入として登録してください: ` +
+            uncalculableMessages.join(' / ')
+        );
       }
 
       return { success: true, value: { executed, skipped } };
@@ -323,7 +348,9 @@ function buildFundIndex(
  * 2. 銘柄の存在と約定営業日数の妥当性を確認（不正時はユースケース全体を失敗させる）。
  * 3. 営業日カレンダーを構築し、約定日（targetDate）から注文日を逆算（対象外なら `NOT_TARGET_DATE`）。
  * 4. 冪等キーで重複確認（既存なら `ALREADY_EXECUTED`）。
- * 5. 約定日の基準価額が無い、または口数計算に失敗したら `NO_NAV` でスキップ。
+ * 5. 約定日の基準価額が無ければ `NO_NAV` でスキップ。口数を計算できない場合（積立金額または
+ *    基準価額が1円以上の整数でない等）は、基準価額の欠落とは原因が異なるため `NO_NAV` に読み替えず、
+ *    `uncalculable` を返す（issue #260）。呼び出し元は他の積立設定の処理を続け、最後に失敗として報告する。
  * 6. 取引を生成・登録し、`executed` として返す。
  *
  * @param recurring 処理対象の積立設定。
@@ -384,7 +411,15 @@ function processRecurringPurchase(
 
   const unitsResult = calculateUnits(recurring.monthlyAmount, navValue.value);
   if (!unitsResult.success) {
-    return { success: true, value: { kind: 'skipped', reason: 'NO_NAV' } };
+    // 基準価額の欠落（NO_NAV）とは原因が異なるため、スキップとは区別して返す。
+    // 黙ってスキップすると、積立購入が記録されないまま気付かれない。
+    return {
+      success: true,
+      value: {
+        kind: 'uncalculable',
+        message: `積立設定（ID: ${recurring.id}）の約定日 ${settlementDate} の口数を計算できません: ${unitsResult.error.message}`,
+      },
+    };
   }
 
   const transaction = buildTransaction({
@@ -499,9 +534,10 @@ function validateRecurringInput(input: {
   if (!fundIdResult.success) {
     return fundIdResult;
   }
-  const monthlyAmountResult = validatePositiveNumber(
+  // 月額購入金額は、口数の計算（calculateUnits）が円単位の整数を前提とするため、1円以上の整数に限る（issue #260）。
+  const monthlyAmountResult = validatePositiveInteger(
     monthlyAmount,
-    '月額購入金額は0より大きい数値で入力してください。',
+    '月額購入金額は1円以上の整数で入力してください。',
     'monthlyAmount'
   );
   if (!monthlyAmountResult.success) {

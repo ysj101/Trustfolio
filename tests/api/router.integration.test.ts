@@ -318,6 +318,51 @@ describe('router integration', () => {
     }
   });
 
+  it('購入取引の口数の訂正がAPI境界を通過し、口数だけが書き換わる', () => {
+    // 前提: 5,000円・基準価額 23,562円 のスポット購入を登録すると、口数は calculateUnits の推定値で記録される
+    // 事前条件: 取引報告書の約定口数（2,121口）へ訂正するリクエストを送る
+    // 検証: 取引履歴の口数が 2,121口になり、日付・金額・基準価額は登録時のまま変わらない
+    const purchaseResult = handleApiRequest({
+      action: 'executeSpotPurchase',
+      fundId: 'fund-001',
+      date: '2024-03-05',
+      amount: 5000,
+      navValue: 23562,
+    });
+    // 応答の形が想定と異なる場合は、以降の検証を省略せずに失敗させる。
+    if (!purchaseResult.success) {
+      throw new Error(`スポット購入の登録に失敗しました: ${purchaseResult.error.message}`);
+    }
+    expect(purchaseResult.value).toMatchObject({ id: expect.any(String), units: 2122 });
+    const purchase = purchaseResult.value as { id: string };
+
+    const correctResult = handleApiRequest({
+      action: 'correctPurchaseUnits',
+      id: purchase.id,
+      fundId: 'fund-001',
+      units: 2121,
+    });
+    expect(correctResult.success).toBe(true);
+
+    const historyResult = handleApiRequest({
+      action: 'getTransactionHistory',
+      fundId: 'fund-001',
+    });
+    if (!historyResult.success) {
+      throw new Error(`取引履歴の取得に失敗しました: ${historyResult.error.message}`);
+    }
+    expect(historyResult.value).toEqual([
+      expect.objectContaining({
+        id: purchase.id,
+        type: 'SPOT_PURCHASE',
+        date: '2024-03-05',
+        amount: 5000,
+        navValue: 23562,
+        units: 2121,
+      }),
+    ]);
+  });
+
   it('基準価額履歴と保有情報が取得できる', () => {
     // 前提: 基準価額が登録済みである
     // 事前条件: スポット購入を登録する

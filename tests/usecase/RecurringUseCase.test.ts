@@ -421,6 +421,132 @@ describe('RecurringUseCase', () => {
     }
   });
 
+  it('月額購入金額が整数でない積立設定は登録できない', () => {
+    // 前提: 口数の計算（calculateUnits）は円単位の整数を前提にしている（issue #260）
+    // 事前条件: 1円未満の端数を含む月額購入金額（5,000.5円）で積立設定を登録する
+    // 検証: monthlyAmount の validation エラーが返る
+    const useCase = createRecurringUseCase(
+      createFundRepository([]),
+      createNavRepository([]),
+      createRecurringRepository([]),
+      createTransactionRepository([])
+    );
+    const result = useCase.createRecurringPurchase({
+      fundId: 'fund-001',
+      monthlyAmount: 5000.5,
+      executionDay: 10,
+      startDate: '2024-03-10',
+      endDate: null,
+      isActive: true,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.field).toBe('monthlyAmount');
+      expect(result.error.message).toContain('整数');
+    }
+  });
+
+  it('口数を計算できない積立設定があっても他の積立設定は記録し、最後に失敗として報告する', () => {
+    // 前提: navs シートの手修正などで、2 つの銘柄の約定日の基準価額に1円未満の端数が入っている
+    // 事前条件: 4 つの積立設定（いずれも 1/1 注文・1/2 約定）を、次の順に処理する
+    //   - rec-001: 端数のある基準価額の銘柄（fund-001）
+    //   - rec-002: 正常な銘柄（fund-002。10,000円・基準価額 20,000円）
+    //   - rec-003: 端数のある基準価額の銘柄（fund-003）
+    //   - rec-004: 非アクティブな積立設定（fund-002）
+    // 検証:
+    //   - 端数のある 2 件は NO_NAV でスキップせず、両方の積立設定 ID と約定日を含む validation エラーで報告される
+    //   - 失敗のメッセージに、処理済みの件数（記録: 1件、スキップ: 1件）が含まれる
+    //   - 後続の正常な積立購入は記録される（毎日のトリガーは当日分しか処理しないため、中断すると二度と記録されない）
+    const funds: Fund[] = ['fund-001', 'fund-002', 'fund-003'].map((id) => ({
+      id,
+      name: id === 'fund-002' ? '正常な銘柄' : '端数のある基準価額の銘柄',
+      rakutenFundId: null,
+      settlementBusinessDays: 1,
+      navSource: null,
+      navSourceCode: null,
+      assetClass: null,
+      createdAt: '2024-01-01T00:00:00.000Z',
+    }));
+    const navs: Nav[] = [
+      {
+        fundId: 'fund-001',
+        date: '2025-01-01',
+        value: 10000,
+        createdAt: '2025-01-01T00:00:00.000Z',
+      },
+      {
+        fundId: 'fund-001',
+        date: '2025-01-02',
+        value: 10100.5,
+        createdAt: '2025-01-02T00:00:00.000Z',
+      },
+      {
+        fundId: 'fund-002',
+        date: '2025-01-01',
+        value: 20000,
+        createdAt: '2025-01-01T00:00:00.000Z',
+      },
+      {
+        fundId: 'fund-002',
+        date: '2025-01-02',
+        value: 20000,
+        createdAt: '2025-01-02T00:00:00.000Z',
+      },
+      {
+        fundId: 'fund-003',
+        date: '2025-01-01',
+        value: 30000,
+        createdAt: '2025-01-01T00:00:00.000Z',
+      },
+      {
+        fundId: 'fund-003',
+        date: '2025-01-02',
+        value: 30000.5,
+        createdAt: '2025-01-02T00:00:00.000Z',
+      },
+    ];
+    const 積立設定 = (id: string, fundId: string, isActive: boolean): RecurringPurchase => ({
+      id,
+      fundId,
+      monthlyAmount: 10000,
+      executionDay: 1,
+      startDate: '2025-01-01',
+      endDate: null,
+      isActive,
+      createdAt: '2025-01-01T00:00:00.000Z',
+    });
+    const recurrings: RecurringPurchase[] = [
+      積立設定('rec-001', 'fund-001', true),
+      積立設定('rec-002', 'fund-002', true),
+      積立設定('rec-003', 'fund-003', true),
+      積立設定('rec-004', 'fund-002', false),
+    ];
+    const transactionRepository = createTransactionRepository([]);
+    const useCase = createRecurringUseCase(
+      createFundRepository(funds),
+      createNavRepository(navs),
+      createRecurringRepository(recurrings),
+      transactionRepository
+    );
+
+    const result = useCase.executeRecurringPurchases('2025-01-02');
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.type).toBe('validation');
+      expect(result.error.message).toContain('記録: 1件、スキップ: 1件');
+      expect(result.error.message).toContain('積立設定（ID: rec-001）の約定日 2025-01-02');
+      expect(result.error.message).toContain('積立設定（ID: rec-003）の約定日 2025-01-02');
+    }
+    // 正常な銘柄の積立購入は 10,000円・基準価額 20,000円 で 5,000口 として記録されている
+    const recorded = transactionRepository.listByFundId('fund-002');
+    expect(
+      recorded.success && recorded.value.map((tx) => [tx.recurringPurchaseId, tx.units])
+    ).toEqual([['rec-002', 5000]]);
+    expect(transactionRepository.listByFundId('fund-001')).toEqual(ok([]));
+    expect(transactionRepository.listByFundId('fund-003')).toEqual(ok([]));
+  });
+
   it('毎月1日注文設定で1/1が営業日の場合、1/2に約定する', () => {
     // 前提: executionDay=1（毎月1日に注文）、settlementBusinessDays=1
     // 事前条件: 1/1が営業日（NAV存在）、1/2にもNAVが存在
