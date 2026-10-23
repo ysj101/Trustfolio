@@ -5,6 +5,7 @@ import {
   isValidRecurringDay,
   validateAssetClass,
   validateNonEmptyString,
+  validatePositiveInteger,
   validatePositiveNumber,
   validateRecurringDay,
 } from '../../src/domain/validators';
@@ -231,5 +232,41 @@ describe('isValidRecurringDay', () => {
     expect(isValidRecurringDay(Number.NaN)).toBe(false);
     expect(isValidRecurringDay(Number.POSITIVE_INFINITY)).toBe(false);
     expect(isValidRecurringDay('15')).toBe(false);
+  });
+});
+
+describe('validatePositiveInteger', () => {
+  it.each([1, 2122, Number.MAX_SAFE_INTEGER])('1以上の安全な整数%sを受理する', (value) => {
+    // 前提: 円単位の金額や1口単位の口数として妥当な値を与える
+    // 検証: 値をそのまま持つ成功結果が返る
+    expect(
+      validatePositiveInteger(value, '口数は1以上の整数で入力してください。', 'units')
+    ).toEqual({
+      success: true,
+      value,
+    });
+  });
+
+  it.each([
+    0,
+    -1,
+    2122.5,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    Number.MAX_SAFE_INTEGER + 1,
+    '2122',
+    null,
+  ])('1以上の安全な整数ではない値%sを拒否する', (value) => {
+    // 前提: 0以下・小数・NaN・Infinity・安全な整数の範囲外・数値以外の値を与える
+    // 検証: validationエラーに指定のmessage/fieldが設定される
+    const result = validatePositiveInteger(value, '口数は1以上の整数で入力してください。', 'units');
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'validation',
+        message: '口数は1以上の整数で入力してください。',
+        field: 'units',
+      },
+    });
   });
 });

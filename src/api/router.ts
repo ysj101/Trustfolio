@@ -99,6 +99,13 @@ type UpdateSaleTransactionRequest = {
   residentTax: number;
 };
 
+type CorrectPurchaseUnitsRequest = {
+  action: 'correctPurchaseUnits';
+  id: string;
+  fundId: string;
+  units: number;
+};
+
 type DeleteSpotPurchaseRequest = {
   action: 'deleteSpotPurchase';
   id: string;
@@ -187,6 +194,7 @@ export type ApiRequest =
   | ExecuteSaleRequest
   | UpdateSpotPurchaseRequest
   | UpdateSaleTransactionRequest
+  | CorrectPurchaseUnitsRequest
   | DeleteSpotPurchaseRequest
   | ListRecurringPurchasesRequest
   | CreateRecurringPurchaseRequest
@@ -294,6 +302,12 @@ export function handleApiRequest(request: ApiRequest): Result<unknown> {
         navValue: request.navValue,
         incomeTax: request.incomeTax,
         residentTax: request.residentTax,
+      });
+    case 'correctPurchaseUnits':
+      return container.transactionUseCase.correctPurchaseUnits({
+        id: request.id,
+        fundId: request.fundId,
+        units: request.units,
       });
     case 'deleteSpotPurchase':
       return container.transactionUseCase.deleteSpotPurchase(request.id, request.fundId);

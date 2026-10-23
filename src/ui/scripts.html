@@ -7,6 +7,14 @@
       selectedTransactionFundId: null,
       editingTransactionId: null,
       editingTransactionType: null, // 'SPOT_PURCHASE' | 'REDEMPTION'
+      // 取引一覧の表示状態（issue #260）。一覧の全件を保持し、「すべて表示」の切り替え時は
+      // API を呼び直さずに再描画する。銘柄を切り替えたときは直近の件数だけの表示へ戻す。
+      transactionHistory: [],
+      showAllTransactions: false,
+      // 編集中のスポット購入の記録値（購入金額・基準価額・口数）。編集画面の口数プレビューを、
+      // 保存時の規則（金額と基準価額が変わらなければ記録済みの口数を保持する）と一致させるために使う。
+      // スポット購入を編集していないときは null。
+      editingSpotPurchaseRecord: null,
       editingRecurringId: null,
     };
 
@@ -109,6 +117,9 @@
     const transactionCalculatedLabel = document.getElementById('transactionCalculatedLabel');
     const transactionCalculatedValue = document.getElementById('transactionCalculatedValue');
     const transactionList = document.getElementById('transactionList');
+    const transactionListToggle = document.getElementById('transactionListToggle');
+    /** 取引一覧で既定で表示する件数（直近の取引から数える）。 */
+    const TRANSACTION_LIST_RECENT_COUNT = 5;
     const transactionSubmitButton = document.getElementById('transactionSubmitButton');
     const transactionCancelEditButton = document.getElementById('transactionCancelEdit');
     const purchaseFields = document.getElementById('purchaseFields');
@@ -285,6 +296,65 @@
       await runMutationFlow(options);
     }
 
+    /**
+     * 購入取引（スポット購入・積立購入）の口数を、取引報告書の約定口数へ訂正する（issue #260）。
+     *
+     * 購入時に記録する口数はサーバー側 calculateUnits の推定値であり、販売会社の実際の約定口数と
+     * 異なる場合がある。入力ダイアログで訂正後の口数を受け取り、口数だけを書き換える API を呼ぶ。
+     * 日付・金額・基準価額はサーバー側で既存の値を保持する。
+     *
+     * 注意:
+     * - 入力は 1 以上の整数だけを受け付ける。書式は「数字だけ」または「3 桁ごとのカンマ区切り」
+     *   （画面表示の toLocaleString と同じ）に限る。全角の数字・カンマは半角へ正規化してから判定する。
+     *   Number() は 16 進数（0x10）や指数表記（1e3）も数値として解釈するため、形式を正規表現で
+     *   確かめてから変換する。形式に合わない入力は API を呼ばずにエラーを表示する
+     *   （サーバー側も 1 以上の整数であることを検証する）。
+     * - キャンセル（prompt が null を返す）の場合は何もしない。
+     * - 口数が現在の値と同じ場合（初期値のまま確定した場合など）は、API を呼ばずに終える。
+     *   訂正の後処理は取引・保有・ポートフォリオを再読込し、全銘柄の取引シートを読むためである。
+     *
+     * @param {{ id: string; fundId: string; date: string; units: number }} transaction - 訂正対象の購入取引
+     */
+    async function runUnitsCorrectionFlow(transaction) {
+      const input = prompt(
+        `${transaction.date} の購入取引の口数を、取引報告書の約定口数へ訂正します。\n` +
+          `訂正後の口数を入力してください（現在: ${transaction.units.toLocaleString()}口）。`,
+        String(transaction.units)
+      );
+      if (input === null) {
+        return;
+      }
+      // 日本語入力（IME）の全角数字・全角カンマは、NFKC 正規化で半角へそろえてから形式を確かめる。
+      const trimmedInput = input.normalize('NFKC').trim();
+      const isIntegerFormat = /^(\d+|\d{1,3}(,\d{3})+)$/.test(trimmedInput);
+      const units = isIntegerFormat ? Number(trimmedInput.replace(/,/g, '')) : Number.NaN;
+      if (!Number.isSafeInteger(units) || units <= 0) {
+        setMessage('口数は1以上の整数で入力してください。', 'error');
+        return;
+      }
+      if (units === transaction.units) {
+        setMessage('口数は変わっていないため、訂正しませんでした。', null);
+        return;
+      }
+      await runMutationFlow({
+        progressMessage: '口数を訂正中...',
+        successMessage: '口数を訂正しました。',
+        request: {
+          action: 'correctPurchaseUnits',
+          id: transaction.id,
+          fundId: transaction.fundId,
+          units,
+        },
+        onSuccess: async () => {
+          // 編集中のスポット購入を訂正した場合、編集フォームの内容は古くなるため編集を解除する。
+          if (state.editingTransactionId === transaction.id) {
+            setTransactionEditMode(null);
+          }
+          await reloadAfterTransactionMutation(state.selectedTransactionFundId);
+        },
+      });
+    }
+
     function resetTransactionForm() {
       // テキスト系入力欄のクリアは共通ヘルパーへ委譲し、税額欄の初期値（0）復元と
       // 基準価額/計算値の表示リセットのみ手動で残す（税額欄は空文字ではなく0が初期値のため）。
@@ -309,6 +379,7 @@
       if (!transaction) {
         state.editingTransactionId = null;
         state.editingTransactionType = null;
+        state.editingSpotPurchaseRecord = null;
         const transactionType = document.querySelector(
           'input[name="transactionType"]:checked'
         ).value;
@@ -320,6 +391,10 @@
 
       state.editingTransactionId = transaction.id;
       state.editingTransactionType = transaction.type;
+      state.editingSpotPurchaseRecord =
+        transaction.type === 'SPOT_PURCHASE'
+          ? { amount: transaction.amount, navValue: transaction.navValue, units: transaction.units }
+          : null;
       transactionCancelEditButton.classList.remove('hidden');
       transactionFundSelect.value = transaction.fundId;
       state.selectedTransactionFundId = transaction.fundId;
@@ -525,8 +600,59 @@
       window.TrustfolioUi.renderFundSelect(recurringFundSelect, state.funds);
     }
 
-    function renderTransactions(transactions) {
+    /**
+     * 取引一覧の「すべて表示」切り替えボタンの表示と文言を更新する（issue #260）。
+     *
+     * 直近の件数で全件を表示できる場合は、切り替えの必要がないためボタンを隠す。
+     * 過去の購入取引も「口数を訂正」できるよう、全件の表示へ切り替えられるようにする。
+     *
+     * @param {number} totalCount - 選択中の銘柄の取引の総件数
+     */
+    function updateTransactionListToggle(totalCount) {
+      const hasMoreThanRecent = totalCount > TRANSACTION_LIST_RECENT_COUNT;
+      transactionListToggle.classList.toggle('hidden', !hasMoreThanRecent);
+      transactionListToggle.textContent = state.showAllTransactions
+        ? `直近${TRANSACTION_LIST_RECENT_COUNT}件だけ表示`
+        : `すべて表示（${totalCount}件）`;
+    }
+
+    /**
+     * スポット購入・売却の取引一覧の「削除」ボタンを作る。
+     *
+     * @param {{ id: string; fundId: string; type: string }} transaction - 削除対象の取引（スポット購入または売却）
+     * @returns {HTMLButtonElement} 削除ボタン
+     */
+    function createTransactionDeleteButton(transaction) {
+      const deleteLabel = transaction.type === 'REDEMPTION' ? '売却履歴' : 'スポット購入履歴';
+      return createActionButton('削除', ghostButtonClass, () =>
+        runDeleteFlow({
+          confirmMessage: `${deleteLabel}を削除します。よろしいですか？`,
+          progressMessage: `${deleteLabel}を削除中...`,
+          successMessage: `${deleteLabel}を削除しました。`,
+          // 削除対象の取引が属する銘柄IDを必ず送信する（サーバ側は fundId から取引シートを特定するため）。
+          request: {
+            action: 'deleteSpotPurchase',
+            id: transaction.id,
+            fundId: transaction.fundId,
+          },
+          onSuccess: async () => {
+            if (state.editingTransactionId === transaction.id) {
+              setTransactionEditMode(null);
+            }
+            await reloadAfterTransactionMutation(state.selectedTransactionFundId);
+          },
+        })
+      );
+    }
+
+    /**
+     * 選択中の銘柄の取引一覧（state.transactionHistory）を描画する。
+     * 一覧は state だけに持ち、引数では受け取らない（「すべて表示」の切り替えと描画対象を一致させるため）。
+     */
+    function renderTransactions() {
+      const transactions = state.transactionHistory;
       transactionList.innerHTML = '';
+      updateTransactionListToggle(transactions.length);
       if (transactions.length === 0) {
         transactionList.appendChild(
           window.TrustfolioUi.createEmptyListItem(
@@ -537,38 +663,32 @@
         return;
       }
 
-      // 最新5件のみ表示
-      const recentTransactions = transactions.slice(0, 5);
+      // 既定は直近の件数だけを表示し、「すべて表示」に切り替えた場合は全件を表示する。
+      const visibleTransactions = state.showAllTransactions
+        ? transactions
+        : transactions.slice(0, TRANSACTION_LIST_RECENT_COUNT);
 
-      recentTransactions.forEach((transaction) => {
-        // スポット購入と売却のみ編集・削除可能（積立購入は不可）
-        let actions = null;
-        if (transaction.type === 'SPOT_PURCHASE' || transaction.type === 'REDEMPTION') {
-          const editButton = createActionButton('編集', ghostButtonClass, () => {
-            setTransactionEditMode(transaction);
-          });
-          const deleteLabel = transaction.type === 'REDEMPTION' ? '売却履歴' : 'スポット購入履歴';
-          const deleteButton = createActionButton('削除', ghostButtonClass, () =>
-            runDeleteFlow({
-              confirmMessage: `${deleteLabel}を削除します。よろしいですか？`,
-              progressMessage: `${deleteLabel}を削除中...`,
-              successMessage: `${deleteLabel}を削除しました。`,
-              // 削除対象の取引が属する銘柄IDを必ず送信する（サーバ側は fundId から取引シートを特定するため）。
-              request: {
-                action: 'deleteSpotPurchase',
-                id: transaction.id,
-                fundId: transaction.fundId,
-              },
-              onSuccess: async () => {
-                if (state.editingTransactionId === transaction.id) {
-                  setTransactionEditMode(null);
-                }
-                await reloadAfterTransactionMutation(state.selectedTransactionFundId);
-              },
-            })
-          );
-          actions = [editButton, deleteButton];
-        }
+      visibleTransactions.forEach((transaction) => {
+        // 操作ボタンは「編集 → 口数を訂正 → 削除」の順に並べる。
+        // - 編集・削除: スポット購入と売却のみ（積立購入は不可）。
+        // - 口数を訂正: 購入取引（スポット購入・積立購入）のみ（issue #260）。
+        const isEditable =
+          transaction.type === 'SPOT_PURCHASE' || transaction.type === 'REDEMPTION';
+        const isPurchase =
+          transaction.type === 'SPOT_PURCHASE' || transaction.type === 'RECURRING_PURCHASE';
+        const actionButtons = [
+          isEditable
+            ? createActionButton('編集', ghostButtonClass, () =>
+                setTransactionEditMode(transaction)
+              )
+            : null,
+          isPurchase
+            ? createActionButton('口数を訂正', ghostButtonClass, () =>
+                runUnitsCorrectionFlow(transaction)
+              )
+            : null,
+          isEditable ? createTransactionDeleteButton(transaction) : null,
+        ].filter((button) => button !== null);
 
         const item = window.TrustfolioUi.createTransactionItem(transaction, {
           itemClass: listItemClass,
@@ -579,7 +699,7 @@
           badgeRedemptionClass,
           badgeRecurringClass,
           actionsClass: listActionsClass,
-          actions,
+          actions: actionButtons,
         });
         transactionList.appendChild(item);
       });
@@ -924,8 +1044,18 @@
       if (!response.success) {
         throw new Error(response.error.message);
       }
-      renderTransactions(response.value);
+      // 応答を待つ間に別の銘柄へ切り替えられた場合は、古い応答で一覧を上書きしない。
+      if (fundId !== state.selectedTransactionFundId) {
+        return;
+      }
+      state.transactionHistory = response.value;
+      renderTransactions();
     }
+
+    transactionListToggle.addEventListener('click', () => {
+      state.showAllTransactions = !state.showAllTransactions;
+      renderTransactions();
+    });
 
     async function loadRecurringPurchases() {
       const response = await callApi({ action: 'listRecurringPurchases' });
@@ -1149,7 +1279,83 @@
       }
     }
 
-    // 購入時は口数を計算、売却時は金額を計算
+    // 【入力中のプレビュー表示】ここで計算する口数・金額は画面表示のみに使い、
+    // この値がそのままサーバーへ送信されることはない。取引種別ごとの位置づけは以下のとおり:
+    //   - 購入（購入金額→取得口数）: 保存される口数はサーバー側
+    //     domain/PurchaseCalculator.ts の calculateUnits が計算する。利用者が
+    //     プレビューと保存値の食い違いを目にしないよう、算出方式を calculateUnits と
+    //     厳密に一致させる（代金の円未満を四捨五入したときに購入金額を超えない最大の口数。
+    //     issue #260）。calculateUnits の算出方式を変更する際は、必ず本箇所も同時に更新すること。
+    //   - 売却（売却口数→売却金額）: 保存される売却金額は利用者が「売却金額」欄へ
+    //     手入力した値であり、ここでの計算結果は保存されない（usecase/TransactionUseCase.ts の
+    //     売却登録・更新処理は、同等の計算を行う domain/PurchaseCalculator.ts の
+    //     calculateValue を用いず、手入力値をそのまま保存する）。したがってこの金額は
+    //     入力の目安を示す参考値であり、丸め方式を保存値に合わせる必要はない。
+    // 係数 10000 は投資信託の基準価額が「1万口あたりの価額」である慣行に基づく
+    // （サーバー側の UNITS_BASE と同義）。
+    const UNITS_BASE = 10000;
+
+    /**
+     * 購入口数のプレビューに表示する文字列を決める（issue #260）。
+     *
+     * 保存される口数の規則（サーバー側）と一致させる:
+     *   - 新規登録、または編集で購入金額か基準価額を変えた場合: calculateUnits と同じ式で計算した推定値。
+     *   - スポット購入の編集で、購入金額と基準価額がどちらも記録値と同じ場合: 記録済みの口数
+     *     （usecase/TransactionUseCase.ts の updateSpotPurchase は計算し直さずに保持する）。
+     * 編集で口数が記録値から変わる場合は、その旨を併記する（「口数を訂正」で訂正した口数が
+     * 推定値で上書きされることを、保存前に知らせるため）。
+     *
+     * 保存が拒否される場合は、プレビューでも口数を表示しない（null を返す）。判定の適用範囲は次のとおり:
+     *   - すべての場合: 購入金額または基準価額が 1 以上の安全な整数でない（サーバー側の入力検証は、
+     *     記録値と同じ値でも行われる）。
+     *   - 口数を計算する場合（新規登録、または編集で購入金額か基準価額を変えた場合）だけ:
+     *     購入金額 × 10,000 + 4,999 が安全な整数の範囲を超える（購入金額が大きすぎる）、
+     *     または計算した口数が 0 以下になる（購入金額が基準価額に対して小さすぎる）。
+     *     記録済みの口数を保持する場合は、サーバー側も calculateUnits を呼ばないため判定しない。
+     *
+     * @param {number} amount - 購入金額（入力値）
+     * @param {number} navValue - 基準価額（1万口あたりの円）
+     * @param {{ amount: number; navValue: number; units: number } | null} editingRecord
+     *   - 編集中のスポット購入の記録値。新規登録時や売却の編集時は null
+     * @returns {string | null} 表示する文字列（保持する場合は計算せずに記録済みの口数を返す）。保存が拒否される場合は null
+     */
+    function buildPurchaseUnitsPreview(amount, navValue, editingRecord) {
+      // サーバー側の入力検証（1円以上の整数）は、記録値と同じ金額・基準価額でも行われるため、
+      // 記録値との比較より先に判定する。
+      const isValidInput =
+        Number.isSafeInteger(amount) &&
+        amount > 0 &&
+        Number.isSafeInteger(navValue) &&
+        navValue > 0;
+      if (!isValidInput) {
+        return null;
+      }
+      // 金額と基準価額が記録値と同じなら、サーバー側は口数を計算し直さずに保持する。
+      if (
+        editingRecord !== null &&
+        amount === editingRecord.amount &&
+        navValue === editingRecord.navValue
+      ) {
+        return `${editingRecord.units.toLocaleString()}口（記録済みの口数を保持）`;
+      }
+      // 代金の円未満を四捨五入したときに購入金額を超えない上限（10,000 × 購入金額 + 4,999）。
+      // 計算し直す場合だけ、サーバー側 calculateUnits と同じく安全な整数の範囲に収まるかを確かめる。
+      const maxCostTimesUnitsBase = amount * UNITS_BASE + UNITS_BASE / 2 - 1;
+      if (!Number.isSafeInteger(maxCostTimesUnitsBase)) {
+        return null;
+      }
+      const units = Math.floor(maxCostTimesUnitsBase / navValue);
+      // calculateUnits は口数が 0 以下になる購入金額を拒否するため、表示しない。
+      if (units <= 0) {
+        return null;
+      }
+      if (editingRecord !== null && units !== editingRecord.units) {
+        return `${units.toLocaleString()}口（記録済みの${editingRecord.units.toLocaleString()}口から変わります）`;
+      }
+      return `${units.toLocaleString()}口`;
+    }
+
+    // 購入時は口数を、売却時は金額を表示する（各表示の位置づけは UNITS_BASE の定義の直前のコメントを参照）。
     function updateCalculatedValue() {
       const transactionType = document.querySelector('input[name="transactionType"]:checked').value;
       const navValue = Number(transactionNavValue.dataset.value || 0);
@@ -1160,28 +1366,16 @@
         return;
       }
 
-      // 【入力中のプレビュー表示】ここで計算する口数・金額は画面表示のみに使い、
-      // この値がそのままサーバーへ送信されることはない。取引種別ごとの位置づけは以下のとおり:
-      //   - 購入（購入金額→取得口数）: 保存される口数はサーバー側
-      //     domain/PurchaseCalculator.ts の calculateUnits が計算する。利用者が
-      //     プレビューと保存値の食い違いを目にしないよう、丸め方式を calculateUnits と
-      //     厳密に一致させて Math.ceil（切り上げ）を用いる。calculateUnits の丸め方式を
-      //     変更する際は、必ず本箇所も同時に更新すること。
-      //   - 売却（売却口数→売却金額）: 保存される売却金額は利用者が「売却金額」欄へ
-      //     手入力した値であり、ここでの計算結果は保存されない（usecase/TransactionUseCase.ts の
-      //     売却登録・更新処理は、同等の計算を行う domain/PurchaseCalculator.ts の
-      //     calculateValue を用いず、手入力値をそのまま保存する）。したがってこの金額は
-      //     入力の目安を示す参考値であり、丸め方式を保存値に合わせる必要はない。
-      // 係数 10000 は投資信託の基準価額が「1万口あたりの価額」である慣行に基づく
-      // （サーバー側の UNITS_BASE と同義）。
-      const UNITS_BASE = 10000;
-
       if (transactionType === 'purchase') {
-        // 購入金額から取得口数を算出（サーバー側 calculateUnits と同じ Math.ceil で切り上げる）
+        // 購入金額から取得口数のプレビューを決める（保存時の規則と一致させる）。
         const amount = Number(transactionAmountInput.value || 0);
-        if (amount > 0) {
-          const units = Math.ceil((amount / navValue) * UNITS_BASE);
-          transactionCalculatedValue.textContent = `${units.toLocaleString()}口`;
+        const preview = buildPurchaseUnitsPreview(
+          amount,
+          navValue,
+          state.editingSpotPurchaseRecord
+        );
+        if (preview !== null) {
+          transactionCalculatedValue.textContent = preview;
           transactionCalculatedValue.className = calculatedValueAccentClass;
         } else {
           transactionCalculatedValue.textContent = '-';
@@ -1362,8 +1556,12 @@
     transactionFundSelect.addEventListener('change', async (event) => {
       const fundId = event.target.value;
       state.selectedTransactionFundId = fundId;
+      // 銘柄を切り替えたら、取引一覧は直近の件数だけの表示へ戻す。保持していた前の銘柄の一覧も消す
+      // （読み込みに失敗した後で「すべて表示」を押しても、前の銘柄の取引を表示しないため）。
+      state.showAllTransactions = false;
+      state.transactionHistory = [];
       if (!fundId) {
-        renderTransactions([]);
+        renderTransactions();
         return;
       }
       try {

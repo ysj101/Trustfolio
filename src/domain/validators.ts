@@ -113,6 +113,38 @@ export function validatePositiveNumber(
 }
 
 /**
+ * 値が「1以上の安全な整数」であることを検証する共通バリデータ（issue #260）。
+ *
+ * 目的:
+ * - 円単位の金額（購入金額・月額購入金額・基準価額）と、1口単位の口数のように、
+ *   整数でなければ意味をなさない値を入力境界で検証する。
+ *
+ * 内容:
+ * - number型でない値・NaN・±Infinity・小数・安全な整数の範囲（{@link Number.MAX_SAFE_INTEGER}）を
+ *   超える値・0以下の値は、`validation` 種別のエラーに指定された `message` と `field` を付与して返す。
+ * - 1以上の安全な整数はそのまま成功として返す。
+ *
+ * 注意:
+ * - 小数や `Infinity` を許容する {@link validatePositiveNumber} とは要件が異なる。購入口数の
+ *   計算（calculateUnits）は円単位の整数を前提にしているため、金額には本関数を使用する。
+ *
+ * @param value - 検証対象の値。
+ * @param message - 失敗時に利用者へ提示するメッセージ。
+ * @param field - 失敗時に対象フィールドを示すキー。
+ * @returns 検証に成功すれば1以上の安全な整数を持つ {@link Result}。
+ */
+export function validatePositiveInteger(
+  value: unknown,
+  message: string,
+  field: string
+): Result<number> {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) {
+    return fail('validation', message, field);
+  }
+  return { success: true, value };
+}
+
+/**
  * 値が「0以上の有限数」であることを検証する共通バリデータ。
  *
  * 目的:
