@@ -206,6 +206,17 @@ describe('scripts.html の口数の訂正', () => {
       expect(button.classList.toggle).toHaveBeenCalledWith('hidden', true);
     });
 
+    it('取引がちょうど 6 件（直近 5 件を 1 件超える）なら、ボタンを表示する', () => {
+      // 前提: 選択中の銘柄の取引が 6 件で、直近 5 件だけを表示している
+      // 検証: hidden クラスが外れ、文言が「すべて表示（6件）」になる（5 件と 6 件の境界）
+      const { update, button } = createToggle(false);
+
+      update(6);
+
+      expect(button.classList.toggle).toHaveBeenCalledWith('hidden', false);
+      expect(button.textContent).toBe('すべて表示（6件）');
+    });
+
     it('直近 5 件を超える取引があり、直近だけを表示中なら「すべて表示（件数）」を表示する', () => {
       // 前提: 選択中の銘柄の取引が 24 件（2 年分の積立）あり、直近 5 件だけを表示している
       // 検証: ボタンが表示され、文言が「すべて表示（24件）」になる
