@@ -25,31 +25,16 @@
  * @type {Array<{ bundle: string, package: string, version: string, ghsaIds: string[] }>}
  */
 export const BUNDLED_ADVISORY_EXCEPTIONS = [
-  // braces 3.0.3（@voidzero-dev/vite-plus-core の dist/vite/node/chunks/node.js に同梱）
-  //   理由: 修正版が未リリースである（アドバイザリの first_patched_version が null）。
-  //     同じ GHSA は、通常の依存としての braces についても pnpm-workspace.yaml の
-  //     auditConfig.ignoreGhsas で例外にしている（.github/workflows/security.yml のコメントを参照）。
-  //   影響経路の評価: vite に同梱された chokidar 3.6.0 が使う。chokidar は vite のサーバーを
-  //     生成する処理（_createServer）で server.watch が null でないときに起動し、プロジェクトの
-  //     ルート・設定ファイル・env ファイルを監視する。本リポジトリは開発サーバー（vp dev）を使わないが、
-  //     Vitest は内部で vite のサーバーを生成するため、vp test の実行時に動作しうる。
-  //     展開されるパターンは vite.config.ts とプロジェクト内のパスに由来し、外部から入力されない。
-  //     GAS へデプロイする成果物（dist/Code.js・dist/*.html）には含まれない。
-  //     なお、移行前の単体の vite 8.3.3 も同じ braces 3.0.3 を同梱していた。
-  //   解除条件: braces の修正版が公開され、それを同梱した vite-plus へ更新した時点で削除する。
-  {
-    bundle: '@voidzero-dev/vite-plus-core@1.3.0',
-    package: 'braces',
-    version: '3.0.3',
-    ghsaIds: ['GHSA-vfj7-8cjw-p6xm'],
-  },
   // picomatch 2.3.1（@voidzero-dev/vite-plus-core の dist/vite/node/chunks/node.js に同梱）
   //   理由: 修正版（2.3.2）は公開済みだが、同梱されたコピーには pnpm-workspace.yaml の
   //     overrides（picomatch@<2.3.2 → 2.3.2）が効かない。移行前の単体の vite 8.3.3 は picomatch を
   //     通常の依存として解決していたため（overrides により 4.0.7 以上）、本検出は移行で新たに生じた。
-  //   影響経路の評価: 上記の chokidar 3.6.0 が使う anymatch 3.1.3 と readdirp 3.6.0 が使う。
-  //     起動条件と入力の由来は braces と同じであり、照合するパターンは vite.config.ts の
-  //     server.watch 等に由来する。GHSA-c2c7-rcm5-vvqj（extglob の量指定子による ReDoS）と
+  //   影響経路の評価: vite に同梱された chokidar 3.6.0 が使う anymatch 3.1.3 と readdirp 3.6.0 が使う。
+  //     chokidar は vite のサーバーを生成する処理（_createServer）で server.watch が null でないときに
+  //     起動し、プロジェクトのルート・設定ファイル・env ファイルを監視する。本リポジトリは開発サーバー
+  //     （vp dev）を使わないが、Vitest は内部で vite のサーバーを生成するため、vp test の実行時に
+  //     動作しうる。照合するパターンは vite.config.ts の server.watch 等とプロジェクト内のパスに
+  //     由来する。GHSA-c2c7-rcm5-vvqj（extglob の量指定子による ReDoS）と
   //     GHSA-3v7f-55p6-f55p（POSIX 文字クラスでの誤照合）は、いずれも攻撃者がパターンを
   //     指定できる場合に成立するが、本リポジトリではパターンを外部から受け取らない。
   //     GAS へデプロイする成果物には含まれない。

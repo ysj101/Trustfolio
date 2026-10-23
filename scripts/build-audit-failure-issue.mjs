@@ -26,7 +26,7 @@
  * 注意:
  *   - `pnpm audit --json` の出力形式が想定と異なる場合は、例外を投げて終了コード 1 で終了する
  *     （fail fast）。形式を解釈できないまま「0 件」と誤って報告しないためである。
- *   - `pnpm-workspace.yaml` の `auditConfig.ignoreGhsas` で除外した GHSA は、pnpm が
+ *   - `pnpm-workspace.yaml` の `auditConfig.ignoreGhsas` に例外を追加した場合、その GHSA は pnpm が
  *     `advisories` から除いて出力するため、本スクリプトの集計対象にならない。
  *   - audit ジョブの「Check bundled packages of Vite+」ステップ
  *     （`scripts/check-bundled-advisories.mjs`）が検出した、Vite+ の配布物に同梱された
