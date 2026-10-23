@@ -59,7 +59,7 @@ TrustfolioはMIT Licenseのもと、無保証で提供しています（[LICENSE
 .
 ├── appsscript.json          # GAS マニフェスト
 ├── vite.config.ts           # Vite+ の設定（ビルド・テスト・整形・lint）
-├── pnpm-workspace.yaml      # pnpm の設定（overrides・auditConfig・peerDependencyRules）と catalog
+├── pnpm-workspace.yaml      # pnpm の設定と catalog
 ├── tsconfig.json            # TypeScript 設定
 ├── src/
 │   ├── main.ts              # エントリーポイント
