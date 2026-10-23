@@ -117,4 +117,26 @@ export const BUNDLED_ADVISORY_EXCEPTIONS = [
       'GHSA-rgw5-rvv9-x895',
     ],
   },
+  // zod 4.6.5（vite-plus の dist/sync-versions/bin.js・bin.mjs に同梱）
+  //   理由: 修正版（4.6.6）は公開済みだが、同梱されたコピーには overrides（issue #291 の
+  //     "@google/clasp@<版>>zod" は通常の依存だけが対象）が効かない。確認した時点の最新版の
+  //     vite-plus も同じ 4.6.5 を同梱しており、vite-plus の更新では解消できない（経緯は
+  //     docs/UPGRADE_STRATEGY.md の「履歴」）。
+  //   影響経路の評価: sync-versions/bin.js を読み込むのは、dist/bin.js が `vp sync-versions` の実行時に
+  //     行う動的 import だけである。sync-versions/bin.mjs は、同じ処理を依存ごとインライン化した自己完結の
+  //     別ファイル（bin.js とは内容が異なる）で、zod 4.6.5 も含む。bin.mjs はパッケージの exports・bin、
+  //     ほかの配布物のどこからも参照されておらず、ファイルのパスを指定して node で直接実行した場合にだけ
+  //     動く（本リポジトリは実行しない）。このコマンドは、外部の自動化ツールが標準入力から JSON の要求を
+  //     渡すためのもので、端末からの直接実行を拒否する。zod は、その要求（package.json 等のマニフェスト。最大 256 件・1 件 1MB）と、
+  //     vite-plus に同梱された toolchain.json の検証に使われる。本リポジトリが実行する vp build / vp test /
+  //     vp lint / vp fmt / vp check はこのコマンドを読み込まない。GHSA-mrhx-c7xc-m3w5 は、大きな入力を
+  //     検証させてメモリを使い果たさせるサービス拒否であり、本リポジトリには入力を渡す経路がない。
+  //     GAS へデプロイする成果物には含まれない。
+  //   解除条件: zod 4.6.6 以上（または zod を同梱しない構成）の vite-plus へ更新した時点で削除する。
+  {
+    bundle: 'vite-plus@1.3.0',
+    package: 'zod',
+    version: '4.6.5',
+    ghsaIds: ['GHSA-mrhx-c7xc-m3w5'],
+  },
 ];
