@@ -10,25 +10,31 @@
 #   - 本ファイルを変更した PR では、.github/workflows/security.yml の Dependency Audit が起動する。
 #   - 各設定の判断理由は次の場所に記録する。
 #     - auditConfig の例外: .github/workflows/security.yml の「Run security audit」ステップのコメント
+#     - overrides の "@google/clasp@<版>>zod": docs/UPGRADE_STRATEGY.md の「zod の強制（"@google/clasp@<版>>zod"）の記録」
 #     - overrides（脆弱性への対処）: issue #173 の方針（修正版への強制を既定とする）。新たに修正版を
 #       強制するときは `<パッケージ>@<脆弱な範囲>: ">=<修正版> <次のメジャー>"` の形で書き、完全一致の版へ
 #       固定しない。完全一致の固定は、修正版の公開後も古い版に留め、再び監査の失敗を招く（issue #288）。
+#       脆弱な範囲は、現在の依存が使う系列（メジャー）に限る（例: `ip-address@>=10.0.0 <10.7.4`）。他の系列を
+#       宣言する依存を別のメジャーへ書き換えないためである（issue #291）。pnpm は、依存元が宣言した範囲が
+#       `@` の後ろの範囲と重なる場合に、その宣言を右辺の範囲へ置き換える（解決済みの版ではなく宣言で判定する）。
+#       例外: 依存元の宣言範囲の外（別のメジャー）へ強制せざるをえない場合は、範囲外への強制を、動作を
+#       確認した依存元の版に限る親セレクタ（`<依存元>@<確認した版>><パッケージ>`）で書く（issue #291）。
 #     - peerDependencyRules: docs/UPGRADE_STRATEGY.md の「peer 依存の明示的許容（peerDependencyRules）の記録」
 #     - catalog と overrides の vite@* / vitest@*: docs/UPGRADE_STRATEGY.md の「Vite+（vp）への一本化の記録」
 
 overrides:
-  qs: ">=6.16.0"
+  qs@>=6.0.0 <6.16.0: ">=6.16.0 <7"
   minimatch: ">=10.2.3"
   express-rate-limit: ">=8.2.2"
   "@hono/node-server": ">=2.0.5 <3"
   hono: ">=4.13.7 <5"
-  body-parser: ">=2.3.0 <3"
+  body-parser@>=2.0.0 <2.4.0: ">=2.4.0 <3"
   yaml: 2.8.3
   path-to-regexp: 8.4.0
   picomatch@<2.3.2: 2.3.2
   picomatch@>=4.0.0 <4.0.4: 4.0.4
   ip-address@>=10.0.0 <10.7.4: ">=10.7.4 <11"
-  fast-uri: ">=3.1.8 <4"
+  fast-uri@>=3.0.0 <3.1.9: ">=3.1.9 <4"
   uuid@<14.0.0: ">=14.0.0"
   esbuild@<0.28.1: ">=0.28.1"
   postcss@<8.5.23: ">=8.5.23"
@@ -37,6 +43,10 @@ overrides:
   proxy-addr@<2.0.8: ">=2.0.8 <3"
   source-map-js@<1.2.2: ">=1.2.2 <2"
   "@modelcontextprotocol/sdk@<1.31.0": ">=1.31.0 <2"
+  # zod の GHSA-mrhx-c7xc-m3w5（issue #291）。clasp の宣言範囲（zod 3 系）の外の 4 系への強制であり、動作を
+  # 確認した clasp の版に限る。判断理由・clasp を更新するときの手順は docs/UPGRADE_STRATEGY.md の
+  # 「zod の強制（"@google/clasp@<版>>zod"）の記録」、前提の検査は tests/dependencies/zod-override.test.ts。
+  "@google/clasp@3.4.1>zod": ">=4.6.6 <5"
   # 依存ツリー内のすべての vite / vitest を catalog の版（Vite+ が同梱・指定する版）へそろえる。
   # vp migrate が追加した。"@*" を付けるのは、package.json の "catalog:" 参照を書き換えず、
   # 推移的依存と peer 依存の宣言だけを対象にするためである（Vite+ のドキュメント「Update Vite+」）。

@@ -12,7 +12,7 @@ updates:
     # 最悪ケースは「devDependencies 12件のうち、個別PRを生みうる8件が同時に個別PRを持つ
     # ＋ development グループPR 1本」＝9本。個別PRを生みうる8件は、major 除外の
     # typescript-js-api と、全更新を除外した vite / vitest / @vitest/coverage-v8（下の ignore を参照）を
-    # 除いたものである。vite-plus は development グループから外しているため minor / patch も
+    # 除いたものである。vite-plus と @google/clasp は development グループから外しているため minor / patch も
     # 個別PRになるが、1パッケージにつき同時に開くPRは1本である。
     # production グループは dependencies が0件のためPRを生まない。
     # これに予備2本を加えて 11 とする（issue #272 で oxfmt / oxlint を削除し 16 から変更）。
@@ -73,8 +73,11 @@ updates:
         # vp migrate で vite / vitest / @vitest/coverage-v8 をそろえるまで CI（test.yml の
         # Run build）が失敗する。グループに含めると他の devDependencies の更新まで止まるため、
         # 個別PRにする（issue #272）。
+        # @google/clasp の更新 PR は、zod の強制（pnpm-workspace.yaml の "@google/clasp@<版>>zod"）の
+        # 版の付け替えまで tests/dependencies/zod-override.test.ts が失敗する。同じ理由で個別PRにする（issue #291）。
         exclude-patterns:
           - "vite-plus"
+          - "@google/clasp"
       production:
         dependency-type: "production"
         update-types:
