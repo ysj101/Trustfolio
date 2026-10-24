@@ -19,6 +19,10 @@ import { describe, expect, it } from 'vite-plus/test';
  * 注意:
  *   - 版は「X.Y.Z」の形式だけを想定する。ロックファイルにそれ以外の形式（プレリリース等）の版がある場合は、
  *     黙って検査から外さず、例外を投げて失敗させる。
+ *   - 親セレクタの版は、pnpm-workspace.yaml ではなく pnpm-lock.yaml の overrides の節から読む。この節は pnpm が
+ *     pnpm-workspace.yaml の overrides を正規化して書き出したもの（`  '@google/clasp@<版>>zod': ...`）であり、
+ *     手で書いた設定の書き方（クォートの種類等）に左右されない。設定とこの節の一致は、CI の
+ *     `pnpm install --frozen-lockfile`（.github/workflows/test.yml）が保証する。
  *   - zod の強制を削除するときの本テストの扱い（全体を削除するか、2 つ目のテストを残すか）は、
  *     新しい clasp の zod の宣言範囲によって異なる。上記の節の手順に従う。
  */
@@ -30,7 +34,6 @@ const PATCHED_ZOD_VERSION = '4.6.6';
 const PROCEDURE_REFERENCE =
   'docs/UPGRADE_STRATEGY.md の「zod の強制（"@google/clasp@<版>>zod"）の記録」の手順に従ってください。';
 
-const workspaceSource = fs.readFileSync(path.join(process.cwd(), 'pnpm-workspace.yaml'), 'utf8');
 const lockfileSource = fs.readFileSync(path.join(process.cwd(), 'pnpm-lock.yaml'), 'utf8');
 
 /**
@@ -80,13 +83,14 @@ function lockedVersions(packageKeyPattern: string, keySuffix: string): string[] 
 
 describe('zod の強制（"@google/clasp@<版>>zod"）の前提', () => {
   it('親セレクタに書いた clasp の版が、ロックファイルの clasp の版と一致する', () => {
-    // 前提: pnpm-workspace.yaml の overrides に "@google/clasp@<版>>zod" がある
+    // 前提: pnpm-workspace.yaml の overrides に "@google/clasp@<版>>zod" があり、pnpm-lock.yaml の overrides の節に
+    //   「'@google/clasp@<版>>zod':」の形で書き出されている
     // 事前条件: pnpm-lock.yaml の packages に、解決された clasp の版が「'@google/clasp@<版>':」の形で並ぶ
     // 検証: ロックファイルの clasp の版がすべて親セレクタの版と一致する（clasp を更新すると、強制が外れたことをここで検出する）
-    const overrideVersion = /^ {2}"@google\/clasp@([^>"]+)>zod":/m.exec(workspaceSource)?.[1];
+    const overrideVersion = /^ {2}'@google\/clasp@([^>']+)>zod':/m.exec(lockfileSource)?.[1];
     if (overrideVersion === undefined) {
       throw new Error(
-        `pnpm-workspace.yaml の overrides に "@google/clasp@<版>>zod" が見つかりません。${PROCEDURE_REFERENCE}`
+        `pnpm-lock.yaml の overrides に '@google/clasp@<版>>zod' が見つかりません。${PROCEDURE_REFERENCE}`
       );
     }
     parseVersion(overrideVersion);
