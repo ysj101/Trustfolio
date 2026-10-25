@@ -20,9 +20,9 @@
 #       そのパッケージを宣言する依存（`pnpm why <パッケージ>`）と、その宣言の範囲（`pnpm view <依存元>@<版>
 #       <フィールド>` を dependencies・optionalDependencies・peerDependencies ごとに実行する）を確かめ、`@` の後ろの
 #       範囲と右辺の上限を決めた理由を docs/UPGRADE_STRATEGY.md の「履歴」に記録する（例: issue #288 の
-#       ip-address、issue #291 の qs・body-parser・fast-uri）。pnpm-lock.yaml からは、依存元が宣言した範囲を
-#       確かめられない（dependencies の範囲は記録されず、peerDependencies の範囲は overrides で置き換えた後の値が
-#       記録される）。
+#       ip-address、issue #291 の qs・body-parser・fast-uri）。pnpm-lock.yaml からは、推移的依存（ルートの
+#       package.json 以外の依存元）が宣言した範囲を確かめられない（dependencies の範囲は記録されず、
+#       peerDependencies の範囲は overrides で置き換えた後の値が記録される）。
 #       例外: 依存元の宣言範囲の外（別のメジャー）へ強制せざるをえない場合は、範囲外への強制を、動作を
 #       確認した依存元の版に限る親セレクタ（`<依存元>@<確認した版>><パッケージ>`）で書く（issue #291）。
 #       親セレクタの `<確認した版>` は、依存元の宣言ではなく、依存元の解決済みの版で判定される。
