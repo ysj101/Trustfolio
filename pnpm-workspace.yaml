@@ -12,26 +12,17 @@
 #     - auditConfig の例外: .github/workflows/security.yml の「Run security audit」ステップのコメント
 #     - overrides の "@google/clasp@<版>>zod": docs/UPGRADE_STRATEGY.md の「zod の強制（"@google/clasp@<版>>zod"）の記録」
 #     - overrides（脆弱性への対処）: issue #173 の方針（修正版への強制を既定とする）。新たに修正版を
-#       強制するときは `<パッケージ>@<脆弱な範囲>: ">=<修正版> <上限>"` の形で書き、完全一致の版へ
+#       強制するときは `<パッケージ>@<脆弱な範囲>: ">=<修正版> <次のメジャー>"` の形で書き、完全一致の版へ
 #       固定しない。完全一致の固定は、修正版の公開後も古い版に留め、再び監査の失敗を招く（issue #288）。
-#       `@` の後ろの範囲と右辺の上限は、現在の依存が宣言している範囲を確かめて項目ごとに決め、判断の理由を
-#       docs/UPGRADE_STRATEGY.md の「履歴」に記録する（例: issue #288 の ip-address、issue #291 の qs・
-#       body-parser・fast-uri）。既存の項目には、この形で書かれていないもの（`@` の後ろがない、右辺に上限が
-#       ない、完全一致の固定）があり、それらを新しい項目の手本にしない。
-#       pnpm 10.30.2 の判定（pnpm.cjs の @pnpm/hooks.read-package-hook の overrideDeps・isIntersectingRange で
-#       確認した。pnpm を更新するときは同じ箇所を確認し直す）:
-#       - `@` の後ろの範囲は、解決済みの版ではなく、依存元が宣言した範囲との重なり（semver.intersects）で
-#         判定する。重なった宣言は、宣言全体が右辺へ置き換えられる（peerDependencies の宣言の扱いは、右辺の
-#         種類によって異なる）。`^3.25 || ^4.0` のように複数のメジャーにまたがる宣言や、`>= 4.11` のように
-#         上限のない宣言も、重なれば置き換えの対象になる。
-#       - 宣言が semver の範囲でない場合（例: `npm:` の別名、dist-tag、git・tarball の URL）は、`@` の後ろと
-#         文字列が完全に一致する場合を除いて置き換えない。`@` の後ろがない項目は、それらを含むすべての宣言を
-#         置き換える。
-#       - 項目を追加・変更したら、pnpm-lock.yaml の差分で、置き換えられた宣言（peerDependencies を含む）と
-#         解決された版を確かめる。
+#       `@` の後ろの範囲は、解決済みの版ではなく、依存元が宣言した範囲との重なりで判定される（pnpm 10.30.2 の
+#       @pnpm/hooks.read-package-hook で確認、issue #291）。重なった宣言は、`^3.25 || ^4.0` のように複数のメジャーに
+#       またがる宣言も含めて置き換えの対象になる。そのため、項目を追加・変更するときは、そのパッケージを宣言する
+#       依存（`pnpm why <パッケージ>`）と宣言の範囲（`pnpm view <依存元>@<版> dependencies peerDependencies`）を
+#       確かめ、`@` の後ろの範囲と右辺の上限を決めた理由を docs/UPGRADE_STRATEGY.md の「履歴」に記録する
+#       （例: issue #288 の ip-address、issue #291 の qs・body-parser・fast-uri）。pnpm-lock.yaml には、推移的依存の
+#       dependencies の宣言の範囲は記録されない（記録されるのは解決済みの版と peerDependencies の範囲だけである）。
 #       例外: 依存元の宣言範囲の外（別のメジャー）へ強制せざるをえない場合は、範囲外への強制を、動作を
 #       確認した依存元の版に限る親セレクタ（`<依存元>@<確認した版>><パッケージ>`）で書く（issue #291）。
-#       親セレクタの `<確認した版>` は、依存元の宣言ではなく解決済みの版で判定される（semver.satisfies）。
 #     - peerDependencyRules: docs/UPGRADE_STRATEGY.md の「peer 依存の明示的許容（peerDependencyRules）の記録」
 #     - catalog と overrides の vite@* / vitest@*: docs/UPGRADE_STRATEGY.md の「Vite+（vp）への一本化の記録」
 
