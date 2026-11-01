@@ -79,8 +79,8 @@ overrides:
 peerDependencyRules:
   allowedVersions:
     "@formatjs/intl@3.1.8>typescript": ^6.0.0 || ^7.0.0
-    vitest@5.0.5>vite: 1.3.0
-    "@vitest/mocker@5.0.5>vite": 1.3.0
+    vitest@5.0.5>vite: 1.4.0
+    "@vitest/mocker@5.0.5>vite": 1.4.0
 
 # Vite+ のツールチェーンの版。4 項目は vite-plus の版に合わせて同時に更新しなければならない。
 #   - vite は @voidzero-dev/vite-plus-core（Vite+ 版の vite）への別名である。vite-plus と同じ版で
@@ -89,7 +89,7 @@ peerDependencyRules:
 # Dependabot は vite-plus の項目だけを更新する。更新は vp migrate で行う（手順は
 # docs/UPGRADE_STRATEGY.md の「Vite+（vp）への一本化の記録」を参照）。
 catalog:
-  vite: npm:@voidzero-dev/vite-plus-core@1.3.0
+  vite: npm:@voidzero-dev/vite-plus-core@1.4.0
   vitest: 5.0.5
-  vite-plus: 1.3.0
+  vite-plus: 1.4.0
   "@vitest/coverage-v8": 5.0.5
