@@ -15,7 +15,7 @@ import {
   BULK_ADVISORY_URL,
   collectInlinedPackages,
   evaluateFindings,
-  extractRegionPackages,
+  extractInlinedModulePackages,
   fetchAdvisories,
   main,
   parseBulkAdvisoryResponse,
@@ -47,6 +47,12 @@ const FDIR_REGION =
 /** スコープ付きパッケージの //#region 行（@rolldown/pluginutils 1.0.1）。 */
 const SCOPED_REGION =
   '//#region ../../node_modules/.pnpm/@rolldown+pluginutils@1.0.1/node_modules/@rolldown/pluginutils/dist/index.mjs';
+
+/**
+ * vite-plus 1.4.0 以降の形式（"//#region" を付けない "// <パス>"）の行（yaml 2.9.1）。
+ * @voidzero-dev/vite-plus-core 1.4.0 の dist/vite/node/chunks/dist2.js に実際に含まれる行である。
+ */
+const YAML_PLAIN_COMMENT = '// ../../node_modules/.pnpm/yaml@2.9.1/node_modules/yaml/dist/visit.js';
 
 /** bulk アドバイザリ API が picomatch 2.3.1 に対して返すアドバイザリ（実際の応答の抜粋）。 */
 const PICOMATCH_ADVISORIES = [
@@ -130,8 +136,8 @@ describe('scripts/check-bundled-advisories', () => {
     });
   });
 
-  describe('extractRegionPackages', () => {
-    it('//#region 行だけからパッケージを抽出する', () => {
+  describe('extractInlinedModulePackages', () => {
+    it('//#region 行（vite-plus 1.3.0 までの形式）からパッケージを抽出する', () => {
       // 前提: ソースに //#region 行と、コード中の文字列としてのストアのパスが混在する
       // 検証: //#region 行のパスだけが抽出され、Vite+ 自身のソース（.pnpm を含まないパス）は無視される
       const source = [
@@ -143,10 +149,32 @@ describe('scripts/check-bundled-advisories', () => {
         '//#endregion',
       ].join('\n');
 
-      expect(extractRegionPackages(source)).toEqual([
+      expect(extractInlinedModulePackages(source)).toEqual([
         { name: 'picomatch', version: '2.3.1' },
         { name: 'fdir', version: '6.5.0' },
         { name: '@rolldown/pluginutils', version: '1.0.1' },
+      ]);
+    });
+
+    it('"// <パス>" の行（vite-plus 1.4.0 以降の形式）からパッケージを抽出する', () => {
+      // 前提: vite-plus 1.4.0 の配布物と同じく、元パスが "//#region" を付けずに "// <パス>" で出力されている
+      // 事前条件: 同じソースに、説明文のコメント（空白を含む）と、Vite+ 自身のソースの元パスも含まれる
+      // 検証: 行全体が "// <空白を含まないパス>" であり、パスに pnpm ストアを含む行だけが抽出される
+      //   - "// see node_modules/.pnpm/..." のような説明文のコメントは、行全体がパスではないため無視される
+      //   - "// src/node/index.ts" は pnpm ストアを含まないため無視される
+      //   - "// @__NO_SIDE_EFFECTS__" のような注釈コメントも無視される
+      const source = [
+        YAML_PLAIN_COMMENT,
+        'var require_visit = /* @__PURE__ */ __commonJSMin(((exports) => {',
+        '// see node_modules/.pnpm/braces@3.0.3/node_modules/braces/index.js for details',
+        '// src/node/index.ts',
+        '// @__NO_SIDE_EFFECTS__',
+        '// ../../../node_modules/.pnpm/fdir@6.5.0_picomatch@4.0.7/node_modules/fdir/dist/index.mjs',
+      ].join('\n');
+
+      expect(extractInlinedModulePackages(source)).toEqual([
+        { name: 'yaml', version: '2.9.1' },
+        { name: 'fdir', version: '6.5.0' },
       ]);
     });
   });
@@ -194,7 +222,7 @@ describe('scripts/check-bundled-advisories', () => {
     });
 
     it('抽出結果が 0 件の場合は例外にする', () => {
-      // 前提: dist に JavaScript はあるが、//#region 行がない（配布物の形式が変わった場合を想定）
+      // 前提: dist に JavaScript はあるが、モジュールの元パスを示すコメント行がない（配布物の形式が変わった場合を想定）
       // 検証: 「検出 0 件」として合格させず、例外を投げる
       mkdirSync(path.join(workDirectory, 'dist'), { recursive: true });
       writeFileSync(path.join(workDirectory, 'dist', 'index.js'), 'export {};\n');

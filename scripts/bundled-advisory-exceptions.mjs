@@ -41,7 +41,7 @@ export const BUNDLED_ADVISORY_EXCEPTIONS = [
   //   解除条件: picomatch 2.3.2 以上（または picomatch を同梱しない構成）の vite-plus へ
   //     更新した時点で削除する。
   {
-    bundle: '@voidzero-dev/vite-plus-core@1.3.0',
+    bundle: '@voidzero-dev/vite-plus-core@1.4.0',
     package: 'picomatch',
     version: '2.3.1',
     ghsaIds: ['GHSA-3v7f-55p6-f55p', 'GHSA-c2c7-rcm5-vvqj'],
@@ -55,7 +55,7 @@ export const BUNDLED_ADVISORY_EXCEPTIONS = [
   //     （scripts/build-styles.sh）が vite を介さずに生成する。解析する CSS も外部から入力されない。
   //   解除条件: postcss-selector-parser 7.1.6 以上を同梱した vite-plus へ更新した時点で削除する。
   {
-    bundle: '@voidzero-dev/vite-plus-core@1.3.0',
+    bundle: '@voidzero-dev/vite-plus-core@1.4.0',
     package: 'postcss-selector-parser',
     version: '7.1.0',
     ghsaIds: ['GHSA-rj75-hqrm-r3gf'],
@@ -87,7 +87,7 @@ export const BUNDLED_ADVISORY_EXCEPTIONS = [
   //     vite-plus へ更新した時点で削除する。削除するときは、vite.config.ts の forbidDevServerProxy
   //     プラグインと、その検証の tests/vite.config.test.ts も削除する。
   {
-    bundle: '@voidzero-dev/vite-plus-core@1.3.0',
+    bundle: '@voidzero-dev/vite-plus-core@1.4.0',
     package: 'follow-redirects',
     version: '1.16.0',
     ghsaIds: ['GHSA-8r9p-f939-6h3c', 'GHSA-q3jh-wrc6-jgq8'],
@@ -103,7 +103,7 @@ export const BUNDLED_ADVISORY_EXCEPTIONS = [
   //     GAS へデプロイする成果物には含まれない。
   //   解除条件: brace-expansion 5.0.12 以上を同梱した vite-plus へ更新した時点で削除する。
   {
-    bundle: 'vite-plus@1.3.0',
+    bundle: 'vite-plus@1.4.0',
     package: 'brace-expansion',
     version: '5.0.3',
     ghsaIds: [
@@ -134,7 +134,7 @@ export const BUNDLED_ADVISORY_EXCEPTIONS = [
   //     GAS へデプロイする成果物には含まれない。
   //   解除条件: zod 4.6.6 以上（または zod を同梱しない構成）の vite-plus へ更新した時点で削除する。
   {
-    bundle: 'vite-plus@1.3.0',
+    bundle: 'vite-plus@1.4.0',
     package: 'zod',
     version: '4.6.5',
     ghsaIds: ['GHSA-mrhx-c7xc-m3w5'],

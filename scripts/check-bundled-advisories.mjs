@@ -20,8 +20,10 @@
  *   2. 同梱されたパッケージを、次の 2 つの情報源から抽出する。
  *      - `@voidzero-dev/vite-plus-core` の `package.json` の `bundledVersions`
  *        （vite / rolldown / tsdown の版。Vite+ が公式に宣言している値）
- *      - 両パッケージの `dist/` 配下の JavaScript にある `//#region` コメント。バンドラ（rolldown）は、
- *        インライン化した各モジュールの先頭に元のファイルパスを `//#region <パス>` として出力する。
+ *      - 両パッケージの `dist/` 配下の JavaScript にある、モジュールの元パスを示すコメント行。
+ *        バンドラ（rolldown）は、インライン化した各モジュールの先頭に元のファイルパスを 1 行の
+ *        コメントとして出力する。形式は `//#region <パス>`（vite-plus 1.3.0 まで）または
+ *        `// <パス>`（vite-plus 1.4.0 以降）である（下記の MODULE_PATH_COMMENT_PATTERN を参照）。
  *        パスに含まれる pnpm ストアのディレクトリ名（`node_modules/.pnpm/<名前>@<版>_.../`）から
  *        パッケージ名と版を読み取る。
  *   3. npm レジストリの bulk アドバイザリ API（`/-/npm/v1/security/advisories/bulk`）へ
@@ -33,7 +35,7 @@
  *   node scripts/check-bundled-advisories.mjs --audit-level <info|low|moderate|high|critical>
  *
  * 注意:
- *   - 抽出結果が 0 件の場合や、`//#region` のパスからパッケージ名と版を読み取れない場合は、
+ *   - 抽出結果が 0 件の場合や、モジュールの元パスからパッケージ名と版を読み取れない場合は、
  *     例外を投げる（fail fast）。Vite+ が配布物の形式を変えたときに「検出 0 件」と誤って
  *     合格させないためである。
  *   - 本スクリプトが対象にするのは JavaScript にインライン化されたパッケージだけである。
@@ -74,11 +76,28 @@ export const CORE_PACKAGE_NAME = '@voidzero-dev/vite-plus-core';
  */
 const REQUIRED_BUNDLED_TOOLS = ['vite', 'rolldown'];
 
-/** インライン化されたモジュールの元パスを示すコメントの接頭辞（rolldown の出力形式）。 */
-const REGION_PREFIX = '//#region ';
+/**
+ * インライン化されたモジュールの元パスを示すコメント行（rolldown の出力形式）の正規表現。
+ * 1 番目のグループは元パスである。
+ *
+ * 行全体が「`//#region` または `//`、半角空白 1 つ、空白を含まないパス」である行だけに一致させる。
+ * 説明文のコメントや、コード中の文字列に現れるストアのパスを、モジュールの元パスと取り違えないためである。
+ *
+ * 2 つの形式を受け付ける理由（2026-11-02 に npm の tarball で確認した事実）:
+ *   - vite-plus 1.3.0 / @voidzero-dev/vite-plus-core 1.3.0 は、元パスを `//#region <パス>` で出力し、
+ *     モジュールの末尾に `//#endregion` を置く。
+ *     例: `//#region ../../node_modules/.pnpm/yaml@2.9.1/node_modules/yaml/dist/visit.js`
+ *   - vite-plus 1.4.0 / @voidzero-dev/vite-plus-core 1.4.0 は、同じ元パスを `// <パス>` で出力し、
+ *     `//#endregion` を置かない。
+ *     例: `// ../../node_modules/.pnpm/yaml@2.9.1/node_modules/yaml/dist/visit.js`
+ *   - ただし @voidzero-dev/vite-plus-core 1.4.0 でも `dist/pluginutils/filter-*.mjs` は、
+ *     `//#region src/...` の形式のままである。
+ *     同じ配布物の中に両形式が混在するため、どちらか一方だけには限定できない。
+ */
+const MODULE_PATH_COMMENT_PATTERN = /^\/\/(?:#region)? (\S+)$/;
 
 /**
- * `//#region` のパスから pnpm ストア上のパッケージを取り出す正規表現。
+ * モジュールの元パスから pnpm ストア上のパッケージを取り出す正規表現。
  * 例: `../../node_modules/.pnpm/fdir@6.5.0_picomatch@4.0.7/node_modules/fdir/dist/index.mjs`
  *   - 1 番目のグループ: ストアのディレクトリ名（`fdir@6.5.0_picomatch@4.0.7`）
  *   - 2 番目のグループ: パッケージ名（`fdir`。スコープ付きの場合は `@scope/name`）
@@ -132,7 +151,7 @@ function toSpecifier(name, version) {
 }
 
 /**
- * `//#region` のパスに含まれる pnpm ストアのディレクトリ名から、パッケージの版を取り出す。
+ * モジュールの元パスに含まれる pnpm ストアのディレクトリ名から、パッケージの版を取り出す。
  *
  * 目的:
  *   pnpm ストアのディレクトリ名は `<名前>@<版>` に、peer 依存やパッチの識別子が `_` 区切りで
@@ -162,19 +181,25 @@ export function parseStoreDirectoryVersion(storeDirectoryName, packageName) {
 }
 
 /**
- * JavaScript のソース文字列から、`//#region` コメントに記録されたインライン化済みパッケージを抽出する。
+ * JavaScript のソース文字列から、モジュールの元パスを示すコメント行に記録されたインライン化済み
+ * パッケージを抽出する。
+ *
+ * 注意:
+ *   元パスが pnpm ストアを含まない行（Vite+ 自身のソース `src/...` など）は、インライン化された
+ *   外部パッケージではないため、何も抽出しない。
  *
  * @param {string} source JavaScript ファイルの内容
  * @returns {Array<{ name: string, version: string }>} 抽出したパッケージ（重複を含む）
  * @throws {Error} パスから版を読み取れない場合
  */
-export function extractRegionPackages(source) {
+export function extractInlinedModulePackages(source) {
   const packages = [];
   for (const line of source.split('\n')) {
-    if (!line.startsWith(REGION_PREFIX)) {
+    const comment = MODULE_PATH_COMMENT_PATTERN.exec(line);
+    if (comment === null) {
       continue;
     }
-    for (const match of line.matchAll(PNPM_STORE_PATH_PATTERN)) {
+    for (const match of comment[1].matchAll(PNPM_STORE_PATH_PATTERN)) {
       const [, storeDirectoryName, packageName] = match;
       packages.push({
         name: packageName,
@@ -219,7 +244,7 @@ export function collectInlinedPackages(packageDirectory, { readDirectory, readFi
   const distDirectory = path.join(packageDirectory, 'dist');
   const packages = new Map();
   for (const file of listJavaScriptFiles(distDirectory, readDirectory)) {
-    for (const { name, version } of extractRegionPackages(readFile(file, 'utf-8'))) {
+    for (const { name, version } of extractInlinedModulePackages(readFile(file, 'utf-8'))) {
       if (!packages.has(name)) {
         packages.set(name, new Set());
       }
@@ -229,7 +254,7 @@ export function collectInlinedPackages(packageDirectory, { readDirectory, readFi
   if (packages.size === 0) {
     throw new Error(
       `${distDirectory} から、インライン化されたパッケージを 1 件も抽出できませんでした。` +
-        '配布物の形式（//#region コメント）が変わった可能性があります。本スクリプトの抽出方法を見直してください。'
+        '配布物の形式（モジュールの元パスを示すコメント行）が変わった可能性があります。本スクリプトの抽出方法を見直してください。'
     );
   }
   return packages;
@@ -620,7 +645,7 @@ export async function main({
   const [vitePlus, core] = resolveVitePlusPackages(projectRoot, readFile);
   const io = { readDirectory, readFile };
   const corePackages = collectInlinedPackages(core.directory, io);
-  // bundledVersions（vite / rolldown / tsdown）は、//#region から抽出した一覧に統合する
+  // bundledVersions（vite / rolldown / tsdown）は、モジュールの元パスから抽出した一覧に統合する
   for (const [name, versions] of parseBundledVersions(core.manifest.bundledVersions)) {
     corePackages.set(name, new Set([...(corePackages.get(name) ?? []), ...versions]));
   }
