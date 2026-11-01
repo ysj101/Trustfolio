@@ -61,9 +61,12 @@ export const BUNDLED_ADVISORY_EXCEPTIONS = [
     ghsaIds: ['GHSA-rj75-hqrm-r3gf'],
   },
   // follow-redirects 1.16.0（@voidzero-dev/vite-plus-core の dist/vite/node/chunks/node.js に同梱）
-  //   理由: 修正版（1.16.1。2026-10-01 公開）は公開済みだが、同梱されたコピーには overrides が効かない。
-  //     2026-10-22 にアドバイザリの公表（2026-10-21。日付は日本時間）を受けて追加した。vite-plus 1.2.0 と、同日時点の
+  //   理由: 修正版（GHSA-8r9p-f939-6h3c・GHSA-q3jh-wrc6-jgq8 は 1.16.1。2026-10-01 公開。GHSA-mrwp-f3q8-3g9p は
+  //     1.16.2。2026-10-26 公開。日付は日本時間）は公開済みだが、同梱されたコピーには overrides が効かない。
+  //     2026-10-22 にアドバイザリの公表（2026-10-21）を受けて追加した。vite-plus 1.2.0 と、同日時点の
   //     最新版である 1.3.0 は、いずれも 1.16.0 を同梱しており、vite-plus の更新では解消できない（issue #286）。
+  //     2026-11-02 に、GHSA-mrwp-f3q8-3g9p の公表（2026-10-31）を受けて同 ID を追加した。同日時点の最新版である
+  //     vite-plus 1.4.0（2026-10-23 公開）は 1.16.2 より前に公開されており、更新では解消できない（issue #295）。
   //   影響経路の評価: vite に同梱された http-proxy-3 1.23.3 だけが使う。http-proxy-3 は、プロキシの
   //     設定で followRedirects が真の場合に限り、Node の http / https の代わりに follow-redirects で
   //     プロキシ先へ要求を送る（既定は偽であり、vite も真に設定しない）。http-proxy-3 のプロキシを
@@ -81,21 +84,24 @@ export const BUNDLED_ADVISORY_EXCEPTIONS = [
   //     GHSA-q3jh-wrc6-jgq8（配列形式のヘッダーによる認証ヘッダー除去の回避）と
   //     GHSA-8r9p-f939-6h3c（sensitiveHeaders の正規表現のエスケープ漏れ）は、いずれも
   //     follow-redirects が攻撃者の制御するクロスオリジンのリダイレクトを追従した場合に、
-  //     認証ヘッダーがリダイレクト先へ送られるものである。本リポジトリでは follow-redirects が
-  //     要求を送ることがないため成立しない。GAS へデプロイする成果物には含まれない。
-  //   解除条件: follow-redirects 1.16.1 以上（または follow-redirects を同梱しない構成）の
+  //     認証ヘッダーがリダイレクト先へ送られるものである。GHSA-mrwp-f3q8-3g9p（別の realm で生成した
+  //     配列を sensitiveHeaders に渡すと空として扱われ、呼び出し側が指定した認証ヘッダーがリダイレクト先へ
+  //     送られる）も、follow-redirects がクロスオリジンのリダイレクトを追従した場合にだけ成立する。
+  //     本リポジトリでは follow-redirects が要求を送ることがないため、いずれも成立しない。
+  //     GAS へデプロイする成果物には含まれない。
+  //   解除条件: follow-redirects 1.16.2 以上（または follow-redirects を同梱しない構成）の
   //     vite-plus へ更新した時点で削除する。削除するときは、vite.config.ts の forbidDevServerProxy
   //     プラグインと、その検証の tests/vite.config.test.ts も削除する。
   {
     bundle: '@voidzero-dev/vite-plus-core@1.3.0',
     package: 'follow-redirects',
     version: '1.16.0',
-    ghsaIds: ['GHSA-8r9p-f939-6h3c', 'GHSA-q3jh-wrc6-jgq8'],
+    ghsaIds: ['GHSA-8r9p-f939-6h3c', 'GHSA-mrwp-f3q8-3g9p', 'GHSA-q3jh-wrc6-jgq8'],
   },
   // brace-expansion 5.0.3（vite-plus の dist/editor-*.js に同梱。minimatch 10.2.4 が使う）
-  //   理由: 修正版（5.0.12）は公開済みだが、同梱されたコピーには overrides
-  //     （brace-expansion@>=4.0.0 <5.0.12 → >=5.0.12 <6）が効かない。移行前の vite-plus 0.3.1 も
-  //     同じ 5.0.3 を同梱していた。
+  //   理由: 修正版（5.0.12）は公開済みだが、同梱されたコピーには overrides が効かない（通常の依存の
+  //     brace-expansion を修正版へ強制していた overrides の項目は、置き換える宣言がなくなったため issue #295 で
+  //     削除した）。移行前の vite-plus 0.3.1 も同じ 5.0.3 を同梱していた。
   //   影響経路の評価: editor-*.js を読み込むのは dist/migration/bin.js と dist/create/bin.js だけであり、
   //     vp migrate と vp create の実行時に限られる。本リポジトリが日常的に実行する vp build /
   //     vp test / vp lint / vp fmt / vp check は読み込まない。vp migrate は vite-plus の更新時に
@@ -116,6 +122,43 @@ export const BUNDLED_ADVISORY_EXCEPTIONS = [
       'GHSA-qhr7-859c-m2p7',
       'GHSA-rgw5-rvv9-x895',
     ],
+  },
+  // glob 13.0.0 と minimatch 10.2.4（vite-plus の dist/editor-*.js に同梱。glob が minimatch を使う）
+  //   理由: 修正版（glob 14.0.2・minimatch 11.0.1。いずれも 2026-10-28 公開。日付は日本時間）は公開済みだが、
+  //     同梱されたコピーには overrides が効かない。2026-11-02 にアドバイザリの公表（2026-10-31）を受けて
+  //     追加した（issue #295）。同日時点の最新版である vite-plus 1.4.0（2026-10-23 公開）は修正版より前に
+  //     公開されており、更新では解消できない。
+  //   影響経路の評価: editor-*.js を読み込むのは dist/migration/bin.js と dist/create/bin.js だけであり、
+  //     vp migrate と vp create の実行時に限られる（上の brace-expansion と同じ経路）。本リポジトリが
+  //     日常的に実行する vp build / vp test / vp lint / vp fmt / vp check は読み込まない。
+  //     editor-*.js が glob（globSync）を呼ぶのは、ワークスペースのパッケージを探す処理
+  //     （discoverWorkspacePackages。パターンは、pnpm-workspace.yaml があればその packages に、なければ
+  //     package.json の workspaces に由来する。本リポジトリは pnpm-workspace.yaml があり、packages が
+  //     ないため呼ばれない）と、.github 配下のワークフロー・複合アクションを
+  //     探す処理（collectGithubActionFiles。パターンは固定の文字列）だけである。minimatch を直接呼ぶのは、
+  //     editor-*.js のワークスペースのパターンとの照合（updateWorkspaceConfig）と、editor-*.js から minimatch を
+  //     import する dist/migration/bin.js の 4 か所（Vitest の設定の extends と test.projects に書かれた参照の
+  //     パターンと、ファイル・設定ファイルのディレクトリとの照合が 2 か所、vitest の include / exclude /
+  //     includeSource / benchmark / storybook の設定に書かれたパターンとプロジェクト内のファイルとの照合が 2 か所）
+  //     である。いずれのパターンも本リポジトリの設定ファイルに由来する。
+  //     GHSA-3g3m-2fjr-6pw4（glob の signal オプションによる中断後も走査が続く）は、呼び出し側が signal を
+  //     渡した場合にだけ関係するが、上記の呼び出しはいずれも signal を渡さない。
+  //     GHSA-g3hv-75wg-m249（minimatch の前処理でパターンの要素が増幅され、CPU とメモリを消費する）は、
+  //     攻撃者がパターンを指定できる場合に成立するが、上記のパターンはいずれも本リポジトリの
+  //     設定ファイルと固定の文字列に由来し、外部から入力されない。GAS へデプロイする成果物には含まれない。
+  //   解除条件: glob 14.0.2 以上と minimatch 11.0.1 以上を同梱した（または両者を同梱しない構成の）
+  //     vite-plus へ更新した時点で、該当する方の例外を削除する。
+  {
+    bundle: 'vite-plus@1.3.0',
+    package: 'glob',
+    version: '13.0.0',
+    ghsaIds: ['GHSA-3g3m-2fjr-6pw4'],
+  },
+  {
+    bundle: 'vite-plus@1.3.0',
+    package: 'minimatch',
+    version: '10.2.4',
+    ghsaIds: ['GHSA-g3hv-75wg-m249'],
   },
   // zod 4.6.5（vite-plus の dist/sync-versions/bin.js・bin.mjs に同梱）
   //   理由: 修正版（4.6.6）は公開済みだが、同梱されたコピーには overrides（issue #291 の
