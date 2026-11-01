@@ -83,7 +83,7 @@ const REQUIRED_BUNDLED_TOOLS = ['vite', 'rolldown'];
  * 行全体が「`//#region` または `//`、半角空白 1 つ、空白を含まないパス」である行だけに一致させる。
  * 説明文のコメントや、コード中の文字列に現れるストアのパスを、モジュールの元パスと取り違えないためである。
  *
- * 2 つの形式を受け付ける理由（2026-11-02 に npm の tarball で確認した事実）:
+ * 2 つの形式を受け付ける理由（2026-11-02（日本時間）に npm の tarball で確認した事実）:
  *   - vite-plus 1.3.0 / @voidzero-dev/vite-plus-core 1.3.0 は、元パスを `//#region <パス>` で出力し、
  *     モジュールの末尾に `//#endregion` を置く。
  *     例: `//#region ../../node_modules/.pnpm/yaml@2.9.1/node_modules/yaml/dist/visit.js`
