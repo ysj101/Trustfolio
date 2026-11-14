@@ -41,7 +41,7 @@ export const BUNDLED_ADVISORY_EXCEPTIONS = [
   //   解除条件: picomatch 2.3.2 以上（または picomatch を同梱しない構成）の vite-plus へ
   //     更新した時点で削除する。
   {
-    bundle: '@voidzero-dev/vite-plus-core@1.4.0',
+    bundle: '@voidzero-dev/vite-plus-core@1.5.0',
     package: 'picomatch',
     version: '2.3.1',
     ghsaIds: ['GHSA-3v7f-55p6-f55p', 'GHSA-c2c7-rcm5-vvqj'],
@@ -55,7 +55,7 @@ export const BUNDLED_ADVISORY_EXCEPTIONS = [
   //     （scripts/build-styles.sh）が vite を介さずに生成する。解析する CSS も外部から入力されない。
   //   解除条件: postcss-selector-parser 7.1.6 以上を同梱した vite-plus へ更新した時点で削除する。
   {
-    bundle: '@voidzero-dev/vite-plus-core@1.4.0',
+    bundle: '@voidzero-dev/vite-plus-core@1.5.0',
     package: 'postcss-selector-parser',
     version: '7.1.0',
     ghsaIds: ['GHSA-rj75-hqrm-r3gf'],
@@ -93,62 +93,10 @@ export const BUNDLED_ADVISORY_EXCEPTIONS = [
   //     vite-plus へ更新した時点で削除する。削除するときは、vite.config.ts の forbidDevServerProxy
   //     プラグインと、その検証の tests/vite.config.test.ts も削除する。
   {
-    bundle: '@voidzero-dev/vite-plus-core@1.4.0',
+    bundle: '@voidzero-dev/vite-plus-core@1.5.0',
     package: 'follow-redirects',
     version: '1.16.0',
     ghsaIds: ['GHSA-8r9p-f939-6h3c', 'GHSA-mrwp-f3q8-3g9p', 'GHSA-q3jh-wrc6-jgq8'],
-  },
-  // brace-expansion 5.0.3（vite-plus の dist/editor-*.js に同梱。minimatch 10.2.4 が使う）
-  //   理由: 修正版（5.0.12）は公開済みだが、同梱されたコピーには overrides が効かない（通常の依存の
-  //     brace-expansion を修正版へ強制していた overrides の項目は、置き換える宣言がなくなったため issue #295 で
-  //     削除した）。移行前の vite-plus 0.3.1 も同じ 5.0.3 を同梱していた。
-  //   影響経路の評価: editor-*.js を読み込むのは dist/migration/bin.js と dist/create/bin.js だけであり、
-  //     vp migrate と vp create の実行時に限られる。本リポジトリが日常的に実行する vp build /
-  //     vp test / vp lint / vp fmt / vp check は読み込まない。vp migrate は vite-plus の更新時に
-  //     開発者が手動で実行するだけであり、展開するパターンは外部から入力されない。
-  //     GAS へデプロイする成果物には含まれない。
-  //   解除条件: brace-expansion 5.0.12 以上を同梱した vite-plus へ更新した時点で削除する。
-  {
-    bundle: 'vite-plus@1.4.0',
-    package: 'brace-expansion',
-    version: '5.0.3',
-    ghsaIds: [
-      'GHSA-3jxr-9vmj-r5cp',
-      'GHSA-6j4f-fj2g-mc7p',
-      'GHSA-f886-m6hf-6m8v',
-      'GHSA-jxxr-4gwj-5jf2',
-      'GHSA-mh99-v99m-4gvg',
-      'GHSA-q2hr-2g5m-vwhr',
-      'GHSA-qhr7-859c-m2p7',
-      'GHSA-rgw5-rvv9-x895',
-    ],
-  },
-  // minimatch 10.2.4（vite-plus の dist/editor-*.js に同梱）
-  //   理由: 修正版（11.0.1。2026-10-28 公開。日付は日本時間）は公開済みだが、同梱されたコピーには overrides が
-  //     効かない。2026-11-02 にアドバイザリの公表（2026-10-31）を受けて追加した（issue #295）。同日時点の最新版である
-  //     vite-plus 1.4.0（2026-10-23 公開）は修正版より前に公開されており、更新では解消できない。
-  //     vite-plus 1.3.0 では、同じ editor-*.js に同梱された glob 13.0.0（GHSA-3g3m-2fjr-6pw4）も例外としていた。
-  //     vite-plus 1.4.0 は glob を同梱せず、下記の globSync は tinyglobby 0.2.17 のものに置き換わったため、
-  //     glob の例外は vite-plus 1.4.0 への更新（PR #296）で削除した。
-  //   影響経路の評価: editor-*.js を読み込むのは dist/migration/bin.js と dist/create/bin.js だけであり、
-  //     vp migrate と vp create の実行時に限られる（上の brace-expansion と同じ経路）。本リポジトリが
-  //     日常的に実行する vp build / vp test / vp lint / vp fmt / vp check は読み込まない。
-  //     minimatch を直接呼ぶのは、editor-*.js のワークスペースのパターンとの照合（updateWorkspaceConfig）と、
-  //     editor-*.js から minimatch を import する dist/migration/bin.js の 4 か所（Vitest の設定の extends と
-  //     test.projects に書かれた参照のパターンと、ファイル・設定ファイルのディレクトリとの照合が 2 か所、
-  //     vitest の include / exclude / includeSource / benchmark / storybook の設定に書かれたパターンと
-  //     プロジェクト内のファイルとの照合が 2 か所）である。dist/create/bin.js は minimatch を呼ばない。
-  //     いずれのパターンも本リポジトリの設定ファイルに由来する。
-  //     GHSA-g3hv-75wg-m249（minimatch の前処理でパターンの要素が増幅され、CPU とメモリを消費する）は、
-  //     攻撃者がパターンを指定できる場合に成立するが、上記のパターンはいずれも本リポジトリの
-  //     設定ファイルに由来し、外部から入力されない。GAS へデプロイする成果物には含まれない。
-  //   解除条件: minimatch 11.0.1 以上を同梱した（または minimatch を同梱しない構成の）vite-plus へ
-  //     更新した時点で削除する。
-  {
-    bundle: 'vite-plus@1.4.0',
-    package: 'minimatch',
-    version: '10.2.4',
-    ghsaIds: ['GHSA-g3hv-75wg-m249'],
   },
   // zod 4.6.5（vite-plus の dist/sync-versions/bin.js・bin.mjs に同梱）
   //   理由: 修正版（4.6.6）は公開済みだが、同梱されたコピーには overrides（issue #291 の
@@ -167,7 +115,7 @@ export const BUNDLED_ADVISORY_EXCEPTIONS = [
   //     GAS へデプロイする成果物には含まれない。
   //   解除条件: zod 4.6.6 以上（または zod を同梱しない構成）の vite-plus へ更新した時点で削除する。
   {
-    bundle: 'vite-plus@1.4.0',
+    bundle: 'vite-plus@1.5.0',
     package: 'zod',
     version: '4.6.5',
     ghsaIds: ['GHSA-mrhx-c7xc-m3w5'],
