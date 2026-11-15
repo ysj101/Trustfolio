@@ -41,7 +41,7 @@
 overrides:
   qs@>=6.0.0 <6.16.0: ">=6.16.0 <7"
   express-rate-limit: ">=8.2.2"
-  "@hono/node-server@>=2.0.0 <2.1.3": ">=2.1.3 <3"
+  "@hono/node-server@>=2.0.0 <2.1.6": ">=2.1.6 <3"
   # gaxios 7.1.3 は rimraf 5 を宣言し、rimraf 5 が glob 10 系（GHSA-3g3m-2fjr-6pw4）と minimatch 10 系
   # （GHSA-g3hv-75wg-m249）を持ち込む（issue #295）。glob の修正版（14.0.2 以上）は rimraf 5 の宣言（^10.3.7）
   # の外であり、rimraf 自体に修正版はない。gaxios 7 系で rimraf を宣言するのは 7.1.3 だけであり（7.0.0〜7.3.1 の
@@ -51,7 +51,7 @@ overrides:
   # google-auth-library 10.5.0 と gtoken 8.0.0 の `^7.0.0`（いずれも置き換える前から 7.3.1 に解決されており、
   # 版は変わらない）である。判断理由は docs/UPGRADE_STRATEGY.md の「履歴」（2026-11-02）。
   gaxios@>=7.1.3 <7.1.4: ">=7.1.4 <8"
-  hono: ">=4.13.7 <5"
+  hono@>=4.0.0 <4.13.16: ">=4.13.16 <5"
   body-parser@>=2.0.0 <2.4.0: ">=2.4.0 <3"
   yaml: 2.8.3
   path-to-regexp: 8.4.0
