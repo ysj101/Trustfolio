@@ -1284,8 +1284,8 @@
     //   - 購入（購入金額→取得口数）: 保存される口数はサーバー側
     //     domain/PurchaseCalculator.ts の calculateUnits が計算する。利用者が
     //     プレビューと保存値の食い違いを目にしないよう、算出方式を calculateUnits と
-    //     厳密に一致させる（代金の円未満を四捨五入したときに購入金額を超えない最大の口数。
-    //     issue #260）。calculateUnits の算出方式を変更する際は、必ず本箇所も同時に更新すること。
+    //     厳密に一致させる（理論口数 10,000 × 購入金額 ÷ 基準価額 の小数第 1 位の四捨五入。
+    //     issue #260、#315）。calculateUnits の算出方式を変更する際は、必ず本箇所も同時に更新すること。
     //   - 売却（売却口数→売却金額）: 保存される売却金額は利用者が「売却金額」欄へ
     //     手入力した値であり、ここでの計算結果は保存されない（usecase/TransactionUseCase.ts の
     //     売却登録・更新処理は、同等の計算を行う domain/PurchaseCalculator.ts の
@@ -1296,7 +1296,7 @@
     const UNITS_BASE = 10000;
 
     /**
-     * 購入口数のプレビューに表示する文字列を決める（issue #260）。
+     * 購入口数のプレビューに表示する文字列を決める（issue #260、#315）。
      *
      * 保存される口数の規則（サーバー側）と一致させる:
      *   - 新規登録、または編集で購入金額か基準価額を変えた場合: calculateUnits と同じ式で計算した推定値。
@@ -1309,7 +1309,7 @@
      *   - すべての場合: 購入金額または基準価額が 1 以上の安全な整数でない（サーバー側の入力検証は、
      *     記録値と同じ値でも行われる）。
      *   - 口数を計算する場合（新規登録、または編集で購入金額か基準価額を変えた場合）だけ:
-     *     購入金額 × 10,000 + 4,999 が安全な整数の範囲を超える（購入金額が大きすぎる）、
+     *     購入金額 × 10,000 が安全な整数の範囲を超える（購入金額が大きすぎる）、
      *     または計算した口数が 0 以下になる（購入金額が基準価額に対して小さすぎる）。
      *     記録済みの口数を保持する場合は、サーバー側も calculateUnits を呼ばないため判定しない。
      *
@@ -1338,13 +1338,16 @@
       ) {
         return `${editingRecord.units.toLocaleString()}口（記録済みの口数を保持）`;
       }
-      // 代金の円未満を四捨五入したときに購入金額を超えない上限（10,000 × 購入金額 + 4,999）。
       // 計算し直す場合だけ、サーバー側 calculateUnits と同じく安全な整数の範囲に収まるかを確かめる。
-      const maxCostTimesUnitsBase = amount * UNITS_BASE + UNITS_BASE / 2 - 1;
-      if (!Number.isSafeInteger(maxCostTimesUnitsBase)) {
+      const amountTimesUnitsBase = amount * UNITS_BASE;
+      if (!Number.isSafeInteger(amountTimesUnitsBase)) {
         return null;
       }
-      const units = Math.floor(maxCostTimesUnitsBase / navValue);
+      // 理論口数（10,000 × 購入金額 ÷ 基準価額）の整数部（商）と、小数部を表す余りを、整数演算で求める。
+      const remainder = amountTimesUnitsBase % navValue;
+      const flooredUnits = (amountTimesUnitsBase - remainder) / navValue;
+      // 余りが基準価額の半分以上（理論口数の小数部が 0.5 以上）なら切り上げる（四捨五入）。
+      const units = remainder >= navValue - remainder ? flooredUnits + 1 : flooredUnits;
       // calculateUnits は口数が 0 以下になる購入金額を拒否するため、表示しない。
       if (units <= 0) {
         return null;

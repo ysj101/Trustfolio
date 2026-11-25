@@ -11,7 +11,7 @@ import { calculateUnits } from '../../src/domain/PurchaseCalculator';
  * 前提:
  * - scripts.html は素のJavaScriptであり、購入画面に表示する口数をブラウザ上で計算する。
  * - calculateUnits は登録時に使用する正式な購入口数を計算する。
- * - 両者の算出方式（代金の円未満を四捨五入したときに購入金額を超えない最大の口数。issue #260）
+ * - 両者の算出方式（理論口数 10,000 × 購入金額 ÷ 基準価額 の小数第 1 位の四捨五入。issue #260、#315）
  *   または1万口単位の定数が異なると、プレビューと登録結果が一致しなくなる。
  *
  * 検証項目:
@@ -40,7 +40,7 @@ function extractUnitsBase(source: string): number {
 }
 
 /**
- * scripts.html の buildPurchaseUnitsPreview（購入口数のプレビュー文字列、issue #260）を抽出する。
+ * scripts.html の buildPurchaseUnitsPreview（購入口数のプレビュー文字列、issue #260、#315）を抽出する。
  * 抽出できない場合は、関数の構造が変わったものとして直ちにエラーにする。
  */
 function extractBuildPurchaseUnitsPreview(
@@ -85,25 +85,48 @@ describe('scripts.html の購入口数プレビュー', () => {
       return Number(match[1].replace(/,/g, ''));
     };
 
+    // 前提条件は、各ケースの直前のコメントに記載する。
     const cases = [
+      // 5,000円・23,562円 の理論口数は 2,122.06口であり、四捨五入で 2,122口となる（issue #260 の実データ）。
+      // 切り上げ（2,123口）への回帰を検出できる。
       {
         description: 'SBI証券の実際の約定口数と一致する実データ（端数を切り捨てる側）の場合',
         amount: 5_000,
         navValue: 23_562,
         expectedUnits: 2_122,
       },
+      // 50,000円・42,313円 の理論口数は 11,816.70口であり、四捨五入で 11,817口となる（issue #315 の実データ）。
+      // 11,817口の代金は 50,001.27円で購入金額を超えるため、以前の「代金が購入金額を超えない最大の口数」
+      // （11,816口）や、単純な切り捨てへの回帰を検出できる。
       {
-        description: '理論口数の小数部が大きく、切り上げ側の口数になる場合',
-        amount: 5_000,
-        navValue: 23_508,
-        expectedUnits: 2_127,
+        description: 'SBI証券の実際の約定口数と一致する実データ（端数を切り上げる側）の場合',
+        amount: 50_000,
+        navValue: 42_313,
+        expectedUnits: 11_817,
       },
+      // 5,000円・32,000円 の理論口数は 1,562.5口であり、小数部がちょうど 0.5 のため切り上げて 1,563口となる。
+      {
+        description: '理論口数の小数部がちょうど 0.5 で、切り上げる場合',
+        amount: 5_000,
+        navValue: 32_000,
+        expectedUnits: 1_563,
+      },
+      // 900,719,925,474円 は、10,000 × 購入金額 が安全な整数に収まる上限の購入金額である。
+      // 基準価額 10,000円 では、口数は購入金額と同じ 900,719,925,474口となる。
+      {
+        description: '計算できる購入金額の上限の場合',
+        amount: 900_719_925_474,
+        navValue: 10_000,
+        expectedUnits: 900_719_925_474,
+      },
+      // 43,000 ÷ 15,625 × 10,000 は浮動小数点で 27519.999999999996 となるが、数学的には 27,520口である。
       {
         description: '数学的に割り切れるが、除算を先に行うと整数からずれる場合',
         amount: 43_000,
         navValue: 15_625,
         expectedUnits: 27_520,
       },
+      // 15,000円・15,000円 は 10,000口ちょうどで割り切れる。
       {
         description: '計算結果が整数で割り切れる場合',
         amount: 15_000,
@@ -113,13 +136,6 @@ describe('scripts.html の購入口数プレビュー', () => {
     ];
 
     for (const testCase of cases) {
-      // 前提条件:
-      // - 5,000円・23,562円 の理論口数は 2,122.06口であり、2,123口の代金は 5,002円で購入金額を超える。
-      //   このため 2,122口となり、以前の切り上げ（2,123口）への回帰を検出できる。
-      // - 5,000円・23,508円 の理論口数は 2,126.94口であり、2,127口の代金は 5,000.15円 → 5,000円で
-      //   購入金額を超えない。このため 2,127口となり、単純な切り捨て（2,126口）との違いを検出できる。
-      // - 43,000 ÷ 15,625 × 10,000 は浮動小数点で 27519.999999999996 となるが、数学的には 27,520口である。
-      // - 15,000円・15,000円 は 10,000口ちょうどで割り切れる。
       const serverResult = calculateUnits(testCase.amount, testCase.navValue);
       if (!serverResult.success) {
         throw new Error(
@@ -133,6 +149,29 @@ describe('scripts.html の購入口数プレビュー', () => {
       expect(previewUnits, testCase.description).toBe(testCase.expectedUnits);
       expect(previewUnits, testCase.description).toBe(serverResult.value);
     }
+  });
+
+  it('多数の購入金額と基準価額の組み合わせで、新規登録時のプレビューがサーバー側 calculateUnits と一致する', () => {
+    // 前提: プレビューの式は calculateUnits の式を scripts.html に書き写したものであり、片方だけが変更されうる
+    // 事前条件: 購入金額 1〜100,000円（997円刻み）と、基準価額 1〜60,000円（97円刻み）の全組み合わせを用意する。
+    //   理論口数が 0.5 未満（口数 0 で拒否）、0.5 以上 1 未満（1口）、1 以上の範囲をすべて含む
+    // 検証: calculateUnits が成功する組み合わせでは同じ口数を「N口」と表示し、失敗する組み合わせでは null を返す
+    const mismatches: string[] = [];
+    for (let amount = 1; amount <= 100000; amount += 997) {
+      for (let navValue = 1; navValue <= 60000; navValue += 97) {
+        const serverResult = calculateUnits(amount, navValue);
+        const expectedText = serverResult.success
+          ? `${serverResult.value.toLocaleString()}口`
+          : null;
+        const previewText = preview(amount, navValue, null);
+        if (previewText !== expectedText) {
+          mismatches.push(
+            `${amount}円・${navValue}円: プレビュー「${String(previewText)}」、サーバー「${String(expectedText)}」`
+          );
+        }
+      }
+    }
+    expect(mismatches).toEqual([]);
   });
 });
 
@@ -170,7 +209,7 @@ describe('scripts.html の購入口数プレビュー（スポット購入の編
   });
 
   it('口数が0になる購入金額では、登録を拒否する calculateUnits と同じく口数を表示しない', () => {
-    // 前提: 基準価額 23,562円 に対して購入金額 1円 では、代金が購入金額を超えない口数は 0口である
+    // 前提: 基準価額 23,562円 に対して購入金額 1円 では、理論口数は 0.42口であり、四捨五入で 0口になる
     // 検証: calculateUnits は検証エラーを返し、プレビューは null（「-」表示）になる
     expect(calculateUnits(1, 23562).success).toBe(false);
     expect(preview(1, 23562, null)).toBeNull();
@@ -178,14 +217,14 @@ describe('scripts.html の購入口数プレビュー（スポット購入の編
 
   it('記録値と同じ金額・基準価額なら、計算途中の値が安全な整数の範囲を超える金額でも記録済みの口数を表示する', () => {
     // 前提: サーバー側の updateSpotPurchase は、金額と基準価額が記録値と同じなら calculateUnits を呼ばない
-    // 事前条件: 購入金額 900,719,925,474円（× 10,000 + 4,999 が安全な整数の範囲を超える）の記録を、
-    //   金額・基準価額を変えずに編集する
+    // 事前条件: 購入金額 900,719,925,475円（計算できる上限 900,719,925,474円 より 1円多く、
+    //   × 10,000 が安全な整数の範囲を超える）の記録を、金額・基準価額を変えずに編集する
     // 検証: 計算できないとはせず、記録済みの口数を表示する（保存時の挙動と一致する）
-    const 大きい記録 = { amount: 900_719_925_474, navValue: 10_000, units: 900_719_925_474 };
-    expect(preview(900_719_925_474, 10_000, 大きい記録)).toBe(
-      `${(900_719_925_474).toLocaleString()}口（記録済みの口数を保持）`
+    const 大きい記録 = { amount: 900_719_925_475, navValue: 10_000, units: 900_719_925_475 };
+    expect(preview(900_719_925_475, 10_000, 大きい記録)).toBe(
+      `${(900_719_925_475).toLocaleString()}口（記録済みの口数を保持）`
     );
-    expect(preview(900_719_925_474, 10_000, null)).toBeNull();
+    expect(preview(900_719_925_475, 10_000, null)).toBeNull();
   });
 
   it('記録値が整数でない場合は、記録値と同じ金額でも口数を表示しない', () => {
