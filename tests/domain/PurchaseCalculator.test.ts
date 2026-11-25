@@ -2,19 +2,24 @@ import { describe, expect, it } from 'vite-plus/test';
 import { calculateUnits, calculateValue } from '../../src/domain/PurchaseCalculator';
 
 /**
- * 口数 u の代金（u × 基準価額 ÷ 10,000 の円未満を四捨五入した額）を、BigInt で厳密に計算する。
+ * 口数が「理論口数（10,000 × 購入金額 ÷ 基準価額）の小数第 1 位の四捨五入」になっているかを、
+ * 四捨五入の定義から BigInt で厳密に判定する。
  *
- * calculateUnits の算出方式（issue #260）を、仕様の定義どおりに検算するためのテスト用関数である。
+ * calculateUnits の算出方式（issue #315）を、実装の式とは別の形で検算するためのテスト用関数である。
+ * 四捨五入した口数 u は、理論口数 t に対して `t - 0.5 < u ≦ t + 0.5` を満たすただ 1 つの整数である
+ * （小数部がちょうど 0.5 のときは大きい側）。両辺に 2 × 基準価額 を掛けて整数だけで表すと、
+ * `-基準価額 < 2 × (u × 基準価額 - 10,000 × 購入金額) ≦ 基準価額` になる。
  * 浮動小数点を使わないため、検算の側に丸め誤差が入らない。
  *
- * @param units 口数
+ * @param units 判定する口数
+ * @param amount 購入金額（円）
  * @param navValue 基準価額（1万口あたりの円）
- * @returns 代金（円）
+ * @returns 四捨五入した口数であれば true
  */
-function costInYen(units: number, navValue: number): bigint {
-  const tenThousandTimesCost = BigInt(units) * BigInt(navValue);
-  // 円未満の四捨五入: (x + 5,000) を 10,000 で割った商（切り捨て）が、x ÷ 10,000 を四捨五入した値になる。
-  return (tenThousandTimesCost + 5000n) / 10000n;
+function isRoundedUnits(units: number, amount: number, navValue: number): boolean {
+  const nav = BigInt(navValue);
+  const doubledDifference = 2n * (BigInt(units) * nav - BigInt(amount) * 10000n);
+  return -nav < doubledDifference && doubledDifference <= nav;
 }
 
 describe('PurchaseCalculator', () => {
@@ -44,7 +49,7 @@ describe('PurchaseCalculator', () => {
     });
 
     it('購入金額が整数でない場合は検証エラーを返す', () => {
-      // 前提: 代金の円未満の扱いは、購入金額が円単位の整数であることを前提にしている
+      // 前提: 購入金額の入力欄は 1 円単位であり、calculateUnits は円単位の整数だけを受け付ける
       // 事前条件: 1円未満の端数を含む購入金額（5,000.5円）を渡す
       // 検証: 購入金額のバリデーションエラーが返る
       const result = calculateUnits(5000.5, 23562);
@@ -68,15 +73,19 @@ describe('PurchaseCalculator', () => {
     });
 
     it('計算できる購入金額の上限は受け付け、上限より 1 円多い購入金額は拒否する', () => {
-      // 前提: 10,000 × 購入金額 + 4,999 が安全な整数（2^53 - 1 以下）であれば計算できる
-      // 事前条件: 上限の購入金額は 900,719,925,473円、その次は 900,719,925,474円 である（基準価額 10,000円）
-      // 検証: 上限では BigInt で厳密に計算した口数と一致し、上限 + 1 円では購入金額の検証エラーになる
-      const maxAmount = 900_719_925_473;
-      const atMax = calculateUnits(maxAmount, 10000);
-      expect(atMax.success).toBe(true);
-      if (atMax.success) {
-        const exactUnits = (BigInt(maxAmount) * 10000n + 4999n) / 10000n;
-        expect(BigInt(atMax.value)).toBe(exactUnits);
+      // 前提: 10,000 × 購入金額 が安全な整数（2^53 - 1 以下）であれば計算できる。上限は基準価額に依存しない
+      // 事前条件: 上限の購入金額は 900,719,925,474円、その次は 900,719,925,475円 である。
+      //   基準価額は、割り切れる 10,000円 と、割り切れない 42,313円 の 2 通りを用いる
+      // 検証: 上限では BigInt で厳密に判定した四捨五入の口数であり、上限 + 1 円では購入金額の検証エラーになる
+      const maxAmount = 900_719_925_474;
+      for (const navValue of [10000, 42313]) {
+        const atMax = calculateUnits(maxAmount, navValue);
+        expect(atMax.success, `基準価額 ${navValue}円`).toBe(true);
+        if (atMax.success) {
+          expect(isRoundedUnits(atMax.value, maxAmount, navValue), `基準価額 ${navValue}円`).toBe(
+            true
+          );
+        }
       }
       const overMax = calculateUnits(maxAmount + 1, 10000);
       expect(overMax.success).toBe(false);
@@ -86,7 +95,7 @@ describe('PurchaseCalculator', () => {
     });
 
     it('購入金額が大きすぎて安全に計算できない場合は検証エラーを返す', () => {
-      // 前提: 10,000 × 購入金額 + 4,999 が安全な整数（2^53 未満）を超えると、計算結果を保証できない
+      // 前提: 10,000 × 購入金額 が安全な整数（2^53 未満）を超えると、計算結果を保証できない
       // 事前条件: Number.MAX_SAFE_INTEGER の購入金額を渡す
       // 検証: 購入金額のバリデーションエラーが返る
       const result = calculateUnits(Number.MAX_SAFE_INTEGER, 23562);
@@ -98,12 +107,12 @@ describe('PurchaseCalculator', () => {
     });
   });
 
-  describe('calculateUnits の算出方式（代金が購入金額を超えない最大の口数）', () => {
+  describe('calculateUnits の算出方式（理論口数の小数第 1 位の四捨五入）', () => {
     it('SBI証券の実際の約定口数（2026-10-02 のゴールドファンドの積立）と一致する', () => {
       // 前提: ＳＢＩ・iシェアーズ・ゴールドファンド（為替ヘッジなし）を 5,000円 積立購入し、
       //   基準価額 23,562円 で 2,122口 が約定した（issue #260 の実データ）
-      // 事前条件: 理論口数は 2,122.06口。2,123口の代金は 5,002円で購入金額を超える
-      // 検証: 約定口数と同じ 2,122口 が返る（以前の切り上げでは 2,123口だった）
+      // 事前条件: 理論口数は 2,122.06口であり、小数部が 0.5 未満である
+      // 検証: 約定口数と同じ 2,122口 が返る（切り上げでは 2,123口になる）
       const result = calculateUnits(5000, 23562);
       expect(result.success).toBe(true);
       if (result.success) {
@@ -111,14 +120,41 @@ describe('PurchaseCalculator', () => {
       }
     });
 
-    it('理論口数の小数部が大きく、切り上げた口数の代金が購入金額を超えない場合は切り上げ側を返す', () => {
-      // 前提: 5,000円・基準価額 23,508円 の理論口数は 2,126.94口である
-      // 事前条件: 2,127口の代金は 5,000.15円 → 四捨五入で 5,000円となり、購入金額を超えない
-      // 検証: 単純な切り捨て（2,126口）ではなく 2,127口 が返る
-      const result = calculateUnits(5000, 23508);
+    it('SBI証券の実際の約定口数（2026-11-25 の S&P500 の購入）と一致する', () => {
+      // 前提: eMAXIS Slim 米国株式（S&P500）を SBI証券の特定口座で 50,000円 購入し、
+      //   基準価額 42,313円 で 11,817口 が約定した（issue #315 の実データ）
+      // 事前条件: 理論口数は 11,816.70口であり、小数部が 0.5 以上である。
+      //   11,817口の代金は 50,001.27円で購入金額を超える
+      // 検証: 約定口数と同じ 11,817口 が返る（以前の「代金が購入金額を超えない最大の口数」では
+      //   11,816口だった）
+      const result = calculateUnits(50000, 42313);
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.value).toBe(2127);
+        expect(result.value).toBe(11817);
+      }
+    });
+
+    it('理論口数の小数部がちょうど 0.5 の場合は切り上げる', () => {
+      // 前提: 5,000円・基準価額 32,000円 の理論口数は 50,000,000 ÷ 32,000 = 1,562.5口である
+      // 事前条件: 小数部がちょうど 0.5 の場合の販売会社の扱いは不明であり、一般的な四捨五入とする
+      // 検証: 1,563口 が返る
+      const result = calculateUnits(5000, 32000);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.value).toBe(1563);
+      }
+    });
+
+    it('理論口数が 0.5 以上 1 未満の場合は 1口を返し、0.5 未満の場合は検証エラーを返す', () => {
+      // 前提: 1円・基準価額 20,000円 の理論口数は 0.5口、1円・基準価額 20,001円 の理論口数は 0.49998口である
+      // 事前条件: 四捨五入すると、前者は 1口、後者は 0口になる
+      // 検証: 前者は 1口 が返り、後者は口数が 0 以下であるとして購入金額の検証エラーになる
+      expect(calculateUnits(1, 20000)).toEqual({ success: true, value: 1 });
+      const belowHalf = calculateUnits(1, 20001);
+      expect(belowHalf.success).toBe(false);
+      if (!belowHalf.success) {
+        expect(belowHalf.error.field).toBe('amount');
+        expect(belowHalf.error.message).toContain('0以下');
       }
     });
 
@@ -142,11 +178,12 @@ describe('PurchaseCalculator', () => {
       }
     });
 
-    it('多数の購入金額と基準価額の組み合わせで、代金が購入金額を超えない最大の口数を返す', () => {
-      // 前提: 算出方式の定義は「口数 u の代金 ≦ 購入金額」かつ「口数 u + 1 の代金 > 購入金額」である
+    it('多数の購入金額と基準価額の組み合わせで、理論口数を四捨五入した口数を返す', () => {
+      // 前提: 算出方式の定義は「理論口数（10,000 × 購入金額 ÷ 基準価額）の小数第 1 位の四捨五入」である
       // 事前条件: 購入金額 1,000〜100,000円（1,000円刻み）と、基準価額 5,000〜60,000円（97円刻み）の
-      //   全組み合わせを用意し、代金は BigInt で厳密に計算する
-      // 検証: すべての組み合わせで、返された口数が定義の 2 条件を満たす
+      //   全組み合わせを用意し、四捨五入の定義（理論口数との差が 0.5 以下で、ちょうど 0.5 のときは
+      //   大きい側）を満たすかを BigInt で厳密に判定する
+      // 検証: すべての組み合わせで、返された口数が四捨五入の定義を満たす
       const violations: string[] = [];
       for (let amount = 1000; amount <= 100000; amount += 1000) {
         for (let navValue = 5000; navValue <= 60000; navValue += 97) {
@@ -155,11 +192,8 @@ describe('PurchaseCalculator', () => {
             violations.push(`${amount}円・${navValue}円: ${result.error.message}`);
             continue;
           }
-          const units = result.value;
-          const withinAmount = costInYen(units, navValue) <= BigInt(amount);
-          const nextExceeds = costInYen(units + 1, navValue) > BigInt(amount);
-          if (!withinAmount || !nextExceeds) {
-            violations.push(`${amount}円・${navValue}円: ${units}口`);
+          if (!isRoundedUnits(result.value, amount, navValue)) {
+            violations.push(`${amount}円・${navValue}円: ${result.value}口`);
           }
         }
       }
