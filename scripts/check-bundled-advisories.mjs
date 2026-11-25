@@ -16,7 +16,7 @@
  *
  * 内容:
  *   1. プロジェクトに導入された `vite-plus` と、`vite-plus` が `vite` として解決する
- *      `@voidzero-dev/vite-plus-core` の位置を特定する。両者の版が一致しない場合は例外を投げる。
+ *      `@voidzero-dev/vite-plus-core` の位置を特定する。解決した版が CLI の依存指定と異なる場合は例外を投げる。
  *   2. 同梱されたパッケージを、次の 2 つの情報源から抽出する。
  *      - `@voidzero-dev/vite-plus-core` の `package.json` の `bundledVersions`
  *        （vite / rolldown / tsdown の版。Vite+ が公式に宣言している値）
@@ -298,7 +298,9 @@ export function parseBundledVersions(bundledVersions) {
  *   位置を特定する。`@voidzero-dev/vite-plus-core` は、`vite-plus` の依存 `vite` として解決する。
  *
  * 注意:
- *   `vite-plus` と `@voidzero-dev/vite-plus-core` の版が一致しない場合は例外を投げる。
+ *   `vite-plus` の dependencies.vite が指定する、完全一致の npm 別名から必要なコアの版を読む。
+ *   CLI 1.7.0 とコア 8.3.8000 のように、両パッケージの版番号は異なりうる。
+ *   依存指定が想定した形式でない場合、または解決されたコアの版が指定と異なる場合は例外を投げる。
  *   この状態では `vp build` が失敗し（`Expected @voidzero-dev/vite-plus-core@X, but found Y`）、
  *   検査対象も実際に使われる組み合わせと食い違うためである。`pnpm-workspace.yaml` の
  *   `catalog` で `vite-plus` だけを更新した場合（Dependabot の更新 PR）に発生する。
@@ -307,12 +309,27 @@ export function parseBundledVersions(bundledVersions) {
  * @param {typeof readFileSync} readFile ファイル読み込み関数
  * @returns {Array<{ name: string, version: string, directory: string, manifest: Record<string, unknown> }>}
  *   `vite-plus`、`@voidzero-dev/vite-plus-core` の順の配列
- * @throws {Error} パッケージを解決できない場合、名前が想定と異なる場合、版が一致しない場合
+ * @throws {Error} パッケージを解決できない場合、依存指定の形式・名前・解決版が想定と異なる場合
  */
 export function resolveVitePlusPackages(projectRoot, readFile) {
   const projectRequire = createRequire(path.join(projectRoot, 'package.json'));
   const vitePlusManifestPath = projectRequire.resolve('vite-plus/package.json');
   const vitePlusManifest = JSON.parse(readFile(vitePlusManifestPath, 'utf-8'));
+
+  // CLI とコアの版番号の付け方には依存せず、配布物が宣言する組み合わせだけを受け付ける。
+  // 範囲指定や宣言の欠落を CLI 自身の版で補わず、配布形式の変更として即座に失敗させる。
+  const coreAlias = vitePlusManifest.dependencies?.vite;
+  const aliasPrefix = `npm:${CORE_PACKAGE_NAME}@`;
+  if (
+    typeof coreAlias !== 'string' ||
+    !coreAlias.startsWith(aliasPrefix) ||
+    !VERSION_PATTERN.test(coreAlias.slice(aliasPrefix.length))
+  ) {
+    throw new Error(
+      `vite-plus の dependencies.vite が完全一致の別名（${aliasPrefix}<版>）ではありません: ${JSON.stringify(coreAlias)}`
+    );
+  }
+  const expectedCoreVersion = coreAlias.slice(aliasPrefix.length);
 
   // vite-plus の依存 vite は、vite-plus-core への別名（npm:@voidzero-dev/vite-plus-core@<版>）である
   const coreManifestPath = createRequire(vitePlusManifestPath).resolve('vite/package.json');
@@ -322,10 +339,10 @@ export function resolveVitePlusPackages(projectRoot, readFile) {
       `vite-plus の依存 vite が ${CORE_PACKAGE_NAME} に解決されていません（解決先: ${coreManifest.name}@${coreManifest.version}）。`
     );
   }
-  if (coreManifest.version !== vitePlusManifest.version) {
+  if (coreManifest.version !== expectedCoreVersion) {
     throw new Error(
-      `vite-plus（${vitePlusManifest.version}）と ${CORE_PACKAGE_NAME}（${coreManifest.version}）の版が一致しません。` +
-        'pnpm-workspace.yaml の catalog の vite-plus と vite（vite-plus-core の別名）を同じ版にそろえてください' +
+      `vite-plus（${vitePlusManifest.version}）が指定する ${CORE_PACKAGE_NAME}（${expectedCoreVersion}）と解決された版（${coreManifest.version}）が一致しません。` +
+        'pnpm-workspace.yaml の catalog の vite を vite-plus の dependencies.vite と一致させてください' +
         '（手順は docs/UPGRADE_STRATEGY.md の「Vite+（vp）への一本化の記録」を参照）。'
     );
   }

@@ -287,13 +287,21 @@ describe('scripts/check-bundled-advisories', () => {
      * node_modules/vite-plus と、vite-plus の依存 vite（vite-plus-core の別名）を配置する。
      * 実際の pnpm の配置と同様に、vite は vite-plus 自身の node_modules から解決される。
      */
-    function installPackages(vitePlusVersion: string, core: { name: string; version: string }) {
+    function installPackages(
+      vitePlusVersion: string,
+      core: { name: string; version: string },
+      viteDependency: unknown
+    ) {
       const vitePlusDirectory = path.join(projectRoot, 'node_modules', 'vite-plus');
       const coreDirectory = path.join(vitePlusDirectory, 'node_modules', 'vite');
       mkdirSync(coreDirectory, { recursive: true });
       writeFileSync(
         path.join(vitePlusDirectory, 'package.json'),
-        JSON.stringify({ name: 'vite-plus', version: vitePlusVersion })
+        JSON.stringify({
+          name: 'vite-plus',
+          version: vitePlusVersion,
+          dependencies: { vite: viteDependency },
+        })
       );
       writeFileSync(path.join(coreDirectory, 'package.json'), JSON.stringify(core));
       return { vitePlusDirectory, coreDirectory };
@@ -302,10 +310,11 @@ describe('scripts/check-bundled-advisories', () => {
     it('vite-plus と、vite-plus が vite として解決する vite-plus-core を返す', () => {
       // 前提: vite-plus 1.1.0 と @voidzero-dev/vite-plus-core 1.1.0 が導入されている
       // 検証: 両パッケージの名前・版・ディレクトリが、vite-plus → vite-plus-core の順で返る
-      const { vitePlusDirectory, coreDirectory } = installPackages('1.1.0', {
-        name: '@voidzero-dev/vite-plus-core',
-        version: '1.1.0',
-      });
+      const { vitePlusDirectory, coreDirectory } = installPackages(
+        '1.1.0',
+        { name: '@voidzero-dev/vite-plus-core', version: '1.1.0' },
+        'npm:@voidzero-dev/vite-plus-core@1.1.0'
+      );
 
       const [vitePlus, core] = resolveVitePlusPackages(projectRoot, readFileSync);
 
@@ -321,21 +330,79 @@ describe('scripts/check-bundled-advisories', () => {
       });
     });
 
-    it('vite-plus と vite-plus-core の版が一致しない場合は例外にする', () => {
+    it('CLI とコアの版番号が異なっても、依存指定と一致する組み合わせを受け付ける', () => {
+      // 前提: 実際の CLI 1.7.0 は、dependencies.vite でコア 8.3.8000 を指定する。
+      // 検証: 旧来の「CLI とコアの同一版」という条件で誤って失敗させず、解決した版を返す。
+      installPackages(
+        '1.7.0',
+        { name: '@voidzero-dev/vite-plus-core', version: '8.3.8000' },
+        'npm:@voidzero-dev/vite-plus-core@8.3.8000'
+      );
+
+      const [vitePlus, core] = resolveVitePlusPackages(projectRoot, readFileSync);
+
+      expect(vitePlus.version).toBe('1.7.0');
+      expect(core.version).toBe('8.3.8000');
+    });
+
+    it('依存指定と解決された vite-plus-core の版が一致しない場合は例外にする', () => {
       // 前提: Dependabot が catalog の vite-plus だけを 1.2.0 へ更新し、vite の別名が 1.1.0 のまま残っている
       // 事前条件: この状態では vp build が「Expected @voidzero-dev/vite-plus-core@1.2.0」で失敗する
       // 検証: 実際に使われない組み合わせを検査せず、両方の版を示して例外を投げる
-      installPackages('1.2.0', { name: '@voidzero-dev/vite-plus-core', version: '1.1.0' });
+      installPackages(
+        '1.2.0',
+        { name: '@voidzero-dev/vite-plus-core', version: '1.1.0' },
+        'npm:@voidzero-dev/vite-plus-core@1.2.0'
+      );
 
       expect(() => resolveVitePlusPackages(projectRoot, readFileSync)).toThrow(
-        'vite-plus（1.2.0）と @voidzero-dev/vite-plus-core（1.1.0）の版が一致しません。'
+        'vite-plus（1.2.0）が指定する @voidzero-dev/vite-plus-core（1.2.0）と解決された版（1.1.0）が一致しません。'
+      );
+    });
+
+    it('CLI 1.7.0 が要求するコアを導入せず旧版を残した場合は例外にする', () => {
+      // 前提: PR #313 の失敗時と同じく、CLI が 8.3.8000 を要求しても、解決版は旧コア 1.6.0 である。
+      // 検証: 版の不一致を許容せず、必要な版と解決版を示して監査を中止する。
+      installPackages(
+        '1.7.0',
+        { name: '@voidzero-dev/vite-plus-core', version: '1.6.0' },
+        'npm:@voidzero-dev/vite-plus-core@8.3.8000'
+      );
+
+      expect(() => resolveVitePlusPackages(projectRoot, readFileSync)).toThrow(
+        'vite-plus（1.7.0）が指定する @voidzero-dev/vite-plus-core（8.3.8000）と解決された版（1.6.0）が一致しません。'
+      );
+    });
+
+    it.each([
+      ['指定の欠落', undefined],
+      ['null の指定', null],
+      ['数値の指定', 8],
+      ['別名ではない指定', '8.3.8000'],
+      ['別パッケージの指定', 'npm:vite@8.3.8000'],
+      ['範囲による指定', 'npm:@voidzero-dev/vite-plus-core@^8.3.8000'],
+    ])('依存が完全一致のコア別名でない場合は即座に失敗する: %s', (_, viteDependency) => {
+      // 前提: CLI の配布形式が変更され、必要なコアの完全一致版を読み取れない。
+      // 検証: CLI の版や導入済みのコアの版から推測せず、依存指定の異常を報告する。
+      installPackages(
+        '1.7.0',
+        { name: '@voidzero-dev/vite-plus-core', version: '8.3.8000' },
+        viteDependency
+      );
+
+      expect(() => resolveVitePlusPackages(projectRoot, readFileSync)).toThrow(
+        'vite-plus の dependencies.vite が完全一致の別名'
       );
     });
 
     it('vite-plus の依存 vite が vite-plus-core 以外に解決される場合は例外にする', () => {
       // 前提: overrides の誤りなどで、vite-plus の依存 vite が単体の vite 8.3.3 に解決されている
       // 検証: 解決先を示して例外を投げる
-      installPackages('1.1.0', { name: 'vite', version: '8.3.3' });
+      installPackages(
+        '1.1.0',
+        { name: 'vite', version: '8.3.3' },
+        'npm:@voidzero-dev/vite-plus-core@1.1.0'
+      );
 
       expect(() => resolveVitePlusPackages(projectRoot, readFileSync)).toThrow(
         'vite-plus の依存 vite が @voidzero-dev/vite-plus-core に解決されていません（解決先: vite@8.3.3）。'
@@ -554,7 +621,11 @@ describe('scripts/check-bundled-advisories', () => {
       mkdirSync(path.join(coreDirectory, 'dist'), { recursive: true });
       writeFileSync(
         path.join(vitePlusDirectory, 'package.json'),
-        JSON.stringify({ name: 'vite-plus', version: '1.1.0' })
+        JSON.stringify({
+          name: 'vite-plus',
+          version: '1.1.0',
+          dependencies: { vite: 'npm:@voidzero-dev/vite-plus-core@1.1.0' },
+        })
       );
       writeFileSync(
         path.join(vitePlusDirectory, 'dist', 'bin.js'),

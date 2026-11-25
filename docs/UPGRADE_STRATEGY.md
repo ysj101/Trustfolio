@@ -188,7 +188,7 @@ pnpm push
 - **解除条件**: `@google/clasp` を更新した際は、その時点の推移的依存（`@formatjs/intl` のバージョンと peer 宣言）を再評価し、typescript peer 警告が発生しなくなっていれば本ルールを削除する。警告が残る場合は、検証したバージョンへ限定を付け替えた上で本セクションを更新する。
 - **レンジ拡張（2026-07-23、issue #175 Phase 2）**: TypeScript を 6.0.3 → 7.0.2 へ更新した際、許容レンジを `^6.0.0` から `^6.0.0 || ^7.0.0` へ拡張した。判断理由・許容範囲の限定・解除条件は上記のとおり変わらない（TypeScript 7 でも `@formatjs/intl@3.1.8` の optional peer 宣言は `^5.6.0` のままであることを確認済み）。
 
-### `vitest@<版>>vite` と `@vitest/mocker@<版>>vite`（2026-10-12 追加、issue #272。現在の値は `pnpm-workspace.yaml` の `peerDependencyRules.allowedVersions` を正とする）
+### `vitest@<版>>vite` と `@vitest/mocker@<版>>vite`（2026-10-12 追加、issue #272。2026-11-26、PR #313 で削除）
 
 - **経緯**: Vite+ 1.1.0 へ移行した際（後述の「Vite+（vp）への一本化の記録」）、`vite` が `@voidzero-dev/vite-plus-core@1.1.0`（Vite+ 版の vite）への別名に解決されるようになった。`vitest@5.0.3` と `@vitest/mocker@5.0.3` は peerDependencies に `vite: ^6.4.0 || ^7.0.0 || ^8.0.0`（`@vitest/mocker` は `^6.0.0 || ^7.0.0 || ^8.0.0`）を宣言しており、解決された版番号 `1.1.0` がこの範囲を満たさないため、`pnpm install` で unmet peer 警告が 2 件発生した。
 - **判断理由**:
@@ -202,6 +202,7 @@ pnpm push
   - 2026-10-22（issue #286）: vite-plus 1.3.0 への更新で vitest が 5.0.5、vite-plus-core が 1.3.0 になり、警告が 2 件再び出た。`vitest@5.0.5>vite: 1.3.0`、`@vitest/mocker@5.0.5>vite: 1.3.0` へ付け替え、`pnpm install --resolution-only` で 2 件の警告が消えることを確認した。判断理由は上記と変わらない（`@voidzero-dev/vite-plus-core@1.3.0` の `bundledVersions` は `"vite": "8.3.4"`）。
   - 2026-11-14（PR #302）: vite-plus 1.5.0 への更新で vitest が 5.1.0、vite-plus-core が 1.5.0 になった。`vp migrate` が追加した全面抑止を削除し、`vitest@5.1.0>vite: 1.5.0`、`@vitest/mocker@5.1.0>vite: 1.5.0` へ付け替えた。`pnpm install --resolution-only` で残る警告は `fdir 6.5.0` の `picomatch@4.0.4: found 4.0.7` だけ（更新前と同じ）であることを確認した。判断理由は上記と変わらない（`@voidzero-dev/vite-plus-core@1.5.0` の `bundledVersions` は `"vite": "8.3.5"`）。
   - 2026-11-16（PR #306）: vite-plus と vite-plus-core を 1.6.0 へそろえた。同梱 Vitest は 5.1.0 のままであり、許容ルールは `vitest@5.1.0>vite: 1.6.0` と `@vitest/mocker@5.1.0>vite: 1.6.0` へ付け替えた。`vp migrate` が追加した全面抑止は削除した。判断理由は上記と同じであり、vite-plus-core 1.6.0 の `bundledVersions` は vite 8.3.7 を示す。残る peer 警告は更新前と同じ fdir 6.5.0 の picomatch（要求 4.0.4、解決 4.0.7）だけである。
+- **削除の記録（2026-11-26、PR #313）**: vite-plus 1.7.0 のコアは 8.3.8000 になり、Vitest 5.1.0 と @vitest/mocker 5.1.0 が宣言する vite の `^8.0.0` を満たす。2 件の許容ルールを削除し、`vp migrate` が追加した vitest の全面抑止も除去した後に、`pnpm install --resolution-only` で両者の警告が出ないことを確認した。
 - **解除条件**: vite-plus を更新した際は、`pnpm install --resolution-only` の出力で警告を確認し、親セレクタと許容する版を新しい組み合わせへ付け替える。Vite+ が vite-plus-core の版番号を vite の版番号と一致させた場合、または vitest が vite-plus-core を peer として受け付けるようになった場合は、本ルールを削除する。
 - **残っている警告**: `vitest > tinyglobby 0.2.17 > fdir 6.5.0` の `unmet peer picomatch@4.0.4: found 4.0.7` は、移行前の main（`vite 8.3.3 > tinyglobby 0.2.17 > fdir 6.5.0`）から出ている警告であり、Vite+ の移行・更新では扱わない（最終確認: 2026-10-22、vite-plus 1.3.0 > vitest 5.0.5、issue #286）。
 
@@ -341,7 +342,7 @@ Safe Chain の版は composite action とインストール手順に直接書い
 
 ### peer 依存の検査（issue #272 の方針 6-2 の結論）
 
-`vp migrate` が追加した `peerDependencyRules.allowAny: [vite, vitest]` と `allowedVersions` の `vite: "*"` / `vitest: "*"` を削除し、親セレクタで限定した 2 件のルールへ置き換えた。詳細は「peer 依存の明示的許容（peerDependencyRules）の記録」の `vitest@<版>>vite` の項を参照。
+`vp migrate` が追加した `peerDependencyRules.allowAny: [vite, vitest]` と `allowedVersions` の `vite: "*"` / `vitest: "*"` を削除し、親セレクタで限定した 2 件のルールへ置き換えた。両ルールは、コアの版が Vitest の要求範囲内になった PR #313 で削除した。詳細は「peer 依存の明示的許容（peerDependencyRules）の記録」の `vitest@<版>>vite` の項を参照。
 
 ### Dependabot と catalog の関係
 
@@ -351,7 +352,7 @@ Safe Chain の版は composite action とインストール手順に直接書い
   - `.github/workflows/test.yml` の Unit Tests ジョブに `pnpm build` を追加した。Unit Tests は main のルールセットの必須チェックであるため、vite-plus だけを更新した Dependabot PR は失敗し、自動マージ（`dependabot-auto-merge.yml`）も止まる。
   - `.github/dependabot.yml` で `vite`・`vitest`・`@vitest/coverage-v8` の全更新を `ignore` で除外した。これらの版は vite-plus が決めるためである。
   - `.github/dependabot.yml` の `development` グループから `vite-plus` を `exclude-patterns` で外した。vite-plus の更新 PR は上記のとおり `vp migrate` まで CI が失敗するため、グループに含めると他の devDependencies の更新まで止まる。
-- `scripts/check-bundled-advisories.mjs` も、`vite-plus` と `@voidzero-dev/vite-plus-core` の版が一致しない場合に失敗する。
+- `scripts/check-bundled-advisories.mjs` も、`vite-plus` の `dependencies.vite` が指定するコアの完全一致版と、実際に解決した `@voidzero-dev/vite-plus-core` の版が一致しない場合に失敗する。CLI 1.7.0 はコア 8.3.8000 を指定するため、CLI とコア自身の版番号は一致しない。依存指定が欠落した場合や完全一致の npm 別名以外になった場合も、監査は直ちに失敗する。
 
 ### vite-plus の更新手順
 
@@ -366,8 +367,8 @@ Dependabot が vite-plus の更新 PR を作成した場合、または手動で
 
    注意: ローカルの Safe Chain は README の「必要環境」に記載した版を使うこと。`.aikido` を読まない古い版（1.5.15 未満）は、Safe Chain の既定の最小経過時間で依存を解決する。そのため、CI の Safe Chain（`.aikido` の 48 時間）が取得を拒否する版でロックファイルが作られることがある。2026-10-12 の移行では、ローカルの Safe Chain 1.4.2 が公開から約 25 時間の `tinybench@6.2.2`（vitest 5.0.3 の依存）を解決し、CI の `pnpm install --frozen-lockfile` が `blocked by safe-chain direct download minimum package age` で失敗した。`SAFE_CHAIN_MINIMUM_PACKAGE_AGE_HOURS=48 pnpm update tinybench` で、公開から 48 時間以上が経過した 6.2.1 へ解決し直して解消した。
 
-3. `pnpm exec vp toolchain vitest` で同梱 Vitest の版を確認し、`catalog` の `vitest` と `@vitest/coverage-v8` がその版であることを確認する。
-4. `pnpm install --resolution-only` で peer 依存の警告を確認し、「peer 依存の明示的許容（peerDependencyRules）の記録」の `vitest@<版>>vite` のルールを新しい組み合わせへ付け替える。`vp migrate` は実行のたびに `peerDependencyRules.allowAny: [vite, vitest]` と `allowedVersions` の `vite: '*'` / `vitest: '*'` を追加し、`overrides` の `"catalog:"` のクォートをシングルクォートへ書き換える（vite-plus 1.2.0 と 1.3.0 の `vp migrate` で確認）。全面抑止は本ドキュメントの方針に反するため削除し、クォートは元に戻す。
+3. 配布された `vite-plus/package.json` の `dependencies.vite` と catalog の vite の別名が一致することを確認する。CLI とコアの版番号を同じにするのではなく、依存指定に従う。`pnpm exec vp toolchain vitest` で同梱 Vitest の版を確認し、`catalog` の `vitest` と `@vitest/coverage-v8` がその版であることを確認する。
+4. `pnpm install --resolution-only` で peer 依存の警告を確認し、「peer 依存の明示的許容（peerDependencyRules）の記録」の `vitest@<版>>vite` のルールは、警告が残る場合だけ新しい組み合わせへ付け替え、不要になった場合は削除する。`vp migrate` は実行のたびに `peerDependencyRules.allowAny: [vite, vitest]` と `allowedVersions` の `vite: '*'` / `vitest: '*'` を追加し、`overrides` の `"catalog:"` のクォートをシングルクォートへ書き換える（vite-plus 1.2.0 と 1.3.0 の `vp migrate` で確認）。全面抑止は本ドキュメントの方針に反するため削除し、クォートは元に戻す。
    - `vp migrate` の最終段の自動整形は `Expected at least one target file. All matched files may have been excluded by ignore rules.` で失敗する。整形しようとする `pnpm-lock.yaml` / `pnpm-workspace.yaml` を `vite.config.ts` の `fmt.ignorePatterns`（`**/*.yaml`）で除外しているためであり、対処は不要である（`vp migrate` 自体は終了コード 0 で終わる）。
 5. `pnpm audit:bundled` を実行し、`scripts/bundled-advisory-exceptions.mjs` を再評価する。解消した例外は削除し、引き続き該当する例外は同梱元の版を更新し、新たな検出は影響経路を評価して対応または記録する。
 6. `pnpm lint`・`pnpm format:check`・`pnpm test --run`・`pnpm build`・`pnpm exec vp check` が成功することを確認する。`dist/` を更新前の `dist/` と `diff -r` で比較し、差分がある場合はその内容を PR に記載する。
@@ -428,3 +429,9 @@ Dependabot が vite-plus の更新 PR を作成した場合、または手動で
   - 版の整合: catalog の vite を @voidzero-dev/vite-plus-core 1.6.0 へそろえた。同梱 Vitest は 5.1.0 のままであり、vitest・@vitest/coverage-v8 は変更していない。vite-plus-core の bundledVersions は vite 8.3.7・rolldown 1.2.18・tsdown 0.23.4 である。peer の許容ルールを新しい組み合わせへ付け替え、移行ツールが再追加した全面抑止と catalog 参照のクォート変更を戻した。vite.config.ts とアプリケーションのソースには変更がない。
   - 同梱パッケージの再評価: 1.6.0 の配布物では、既存の例外の picomatch 2.3.1・postcss-selector-parser 7.1.0・follow-redirects 1.16.0・zod 4.6.5 が、1.5.0 と同じファイルに含まれている。配布物内の元モジュールのコメントで区切ったコードを比較し、picomatch・anymatch・readdirp・follow-redirects・http-proxy-3・postcss-selector-parser と zod のコードが変わっていないことを確認した。Vite の配布物では、chokidar の起動条件（server.watch が null 以外）、プロキシの登録条件（server.proxy または解決後の preview.proxy）、preview.proxy が未設定の場合の server.proxy の引き継ぎ、および CSS Modules の処理による build.js の動的読み込みが従来どおりであることを確認した。CLI の配布物では、sync-versions/bin.js を読み込むのは vp sync-versions の実行時だけであり、bin.mjs は exports・bin・他の配布物から参照されないことを確認した。これらの入力経路と本リポジトリの設定に関する既存の評価は引き続き成立するため、例外の同梱元を 1.6.0 へ更新した。対象パッケージ・版・アドバイザリは追加していない。
   - 検証: Node.js 24.19.0 で pnpm install --frozen-lockfile、pnpm audit --audit-level moderate（既知の脆弱性なし）、pnpm audit:bundled（同梱163件、既存の例外7件）、lint・format・751件のテスト・ビルド・vp check が成功した。生成した dist/ は更新前の vite-plus 1.5.0 の生成物と完全に一致した。ロックファイルで main に対して追加された61版は、npmレジストリの公開日時ですべて48時間以上の経過を確認した。最も新しい版は vite-plus 1.6.0（2026-11-11 04:16 UTC 公開）である。
+
+- 2026-11-26: vite-plus を 1.6.0 から 1.7.0 へ更新した（PR #313）。Dependabot の PR では、本体だけが更新され、ビルドが要求するコア 8.3.8000 と導入済みの 1.6.0 が一致せず Unit Tests が失敗していた。Dependency Audit は、同梱パッケージ検査の「CLI とコアの版番号は同じ」という前提で失敗していた。最新の main を取り込み、Safe Chain 経由の `vp migrate --no-interactive --no-agent --no-editor` で catalog の vite を `npm:@voidzero-dev/vite-plus-core@8.3.8000` へ更新した。同梱 Vitest は 5.1.0 のままであり、vitest・coverage の版は変更していない。コアの bundledVersions は vite 8.3.8・rolldown 1.2.19・tsdown 0.23.4 である。
+  - 版の検査: 監査スクリプトは、CLI の package.json の dependencies.vite に記載された完全一致の npm 別名から要求版を取り出し、解決したコアの名前と版を照合する方式に改めた。旧来の同一版の組み合わせも同じ検査で受け付ける。宣言の欠落・null・数値・別パッケージ・範囲指定は推測で補わず、直ちに例外とする。CLI 1.7.0 とコア 8.3.8000 の正常系、コア 1.6.0 が残る異常系、不正な依存指定6ケースを追加し、従来の同一版のテストも維持した。
+  - peer 依存: コア 8.3.8000 が Vitest 5.1.0 と @vitest/mocker 5.1.0 の要求する vite 8 系の範囲内となったため、従来の2件の許容ルールを削除した。移行ツールが追加した vitest の全面抑止も削除した。依存解決で残る peer 警告は、更新前から存在する fdir 6.5.0 の picomatch（要求 4.0.4、解決 4.0.7）だけである。
+  - 同梱パッケージ: CLI の sync-versions/bin.js・bin.mjs に含まれる zod は 4.6.5 から修正版の 4.6.7 へ更新されていたため、GHSA-mrhx-c7xc-m3w5 の例外を削除した。コアに残る picomatch 2.3.1・postcss-selector-parser 7.1.0・follow-redirects 1.16.0 は、関連する anymatch・readdirp・http-proxy-3・CSS Modules の処理を含めた元モジュール47個を1.6.0の配布物と比較し、コードが一致した。Vite のサーバー監視の起動条件、server.proxy と解決後の preview.proxy によるプロキシの登録条件、CSS Modules 処理による build.js の読み込みも継続していた。本リポジトリの入力経路と forbidDevServerProxy の前提が変わっていないことを確認し、既存の例外の同梱元を8.3.8000へ更新した。例外は3パッケージ・6件へ減り、対象IDの追加はない。
+  - 検証: Node.js 24.19.0 で pnpm install --frozen-lockfile、通常監査（既知の脆弱性なし）、同梱物の監査（163件、既存の例外6件）、lint・format・759件のテスト・ビルド・vp check が成功した。生成された dist/ は最新 main の Vite+ 1.6.0 で生成したものと完全に一致した。main に対してロックファイルに追加された62版は、npmレジストリの公開日時でいずれも48時間以上の経過を確認した。最も新しい版は vite-plus 1.7.0（2026-11-17 03:34 UTC 公開）である。

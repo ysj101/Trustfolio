@@ -79,17 +79,16 @@ overrides:
 peerDependencyRules:
   allowedVersions:
     "@formatjs/intl@3.1.8>typescript": ^6.0.0 || ^7.0.0
-    vitest@5.1.0>vite: 1.6.0
-    "@vitest/mocker@5.1.0>vite": 1.6.0
 
-# Vite+ のツールチェーンの版。4 項目は vite-plus の版に合わせて同時に更新しなければならない。
-#   - vite は @voidzero-dev/vite-plus-core（Vite+ 版の vite）への別名である。vite-plus と同じ版で
-#     なければ、vp build が「Expected @voidzero-dev/vite-plus-core@X, but found Y」で失敗する。
+# Vite+ のツールチェーンの版。4 項目は vite-plus が宣言する組み合わせへ同時にそろえる。
+#   - vite は @voidzero-dev/vite-plus-core（Vite+ 版の vite）への別名である。vite-plus の
+#     dependencies.vite と一致しなければ、vp build が「Expected ..., but found ...」で失敗する。
+#     CLI 1.7.0 はコア 8.3.8000 を指定するため、両者の版番号を同じにしてはならない。
 #   - vitest と @vitest/coverage-v8 は、vite-plus が同梱する Vitest の版（vp toolchain vitest）にそろえる。
 # Dependabot は vite-plus の項目だけを更新する。更新は vp migrate で行う（手順は
 # docs/UPGRADE_STRATEGY.md の「Vite+（vp）への一本化の記録」を参照）。
 catalog:
-  vite: npm:@voidzero-dev/vite-plus-core@1.6.0
+  vite: npm:@voidzero-dev/vite-plus-core@8.3.8000
   vitest: 5.1.0
   vite-plus: 1.7.0
   "@vitest/coverage-v8": 5.1.0
