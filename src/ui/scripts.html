@@ -11,6 +11,10 @@
       // API を呼び直さずに再描画する。銘柄を切り替えたときは直近の件数だけの表示へ戻す。
       transactionHistory: [],
       showAllTransactions: false,
+      // 銘柄別の取引一覧の読み込み状態（issue #316）。'loaded'（読み込み済み）・'loading'（読み込み中）・
+      // 'failed'（取得に失敗）のいずれか。'loading' と 'failed' の間は transactionHistory を空にし、
+      // 一覧には取引の代わりに状態を示す文言を表示する（TRANSACTION_LIST_STATUS_MESSAGES を参照）。
+      transactionListStatus: 'loaded',
       // 編集中のスポット購入の記録値（購入金額・基準価額・口数）。編集画面の口数プレビューを、
       // 保存時の規則（金額と基準価額が変わらなければ記録済みの口数を保持する）と一致させるために使う。
       // スポット購入を編集していないときは null。
@@ -120,6 +124,17 @@
     const transactionListToggle = document.getElementById('transactionListToggle');
     /** 取引一覧で既定で表示する件数（直近の取引から数える）。 */
     const TRANSACTION_LIST_RECENT_COUNT = 5;
+    /**
+     * 銘柄別の取引一覧に、取引の代わりに表示する文言（issue #316）。キーは state.transactionListStatus の値。
+     *
+     * 「対象銘柄」を切り替えた直後は、応答が届くまで前の銘柄の取引を表示しないために使う。
+     * 取引 0 件の表示（「取引履歴がありません。」）と区別できる文言にする。
+     * 'loaded'（読み込み済み）は取引そのものを表示するため、ここには定義しない。
+     */
+    const TRANSACTION_LIST_STATUS_MESSAGES = {
+      loading: '取引履歴を読み込み中です...',
+      failed: '取引履歴を取得できませんでした。「再読み込み」ボタンで読み込み直してください。',
+    };
     const transactionSubmitButton = document.getElementById('transactionSubmitButton');
     const transactionCancelEditButton = document.getElementById('transactionCancelEdit');
     const purchaseFields = document.getElementById('purchaseFields');
@@ -648,11 +663,30 @@
     /**
      * 選択中の銘柄の取引一覧（state.transactionHistory）を描画する。
      * 一覧は state だけに持ち、引数では受け取らない（「すべて表示」の切り替えと描画対象を一致させるため）。
+     *
+     * 読み込み中・取得失敗（state.transactionListStatus が 'loaded' 以外）の間は、取引と操作ボタンを
+     * 表示せず、状態を示す文言だけを表示する（issue #316）。
      */
     function renderTransactions() {
       const transactions = state.transactionHistory;
       transactionList.innerHTML = '';
       updateTransactionListToggle(transactions.length);
+      if (state.transactionListStatus !== 'loaded') {
+        const statusMessage = TRANSACTION_LIST_STATUS_MESSAGES[state.transactionListStatus];
+        // 定義していない状態は、取引 0 件などの別の表示へ切り替えず、直ちに失敗させる。
+        if (statusMessage === undefined) {
+          throw new Error(
+            `取引一覧の読み込み状態が不正です: ${String(state.transactionListStatus)}`
+          );
+        }
+        transactionList.appendChild(
+          window.TrustfolioUi.createEmptyListItem(
+            statusMessage,
+            `${listItemClass} ${listEmptyClass}`
+          )
+        );
+        return;
+      }
       if (transactions.length === 0) {
         transactionList.appendChild(
           window.TrustfolioUi.createEmptyListItem(
@@ -1049,7 +1083,48 @@
         return;
       }
       state.transactionHistory = response.value;
+      state.transactionListStatus = 'loaded';
       renderTransactions();
+    }
+
+    /**
+     * 「対象銘柄」で選ばれた銘柄へ、銘柄別の取引一覧を切り替える（issue #316）。
+     *
+     * 内容:
+     *   1. 前の銘柄の取引を、応答を待たずに一覧から消す。銘柄が選ばれている場合は「読み込み中」を表示する。
+     *   2. 選ばれた銘柄の取引を読み込む。成功すれば loadTransactions が一覧を描画する。
+     *   3. 読み込みに失敗した場合は、一覧の位置に「取得できませんでした」を表示し、画面上部にも
+     *      エラーメッセージを表示する。
+     *
+     * 注意:
+     *   - 前の銘柄の取引を残すと、「対象銘柄」の表示と一覧が食い違い、利用者が前の銘柄の取引を
+     *     選択中の銘柄の取引だと誤認して「編集」「口数を訂正」「削除」を操作しうる。
+     *   - 応答を待つ間にさらに別の銘柄へ切り替えられた場合、古い読み込みの失敗では一覧を書き換えない
+     *     （後から選ばれた銘柄の「読み込み中」や取引を、古い銘柄の失敗表示で上書きしないため）。
+     *
+     * @param {string} fundId - 選ばれた銘柄の ID。銘柄が選ばれていない場合は空文字
+     */
+    async function selectTransactionFund(fundId) {
+      state.selectedTransactionFundId = fundId;
+      // 銘柄を切り替えたら、取引一覧は直近の件数だけの表示へ戻す。保持していた前の銘柄の一覧も消す
+      // （読み込みに失敗した後で「すべて表示」を押しても、前の銘柄の取引を表示しないため）。
+      state.showAllTransactions = false;
+      state.transactionHistory = [];
+      // 銘柄が選ばれていない場合は読み込みを行わないため、取引 0 件の表示にする。
+      state.transactionListStatus = fundId ? 'loading' : 'loaded';
+      renderTransactions();
+      if (!fundId) {
+        return;
+      }
+      try {
+        await loadTransactions(fundId);
+      } catch (error) {
+        if (fundId === state.selectedTransactionFundId) {
+          state.transactionListStatus = 'failed';
+          renderTransactions();
+        }
+        setMessage(error.message, 'error');
+      }
     }
 
     transactionListToggle.addEventListener('click', () => {
@@ -1557,21 +1632,7 @@
     });
 
     transactionFundSelect.addEventListener('change', async (event) => {
-      const fundId = event.target.value;
-      state.selectedTransactionFundId = fundId;
-      // 銘柄を切り替えたら、取引一覧は直近の件数だけの表示へ戻す。保持していた前の銘柄の一覧も消す
-      // （読み込みに失敗した後で「すべて表示」を押しても、前の銘柄の取引を表示しないため）。
-      state.showAllTransactions = false;
-      state.transactionHistory = [];
-      if (!fundId) {
-        renderTransactions();
-        return;
-      }
-      try {
-        await loadTransactions(fundId);
-      } catch (error) {
-        setMessage(error.message, 'error');
-      }
+      await selectTransactionFund(event.target.value);
     });
 
     refreshButton.addEventListener('click', async () => {
